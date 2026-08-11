@@ -1,6 +1,7 @@
 """
-朝バッチ: Neonから過去N日分のOISレートを取得し、各日ごとにDFカーブを
-ブートストラップしてローカルSQLiteキャッシュ(local_cache.py)に保存する。
+朝バッチ: Neonから過去N日分のOISレートを取得し、生レートをローカル
+SQLiteキャッシュ(local_cache.py)に保存する。各日について念のため
+bootstrap_curve()が正常に通ることも検証する(データ不備の早期検知)。
 
 日中はこのキャッシュだけを参照し、Neonには一切アクセスしない設計
 (Neonのコールドスタート・レイテンシを避けるため)。
@@ -13,7 +14,7 @@ import argparse
 from datetime import date, timedelta
 
 from swap_pricing.curve import bootstrap_curve
-from swap_pricing.local_cache import cached_dates, save_curve
+from swap_pricing.local_cache import cached_dates, save_rates
 from swap_pricing.neon_client import get_ois_rates_for_range
 
 
@@ -31,15 +32,8 @@ def run(days: int = 365, include_odd_tenors: bool = False, force: bool = False) 
     for d in targets:
         try:
             rates = rates_by_date[d]
-            boot = bootstrap_curve(d, rates, include_odd_tenors=include_odd_tenors)
-            save_curve(
-                d,
-                include_odd_tenors,
-                boot.curve.pillar_times,
-                boot.curve.pillar_dfs,
-                boot.used_tenors,
-                boot.skipped_tenors,
-            )
+            bootstrap_curve(d, rates, include_odd_tenors=include_odd_tenors)  # 検証のみ
+            save_rates(d, rates)
             n_ok += 1
         except Exception as exc:
             print(f"  [ERROR] {d}: {exc}")

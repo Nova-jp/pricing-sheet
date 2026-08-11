@@ -25,6 +25,14 @@ pricingシートを実際に計算するパイプライン。xlwingsのRunPython
   百万円単位。D列(目標delta)に値がある行のみadj_notionalを計算し、
   ない場合はE列に一切書き込まない(既存の値をそのまま残す)。
 
+■ spred/fly列(隣接行カーブ・フライ、bp単位)
+  行の並び順を年限順とみなし、直上・直下の行のtarget fixrateとの関係で
+  自動計算する(pricingシート上の行同士の隣接関係のみを使う、
+  Historicalシートの管理表による任意行参照とは別の機能):
+    spred(R) = fixrate(R) - fixrate(R-1)
+    fly(R)   = 2*fixrate(R) - fixrate(R-1) - fixrate(R+1)
+  直上/直下の行がflag=1でtarget fixrateが計算されていない場合は書き込まない。
+
 ■ risk_flag
   risk_flag=1の行は、RealTimeシートにレートがある各テナー(グリッド)を
   個別に+1bpバンプしたバケットデルタを計算し、risk_flag=1の全行合計を
@@ -124,7 +132,7 @@ def refresh_pricing_sheet(book: xw.Book, valuation_date: Optional[date] = None) 
     required = [
         "flag", "risk_flag", "remarks", "notional", "delta", "adj_notional",
         "start", "tenor", "end", "fix rate", "fix freq", "fix dcf", "index", "float freq", "float dcf",
-        "roll conv", "target fixrate", "pay/rec", "PV", "delta(annuity)",
+        "roll conv", "target fixrate", "spred", "fly", "pay/rec", "PV", "delta(annuity)",
     ]
     missing = [c for c in required if c not in col]
     if missing:
@@ -148,6 +156,8 @@ def refresh_pricing_sheet(book: xw.Book, valuation_date: Optional[date] = None) 
         )
         if all(f not in (None, "") for f in fields):
             row_conventions[row_idx + 1] = Convention(*fields)
+
+    target_fixrate_by_row: Dict[int, float] = {}
 
     for row_idx in range(1, len(rows)):
         row = rows[row_idx]
@@ -219,8 +229,23 @@ def refresh_pricing_sheet(book: xw.Book, valuation_date: Optional[date] = None) 
             sheet.range((excel_row, bump_delta_col + 1)).value = bump_delta_mm
             sheet.range((excel_row, col["delta(annuity)"] + 1)).value = ann_delta_mm
 
+            target_fixrate_by_row[excel_row] = r_base.target_fixrate
+
         except Exception as exc:  # 1行のエラーで全体を止めない
             sheet.range((excel_row, col["target fixrate"] + 1)).value = f"#ERROR: {exc}"
+
+    # spread/fly: 直上・直下の行のtarget fixrateとの関係で、隣接行カーブ・フライをbpで表示
+    # spread(R) = fixrate(R) - fixrate(R-1)
+    # fly(R)    = 2*fixrate(R) - fixrate(R-1) - fixrate(R+1)
+    for excel_row, rate in target_fixrate_by_row.items():
+        rate_above = target_fixrate_by_row.get(excel_row - 1)
+        rate_below = target_fixrate_by_row.get(excel_row + 1)
+        if rate_above is not None:
+            spread_bp = (rate - rate_above) * 100.0
+            sheet.range((excel_row, col["spred"] + 1)).value = spread_bp
+        if rate_above is not None and rate_below is not None:
+            fly_bp = (2 * rate - rate_above - rate_below) * 100.0
+            sheet.range((excel_row, col["fly"] + 1)).value = fly_bp
 
     _write_risk_grid(sheet, len(header), tenor_grid_order, risk_grid_total)
     _write_historical_sheet(book, row_conventions)
@@ -281,7 +306,10 @@ def _write_historical_sheet(book: xw.Book, row_conventions: Dict[int, Convention
         (HIST_DATA_START_ROW, 1), (HIST_DATA_START_ROW + 400, max(last_col, 10 * HIST_BLOCK_WIDTH))
     ).clear_contents()
     for chart in list(hist_sheet.charts):
-        chart.delete()
+        try:
+            chart.delete()
+        except Exception:
+            pass  # 前回セッションの残骸参照など、削除済みで存在しない場合は無視
 
     for slot_no, kind, row1, row2, row3, label in slots:
         try:

@@ -12,13 +12,21 @@ Neonには一切アクセスしない(morning_batch.pyが事前にキャッシ�
 """
 
 from datetime import date
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional
 
-from swap_pricing.calendars import add_business_days
-from swap_pricing.daycount import year_fraction
-from swap_pricing.local_cache import cached_dates, load_curve
-from swap_pricing.monotone_convex import MonotoneConvexCurve
+import QuantLib as ql
+
+from swap_pricing.curve import bootstrap_curve
+from swap_pricing.local_cache import cached_dates, load_rates
 from swap_pricing.swap_pricer import price_swap
+
+# カーブ構築(curve.py)自体が使っている標準コンベンション。
+# ヒストリカルのアウトライトがこれと完全一致する場合は、自前スケジュールでは
+# なくql.MakeOISで直接組む(カーブの内部スケジュールと厳密に一致させるため。
+# 自前スケジュール(Forward生成)は月末を跨ぐケースでMakeOIS側とごく僅かに
+# 異なることがある(0.1bp未満)。任意コンベンション対応の自前ロジックは
+# 端株が必要なケース向けに残す)。
+_STANDARD_CONVENTION = ("PA", "act/365fixed", "PA", "act/365fixed", "STD")
 
 
 class HistoricalPoint(NamedTuple):
@@ -57,18 +65,29 @@ def historical_par_rate_series(
 
     results: List[HistoricalPoint] = []
     for as_of_date in dates:
-        cached = load_curve(as_of_date)
-        if cached is None:
+        rates = load_rates(as_of_date)
+        if rates is None:
             continue
-        pillar_times, pillar_dfs = cached
-        curve = MonotoneConvexCurve(pillar_times, pillar_dfs)
-        spot_date = add_business_days(as_of_date, 2)
+        boot = bootstrap_curve(as_of_date, rates)
 
-        result = price_swap(
-            curve, as_of_date, spot_date, fix_freq, fix_dcf, float_freq, float_dcf,
-            roll_conv, notional=1.0, pay_rec="PAY", tenor=tenor,
-        )
-        results.append(HistoricalPoint(as_of_date=as_of_date, par_rate=result.target_fixrate))
+        if (fix_freq, fix_dcf, float_freq, float_dcf, roll_conv) == _STANDARD_CONVENTION:
+            # カーブ自体と同じ標準コンベンション -> ql.MakeOISで直接組み、
+            # カーブ構築時の内部スケジュールと厳密に一致させる
+            engine = ql.DiscountingSwapEngine(boot.curve)
+            n = int(tenor[:-1]) if tenor.endswith("y") else None
+            if n is None:
+                raise ValueError(f"標準コンベンションのtenorは 'Ny' 形式のみ対応: {tenor!r}")
+            ois = ql.MakeOIS(ql.Period(n, ql.Years), boot.index, 0.0)
+            ois.setPricingEngine(engine)
+            fixrate = ois.fairRate() * 100.0
+        else:
+            result = price_swap(
+                boot.curve, as_of_date, boot.spot_date, fix_freq, fix_dcf, float_freq, float_dcf,
+                roll_conv, notional=1.0, pay_rec="PAY", tenor=tenor, index=boot.index,
+            )
+            fixrate = result.target_fixrate
+
+        results.append(HistoricalPoint(as_of_date=as_of_date, par_rate=fixrate))
 
     return results
 

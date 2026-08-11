@@ -1,28 +1,28 @@
 """
-日次DFカーブのローカルキャッシュ(SQLite)。
+日次OISスポットレートのローカルキャッシュ(SQLite)。
 
-朝バッチ(morning_batch.py)がNeonから取得したOISレートをブートストラップした
-結果(pillarのtime/DF配列)を日付ごとに保存する。イントラデイのヒストリカル
-チャート計算は、このローカルキャッシュだけを参照しNeonには接続しない。
+朝バッチ(morning_batch.py)がNeonから取得した生のOISレートを日付ごとに
+保存する(ブートストラップ結果ではなく生レートを保存する設計)。
+イントラデイのヒストリカルチャート計算は、この生レートを
+bootstrap_curve()(日中の計算と全く同じ関数)に通してカーブを組み直す。
+こうすることで、日中とヒストリカルの計算経路が完全に一致することが
+保証される(カーブの再構築コスト自体はミリ秒オーダーで軽いため)。
+Neonへは日中一切アクセスしない。
 """
 
 import json
 import sqlite3
 from datetime import date
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from swap_pricing.paths import DATA_DIR
 
 CURVE_CACHE_DB_PATH = DATA_DIR / "curve_cache.db"
 
 _DDL = """
-CREATE TABLE IF NOT EXISTS curve_cache (
+CREATE TABLE IF NOT EXISTS rate_cache (
     as_of_date TEXT PRIMARY KEY,
-    include_odd_tenors INTEGER NOT NULL,
-    pillar_times_json TEXT NOT NULL,
-    pillar_dfs_json TEXT NOT NULL,
-    used_tenors_json TEXT NOT NULL,
-    skipped_tenors_json TEXT NOT NULL
+    rates_json TEXT NOT NULL
 )
 """
 
@@ -34,52 +34,30 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
-def save_curve(
-    as_of_date: date,
-    include_odd_tenors: bool,
-    pillar_times: List[float],
-    pillar_dfs: List[float],
-    used_tenors: List[str],
-    skipped_tenors: List[str],
-) -> None:
+def save_rates(as_of_date: date, rates: Dict[str, float]) -> None:
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO curve_cache
-                (as_of_date, include_odd_tenors, pillar_times_json, pillar_dfs_json,
-                 used_tenors_json, skipped_tenors_json)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(as_of_date) DO UPDATE SET
-                include_odd_tenors=excluded.include_odd_tenors,
-                pillar_times_json=excluded.pillar_times_json,
-                pillar_dfs_json=excluded.pillar_dfs_json,
-                used_tenors_json=excluded.used_tenors_json,
-                skipped_tenors_json=excluded.skipped_tenors_json
+            INSERT INTO rate_cache (as_of_date, rates_json) VALUES (?, ?)
+            ON CONFLICT(as_of_date) DO UPDATE SET rates_json=excluded.rates_json
             """,
-            (
-                as_of_date.isoformat(),
-                int(include_odd_tenors),
-                json.dumps(pillar_times),
-                json.dumps(pillar_dfs),
-                json.dumps(used_tenors),
-                json.dumps(skipped_tenors),
-            ),
+            (as_of_date.isoformat(), json.dumps(rates)),
         )
 
 
-def load_curve(as_of_date: date) -> Optional[Tuple[List[float], List[float]]]:
-    """(pillar_times, pillar_dfs) を返す。キャッシュがなければNone。"""
+def load_rates(as_of_date: date) -> Optional[Dict[str, float]]:
+    """当該日のOISスポットレート辞書を返す。キャッシュがなければNone。"""
     with _connect() as conn:
         row = conn.execute(
-            "SELECT pillar_times_json, pillar_dfs_json FROM curve_cache WHERE as_of_date = ?",
+            "SELECT rates_json FROM rate_cache WHERE as_of_date = ?",
             (as_of_date.isoformat(),),
         ).fetchone()
     if row is None:
         return None
-    return json.loads(row[0]), json.loads(row[1])
+    return json.loads(row[0])
 
 
 def cached_dates() -> List[date]:
     with _connect() as conn:
-        rows = conn.execute("SELECT as_of_date FROM curve_cache ORDER BY as_of_date").fetchall()
+        rows = conn.execute("SELECT as_of_date FROM rate_cache ORDER BY as_of_date").fetchall()
     return [date.fromisoformat(r[0]) for r in rows]

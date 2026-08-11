@@ -1,0 +1,11 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "cloud/Dockerfile"
+      - "-t"
+      - "asia-northeast1-docker.pkg.dev/turnkey-diode-472203-q6/pricing-sheet-batch/morning-batch:latest"
+      - "."
+images:
+  - "asia-northeast1-docker.pkg.dev/turnkey-diode-472203-q6/pricing-sheet-batch/morning-batch:latest"

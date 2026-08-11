@@ -11,6 +11,7 @@ import os
 from datetime import date
 from pathlib import Path
 from typing import Dict, List
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 import psycopg2
 
@@ -36,8 +37,18 @@ def _load_connection_string() -> str:
     raise ValueError(".envにNEON_CONNECTION_STRINGが見つかりません")
 
 
+def _strip_channel_binding(conn_str: str) -> str:
+    """
+    channel_binding=require は環境によって同梱libpqが未対応で接続エラーになる
+    ことがある(sslmode=requireだけでもTLS暗号化は確保されるため実害はない)。
+    """
+    parsed = urlparse(conn_str)
+    query = [(k, v) for k, v in parse_qsl(parsed.query) if k != "channel_binding"]
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
 def get_connection():
-    return psycopg2.connect(_load_connection_string())
+    return psycopg2.connect(_strip_channel_binding(_load_connection_string()))
 
 
 def get_available_trade_dates(start_date: date, end_date: date) -> List[date]:

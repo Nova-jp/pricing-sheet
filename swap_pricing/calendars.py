@@ -1,48 +1,32 @@
 """
-JPY営業日カレンダーと休日調整コンベンション。
+JPY営業日カレンダーと休日調整コンベンション。QuantLibの ql.Japan() を使う。
 
-営業日判定: 土日 + 日本の祝日(jpholidayライブラリ)を非営業日として扱う。
-休日調整は Modified Following (MF) のみ対応(roll conventionに関わらず、
-今回のPhase 1では常にMFを使う、というユーザー指定に基づく)。
+jpholiday(祝日法ベース)と異なり、ql.Japan()は1/2・1/3等の金融機関特有の
+休業日も正しく非営業日として扱う(確認済み)。
 """
 
-from datetime import date, timedelta
+from datetime import date
 
-import jpholiday
+import QuantLib as ql
+
+from swap_pricing.daycount import to_ql_date
+
+CALENDAR = ql.Japan()
+_CALENDAR = CALENDAR  # 後方互換用エイリアス
+
+
+def _from_ql_date(d: ql.Date) -> date:
+    return date(d.year(), d.month(), d.dayOfMonth())
 
 
 def is_business_day(d: date) -> bool:
-    if d.weekday() >= 5:  # 5=土, 6=日
-        return False
-    if jpholiday.is_holiday(d):
-        return False
-    return True
+    return _CALENDAR.isBusinessDay(to_ql_date(d))
 
 
 def modified_following(d: date) -> date:
-    """
-    Modified Following: 非営業日なら翌営業日へ。
-    ただし月をまたぐ場合は、代わりに前営業日へ戻す。
-    """
-    adjusted = d
-    while not is_business_day(adjusted):
-        adjusted += timedelta(days=1)
-
-    if adjusted.month != d.month:
-        adjusted = d
-        while not is_business_day(adjusted):
-            adjusted -= timedelta(days=1)
-
-    return adjusted
+    return _from_ql_date(_CALENDAR.adjust(to_ql_date(d), ql.ModifiedFollowing))
 
 
 def add_business_days(d: date, n: int) -> date:
     """d から n 営業日後の日付を返す(スポット日=T+2の算出等に使用)。"""
-    current = d
-    remaining = n
-    step = 1 if n >= 0 else -1
-    while remaining != 0:
-        current += timedelta(days=step)
-        if is_business_day(current):
-            remaining -= step
-    return current
+    return _from_ql_date(_CALENDAR.advance(to_ql_date(d), n, ql.Days))
