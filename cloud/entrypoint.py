@@ -39,7 +39,7 @@ def main() -> None:
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(object_path)
     blob.upload_from_filename(str(CURVE_CACHE_DB_PATH))
-    blob.make_public()
+    blob.make_public()  # このオブジェクトだけを読み取り専用で公開(バケット全体は非公開のまま)
 
     print(f"[entrypoint] 完了: {blob.public_url}")
 
