@@ -202,12 +202,14 @@ def HistoricalOutright(tenor, fix_freq, fix_dcf, float_freq, float_dcf, roll_con
 @xw.ret(expand="table")
 def BucketedDelta(
     start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-    notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
+    notional, pay_rec, fix_rate, real_time_range, valuation_date=None, include_labels=True,
 ) -> List[list]:
     """
     RealTimeシートの各テナーを個別に+1bpバンプしたバケットデルタ(百万円単位)を返す
-    (テナーラベル行・値行の2行スピル配列、1スワップ単位)。複数スワップの合計は
-    Excel側のSUMで行う想定。
+    (1スワップ単位)。include_labels=Trueならテナーラベル行+値行の2行、
+    Falseなら値行(1行)のみを返す。複数行を縦に並べてリスクグリッドを作る場合は
+    Falseにして行同士の重なりを避け、ラベルは別途1回だけ表示する。
+    複数スワップの合計はExcel側のSUMで行う想定。
     """
     valuation_date = _resolve_valuation_date(valuation_date)
     rates = _rates_from_range(real_time_range)
@@ -219,4 +221,6 @@ def BucketedDelta(
     deltas = bucketed_delta(rates, valuation_date, params)
     labels = [k for k in rates if k in deltas]
     values = [deltas[k] / 1_000_000.0 for k in labels]
-    return [labels, values]
+    if include_labels:
+        return [labels, values]
+    return [values]

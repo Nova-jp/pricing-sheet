@@ -37,6 +37,10 @@ from swap_pricing.schedule import parse_tenor_months
 BULLET_SUB_1Y = [f"{i}m" for i in range(1, 12)]  # 1m〜11m
 ODD_TENORS = ["15m", "18m", "21m"]  # include_odd_tenors=Trueの場合のみ使用
 ANNUAL_TENORS = [f"{i}y" for i in range(1, 13)] + ["15y", "20y", "25y", "30y", "35y", "40y"]
+# RealTimeシート(Excel)では2Y/3Yを24M/36M表記にしているが、Neon等の
+# ヒストリカルデータは2Y/3Y表記のまま。入力の境界で正規化し、内部は常に
+# 2Y/3Y表記で扱う(どちらの表記が来ても動くようにする)。
+TENOR_ALIASES = {"24m": "2y", "36m": "3y"}
 WEEK_TENORS = ["1w", "2w", "3w"]
 EXCLUDED_MEETING_TENORS = {f"m{i}" for i in range(1, 9)}
 ON_KEYS = ("o/n", "on", "1d")
@@ -61,6 +65,9 @@ def bootstrap_curve(
     include_odd_tenors: Trueの場合、15M/18M/21Mをブートストラップに含める。
     """
     rates = {k.strip().lower(): v for k, v in spot_rates.items() if v is not None}
+    for alias, canonical in TENOR_ALIASES.items():
+        if alias in rates and canonical not in rates:
+            rates[canonical] = rates.pop(alias)
 
     valuation_ql = to_ql_date(valuation_date)
     ql.Settings.instance().evaluationDate = valuation_ql
