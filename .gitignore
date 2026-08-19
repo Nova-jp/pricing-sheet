@@ -1,4 +1,5 @@
 .env
+OPERATIONS.md
 *.db
 __pycache__/
 *.pyc

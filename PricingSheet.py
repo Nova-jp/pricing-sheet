@@ -1,16 +1,9 @@
 """
-PricingSheet.xlsm 埋め込みのVBAマクロ(SampleCall)から呼ばれるエントリポイント。
+PricingSheet.xlsx とファイル名が一致するUDF公開用モジュール。
 
-VBA側は ThisWorkbook.Name(拡張子なし)からモジュール名を導出して
-`import PricingSheet; PricingSheet.main()` を実行する(xlwings標準の
-standaloneテンプレートの挙動)。このファイル名・関数名は変更しないこと。
+xlwingsのExcelアドインは、UDFの登録先を探す際にワークブックと同名の
+.pyファイルを見るため、実体(swap_pricing/udf.py)をここに再エクスポートする。
+UDF専用設計のため、VBA/RunPython経由のエントリポイントは持たない。
 """
 
-import xlwings as xw
-
-from swap_pricing.pricing_pipeline import refresh_pricing_sheet
-
-
-def main() -> None:
-    book = xw.Book.caller()
-    refresh_pricing_sheet(book)
+from swap_pricing.udf import *  # noqa: F401,F403
