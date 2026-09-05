@@ -80,16 +80,20 @@ def _resolve_valuation_date(valuation_date) -> datetime.date:
 @xw.func
 @xw.arg("real_time_range", ndim=2)
 def FairRate(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     real_time_range, valuation_date=None,
 ) -> float:
-    """指定コンベンションのパーレート(%)を返す。tenorかendのどちらかは空欄にする。"""
+    """指定コンベンションのパーレート(%)を返す。tenorかend_dateのどちらかは空欄にする。
+
+    引数名は ``end`` だとVBAの予約語(Endステートメント)と衝突し、xlwingsが
+    生成する ``xlwings_udfs`` モジュールがコンパイルできなくなるため ``end_date``。
+    """
     valuation_date = _resolve_valuation_date(valuation_date)
     rates = _rates_from_range(real_time_range)
     boot = _get_curve(rates, valuation_date)
     result = price_swap(
         boot.curve, valuation_date, _to_date(start), fix_freq, fix_dcf, float_freq, float_dcf,
-        roll_conv, notional=1.0, pay_rec="PAY", tenor=tenor or None, end=_to_date(end),
+        roll_conv, notional=1.0, pay_rec="PAY", tenor=tenor or None, end=_to_date(end_date),
         index=boot.index,
     )
     return result.target_fixrate
@@ -98,7 +102,7 @@ def FairRate(
 @xw.func
 @xw.arg("real_time_range", ndim=2)
 def SwapPV(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
 ) -> float:
     """PV(入力fix_rateが空欄ならパーレートで計算、常に0近辺)。"""
@@ -107,32 +111,32 @@ def SwapPV(
     boot = _get_curve(rates, valuation_date)
     result = price_swap(
         boot.curve, valuation_date, _to_date(start), fix_freq, fix_dcf, float_freq, float_dcf,
-        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end),
+        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end_date),
         fix_rate=fix_rate if fix_rate not in ("", None) else None, index=boot.index,
     )
     return result.pv
 
 
 def _resolved_params(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     notional, pay_rec, fix_rate, boot, valuation_date,
 ) -> SwapParams:
     base = price_swap(
         boot.curve, valuation_date, _to_date(start), fix_freq, fix_dcf, float_freq, float_dcf,
-        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end),
+        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end_date),
         fix_rate=fix_rate if fix_rate not in ("", None) else None, index=boot.index,
     )
     return SwapParams(
         start=_to_date(start), fix_freq=fix_freq, fix_dcf=fix_dcf, float_freq=float_freq,
         float_dcf=float_dcf, roll_conv=roll_conv, notional=notional, pay_rec=pay_rec,
-        tenor=tenor or None, end=_to_date(end), fix_rate=base.fix_rate_used,
+        tenor=tenor or None, end=_to_date(end_date), fix_rate=base.fix_rate_used,
     ), base
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
 def SwapDelta(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
 ) -> float:
     """バンプデルタ(百万円単位)。fix_rateが空欄ならパーレートに固定してから計算する。"""
@@ -140,7 +144,7 @@ def SwapDelta(
     rates = _rates_from_range(real_time_range)
     boot = _get_curve(rates, valuation_date)
     params, _ = _resolved_params(
-        start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
         notional, pay_rec, fix_rate, boot, valuation_date,
     )
     delta_yen = parallel_bump_delta(rates, valuation_date, params)
@@ -150,7 +154,7 @@ def SwapDelta(
 @xw.func
 @xw.arg("real_time_range", ndim=2)
 def SwapAnnuityDelta(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     notional, pay_rec, real_time_range, valuation_date=None,
 ) -> float:
     """アニュイティデルタ(解析的近似、参考値、百万円単位)。"""
@@ -159,7 +163,7 @@ def SwapAnnuityDelta(
     boot = _get_curve(rates, valuation_date)
     result = price_swap(
         boot.curve, valuation_date, _to_date(start), fix_freq, fix_dcf, float_freq, float_dcf,
-        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end), index=boot.index,
+        roll_conv, notional, pay_rec, tenor=tenor or None, end=_to_date(end_date), index=boot.index,
     )
     return annuity_delta(result.annuity, notional, pay_rec) / 1_000_000.0
 
@@ -167,7 +171,7 @@ def SwapAnnuityDelta(
 @xw.func
 @xw.arg("real_time_range", ndim=2)
 def NotionalForDelta(
-    target_delta_mm, start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    target_delta_mm, start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     pay_rec, real_time_range, valuation_date=None,
 ) -> float:
     """目標delta(百万円単位)から必要なnotionalを逆算する(アニュイティデルタ基準)。"""
@@ -176,7 +180,7 @@ def NotionalForDelta(
     boot = _get_curve(rates, valuation_date)
     result = price_swap(
         boot.curve, valuation_date, _to_date(start), fix_freq, fix_dcf, float_freq, float_dcf,
-        roll_conv, notional=1.0, pay_rec=pay_rec, tenor=tenor or None, end=_to_date(end),
+        roll_conv, notional=1.0, pay_rec=pay_rec, tenor=tenor or None, end=_to_date(end_date),
         index=boot.index,
     )
     target_delta_yen = float(target_delta_mm) * 1_000_000.0
@@ -201,7 +205,7 @@ def HistoricalOutright(tenor, fix_freq, fix_dcf, float_freq, float_dcf, roll_con
 @xw.arg("real_time_range", ndim=2)
 @xw.ret(expand="table")
 def BucketedDelta(
-    start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None, include_labels=True,
 ) -> List[list]:
     """
@@ -215,7 +219,7 @@ def BucketedDelta(
     rates = _rates_from_range(real_time_range)
     boot = _get_curve(rates, valuation_date)
     params, _ = _resolved_params(
-        start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
         notional, pay_rec, fix_rate, boot, valuation_date,
     )
     deltas = bucketed_delta(rates, valuation_date, params)
