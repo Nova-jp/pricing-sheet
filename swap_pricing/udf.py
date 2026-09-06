@@ -41,6 +41,19 @@ from swap_pricing.swap_pricer import price_swap
 _curve_cache: Dict[tuple, BootstrapResult] = {}
 
 
+@xw.func
+def Ping(value=1) -> float:
+    """xlwings配線の疎通確認用(QuantLib計算を伴わない)。
+
+    Import Functions後にこの関数だけが失敗する場合、原因はUDFの配線
+    (xlwingsアドイン/ブックのVBAプロジェクト)側にある。
+    """
+    return float(value) * 2
+
+
+_EXCEL_EPOCH = datetime.date(1899, 12, 30)  # Excelのシリアル値1900-01-01=1、1900うるう年バグ込み
+
+
 def _to_date(value) -> Optional[datetime.date]:
     if value is None or value == "":
         return None
@@ -48,6 +61,10 @@ def _to_date(value) -> Optional[datetime.date]:
         return value.date()
     if isinstance(value, datetime.date):
         return value
+    # Excelがセル参照でなく TODAY() や日付書式セルを引数で渡すと、xlwings経由で
+    # datetimeではなくシリアル値(数値)で届くことがある。その場合はここで日付に変換する。
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return _EXCEL_EPOCH + datetime.timedelta(days=int(value))
     raise ValueError(f"日付として解釈できません: {value!r}")
 
 
