@@ -1,0 +1,4 @@
+#!/bin/sh
+# コミットされる雛形(templates/)にLSEGのデータ・ローカルのパスが入っていないか、作業用のブックが
+# 入っていないかを検査する。有効化(クローンごとに1回): git config core.hooksPath .githooks
+exec python -m tools.template --check --staged

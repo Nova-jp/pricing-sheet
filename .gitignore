@@ -1,0 +1,13 @@
+.env
+OPERATIONS.md
+*.db
+__pycache__/
+*.pyc
+.DS_Store
+~$*
+.venv/
+
+# 作業用のブック(LSEGのデータが入る)。コミットするのは templates/ の雛形だけ(python -m tools.template で作る)
+/*.xlsx
+/*.xlsm
+/*.xls
