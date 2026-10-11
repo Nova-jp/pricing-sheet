@@ -14,18 +14,16 @@
 """
 
 from dataclasses import replace
-from datetime import date
 from typing import Dict
 
-from swap_pricing.curve import BootstrapResult
+from swap_pricing.market_data import Market
 from swap_pricing.swap_pricer import SwapPricingResult, price_swap
 from swap_pricing.terms import PAY, SwapParams
 
 
-def price(boot: BootstrapResult, valuation_date: date, params: SwapParams) -> SwapPricingResult:
+def price(market: Market, params: SwapParams) -> SwapPricingResult:
     return price_swap(
-        boot.curve, valuation_date, params.terms, notional=params.notional, pay_rec=params.pay_rec,
-        fix_rate=params.fix_rate, index=boot.index, fixings=params.fixings,
+        market, params.terms, notional=params.notional, pay_rec=params.pay_rec, fix_rate=params.fix_rate,
     )
 
 
@@ -33,21 +31,21 @@ def resolve_params(curves, params: SwapParams) -> SwapParams:
     """fix_rateが空欄なら基準カーブのパーレートに固定したパラメータを返す。"""
     if params.fix_rate is not None:
         return params
-    base = price(curves.base, curves.valuation_date, params)
+    base = price(curves.base, params)
     return replace(params, fix_rate=base.fix_rate_used)
 
 
 def parallel_delta(curves, params: SwapParams) -> float:
     """円。params.fix_rate は resolve_params で固定済みであること。"""
-    base = price(curves.base, curves.valuation_date, params).pv
-    return price(curves.parallel(), curves.valuation_date, params).pv - base
+    base = price(curves.base, params).pv
+    return price(curves.parallel(), params).pv - base
 
 
 def bucketed_delta(curves, params: SwapParams) -> Dict[str, float]:
     """{テナーのラベル: 円}。params.fix_rate は resolve_params で固定済みであること。"""
-    base = price(curves.base, curves.valuation_date, params).pv
+    base = price(curves.base, params).pv
     return {
-        label: price(curves.bucket(label), curves.valuation_date, params).pv - base
+        label: price(curves.bucket(label), params).pv - base
         for label in curves.bump_labels
     }
 

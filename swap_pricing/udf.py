@@ -16,9 +16,9 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
     B列の採否フラグ: 1(または空欄)=カーブ構築に使う、0=使わない。
   - カーブ(基準カーブと+1bpしたカーブ)は market.curve_set で全行・全UDFが共有する。
     同じレート・評価日なら、ブートストラップはその最初の1回だけ。
-  - 過去起算スワップ用のTONA実績フィキシングは引数(fixing_range、省略可)で受け取る。
-    historical_data.xlsxのFixingシート(日付/TONAの2列スピル)を
-    `[historical_data.xlsx]Fixing!$A$5#` のように参照する想定。評価日より前の日だけを使う。
+  - 過去起算スワップ用のTONA実績フィキシングは、ヒストリカルDB(朝のバッチがhistorical_data.xlsxの
+    Fixingシートから取り込んだもの)から読む。評価日より前の日だけを使う(market_data.Market)。
+    UDFの引数では受け取らない(以前のfixing_range引数とhistorical_data.xlsxへの外部リンクは廃止)。
   - ヒストリカル系UDF(HistoricalRate, HistoricalRates)はブートストラップをせず、
     朝バッチ(python -m swap_pricing.curve_batch)が作った日次カーブDB
     (data/historical.db)を読むだけ。TONA実績もDBに取り込み済みのものを使う。
@@ -50,7 +50,8 @@ from swap_pricing.historical_pricer import (
     historical_multi_rate_series,
     historical_swap_rate_series,
 )
-from swap_pricing.market import CurveSet, curve_set, db_snapshot, realtime_snapshot
+from swap_pricing.market import CurveSet, curve_set, db_fixings, db_snapshot, realtime_snapshot
+from swap_pricing.market_data import Market
 from swap_pricing.meeting_curve import MeetingPeriod, build_meeting_curve
 from swap_pricing.risk import (
     annuity_delta,
@@ -160,7 +161,7 @@ def _market(real_time_range, valuation_date) -> CurveSet:
     if valuation_date > today:
         raise ValueError(f"評価日が未来日です: {valuation_date}")
     if valuation_date == today:
-        snapshot = realtime_snapshot(valuation_date, _rates_from_range(real_time_range))
+        snapshot = realtime_snapshot(valuation_date, _rates_from_range(real_time_range), _db_fixings())
     else:
         labels = [t for t, _, use in _realtime_rows(real_time_range) if use]
         with _historical_store() as store:
@@ -168,40 +169,9 @@ def _market(real_time_range, valuation_date) -> CurveSet:
     return curve_set(snapshot)
 
 
-_fixings_cache: Dict[tuple, Dict[datetime.date, float]] = {}
-
-
-def _fixings_from_range(fixing_range, valuation_date: datetime.date) -> Optional[Dict[datetime.date, float]]:
-    """フィキシング範囲(日付 / TONA(%) の2列)→ {日付: レート}(評価日より前の日だけ)。省略時はNone。
-
-    評価日当日以降の実績は使わない(当日分は公表前。過去の評価日でも同じ扱いにする)。
-    見出し行・空行など日付や数値として解釈できない行は読み飛ばす。範囲は渡されたが中身が
-    空(参照先ブックが閉じている等)の場合は空辞書を返し、過去起算なら price_swap 側で
-    「不足」エラーになる。同じ内容なら前回の結果を使い回す(全UDFが毎回渡すため)。
-    """
-    if fixing_range is None:
-        return None
-    key = (valuation_date, tuple(tuple(r) if r is not None else () for r in fixing_range))
-    if key in _fixings_cache:
-        return _fixings_cache[key]
-    fixings: Dict[datetime.date, float] = {}
-    for row in fixing_range:
-        if not row or len(row) < 2 or row[0] in (None, "") or row[1] in (None, ""):
-            continue
-        try:
-            d = _to_date(row[0])
-            if d < valuation_date:
-                fixings[d] = float(row[1])
-        except (TypeError, ValueError):
-            continue
-    _fixings_cache.clear()  # 直近1件だけ保持
-    _fixings_cache[key] = fixings
-    return fixings
-
-
 def _params(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    notional, pay_rec, fix_rate, fixings, spot: datetime.date,
+    notional, pay_rec, fix_rate, spot: datetime.date,
 ) -> SwapParams:
     """pricingシートの1行分の入力 → ポジションの型。Excelの値を型に直すのはここだけ。
     spot: 評価日のスポット日(startがテナー入力のときの起点)。"""
@@ -209,18 +179,14 @@ def _params(
         _start_date(start, spot), SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
         tenor=None if _is_blank(tenor) else tenor, end=_to_date(end_date),
     )
-    return SwapParams(
-        terms, float(notional), pay_rec,
-        fix_rate=None if _is_blank(fix_rate) else float(fix_rate), fixings=fixings,
-    )
+    return SwapParams(terms, float(notional), pay_rec, fix_rate=None if _is_blank(fix_rate) else float(fix_rate))
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
 def FairRate(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    real_time_range, valuation_date=None, fixing_range=None,
+    real_time_range, valuation_date=None,
 ) -> float:
     """指定コンベンションのパーレート(%)を返す。tenorかend_dateのどちらかは空欄にする。
 
@@ -233,75 +199,71 @@ def FairRate(
     curves = _market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0, "PAY",
-        None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
+        None, curves.spot_date,
     )
-    return price(curves.base, curves.valuation_date, params).target_fixrate
+    return price(curves.base, params).target_fixrate
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
 def SwapPV(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    notional, pay_rec, fix_rate, real_time_range, valuation_date=None, fixing_range=None,
+    notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
 ) -> float:
     """PV(入力fix_rateが空欄ならパーレートで計算、常に0近辺)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, fix_rate, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
+        pay_rec, fix_rate, curves.spot_date,
     )
-    return price(curves.base, curves.valuation_date, params).pv
+    return price(curves.base, params).pv
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
 def SwapDelta(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    notional, pay_rec, fix_rate, real_time_range, valuation_date=None, fixing_range=None,
+    notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
 ) -> float:
     """カーブに使っている全テナーを+1bpしたときのデルタ(百万円単位)。
     fix_rateが空欄ならパーレートに固定してから計算する。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, fix_rate, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
+        pay_rec, fix_rate, curves.spot_date,
     )
     return parallel_delta(curves, resolve_params(curves, params)) / 1_000_000.0
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
 def SwapAnnuityDelta(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    notional, pay_rec, real_time_range, valuation_date=None, fixing_range=None,
+    notional, pay_rec, real_time_range, valuation_date=None,
 ) -> float:
     """アニュイティデルタ(解析的近似、参考値、百万円単位)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
+        pay_rec, None, curves.spot_date,
     )
-    result = price(curves.base, curves.valuation_date, params)
+    result = price(curves.base, params)
     return annuity_delta(result.annuity, float(notional), pay_rec) / 1_000_000.0
 
 
 @xw.func
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
 def NotionalForDelta(
     target_delta_mm, start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    pay_rec, real_time_range, valuation_date=None, fixing_range=None,
+    pay_rec, real_time_range, valuation_date=None,
 ) -> float:
     """目標delta(百万円単位)から必要なnotionalを逆算する(アニュイティデルタ基準)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0,
-        pay_rec, None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
+        pay_rec, None, curves.spot_date,
     )
-    result = price(curves.base, curves.valuation_date, params)
+    result = price(curves.base, params)
     target_delta_yen = float(target_delta_mm) * 1_000_000.0
     return solve_notional_for_target_delta(target_delta_yen, result.annuity, pay_rec)
 
@@ -323,8 +285,7 @@ def _is_flagged(value) -> bool:
 @xw.func
 @xw.arg("pricing_table", ndim=2)
 @xw.arg("real_time_range", ndim=2)
-@xw.arg("fixing_range", ndim=2)
-def RiskGrid(pricing_table, real_time_range, valuation_date=None, fixing_range=None) -> List[list]:
+def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
     """
     risk_flag=1 の全行について、テナーごとに+1bpしたときのデルタ(百万円単位)の合計を、
     RealTimeシートのテナー行の並びで返す(Ticker/Deltaの2列、1行目は見出し)。
@@ -345,7 +306,6 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None, fixing_range=N
     col = {c: header.index(c) for c in _RISK_COLUMNS}
 
     curves = _market(real_time_range, valuation_date)
-    fixings = _fixings_from_range(fixing_range, curves.valuation_date)
     totals = {label: 0.0 for label in curves.bump_labels}
     for n, row in enumerate(rows[1:], start=2):
         row = row + [None] * (len(header) - len(row))
@@ -356,7 +316,7 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None, fixing_range=N
                 *(row[col[c]] for c in ("start", "tenor", "end", "fix freq", "fix dcf",
                                         "float freq", "roll conv", "notional",
                                         "pay/rec", "fix rate")),
-                fixings, curves.base.spot_date,
+                curves.spot_date,
             )
             deltas = bucketed_delta(curves, resolve_params(curves, params))
         except Exception as e:
@@ -447,7 +407,8 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
             SwapTerms(boot.spot_date, STANDARD, tenor=str(label).strip().lower()), 1.0, PAY,
         )
         try:
-            result.append([price(boot, boot.valuation_date, params).target_fixrate])
+            market = Market(boot.valuation_date, boot.curve, boot.index)  # スポット起点なので実績は不要
+            result.append([price(market, params).target_fixrate])
         except (RuntimeError, ValueError) as exc:
             result.append([f"エラー: {exc}"])
     return result
@@ -463,6 +424,16 @@ def _historical_store() -> CurveStore:
             "python -m swap_pricing.curve_batch を実行してください"
         )
     return store
+
+
+def _db_fixings() -> Dict[datetime.date, float]:
+    """TONA実績(過去起算の計算用)。ヒストリカルDBから読み、DBが無ければ空にする(スポット起点の
+    計算はDBなしでも動き、過去起算だけが「実績が不足」のエラーになる)。"""
+    try:
+        store = _historical_store()
+    except ValueError:
+        return {}
+    return db_fixings(store)
 
 
 def _date_or_imm(value):
@@ -498,7 +469,7 @@ def HistoricalRate(
         series = historical_swap_rate_series(
             spec, mode,
             base_date=_to_date(base_date), from_date=_to_date(from_date), to_date=_to_date(to_date),
-            fixings=store.fixings(), curves=store,
+            fixings=db_fixings(store), curves=store,
         )
     rows = [["Date", "Rate", "Start", "End"]]
     rows += [[p.as_of_date, p.par_rate, p.start_date, p.maturity_date] for p in series]
@@ -587,7 +558,7 @@ def HistoricalRates(
             curves = _WithRealTimeLatest(store, real_time_range, today)
         series = historical_multi_rate_series(
             active, mode, base_date=base, from_date=_to_date(from_date),
-            to_date=_to_date(to_date), fixings=store.fixings() if active else None, curves=curves,
+            to_date=_to_date(to_date), fixings=db_fixings(store) if active else None, curves=curves,
         )
     rows = [["Date", *_LEG_LABELS]]
     for as_of_date, legs in series:

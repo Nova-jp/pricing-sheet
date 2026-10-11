@@ -28,6 +28,7 @@ from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
 from swap_pricing.curve_store import CurveStore  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
 from swap_pricing.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapParams, SwapTerms  # noqa: E402
 from tests.test_curve_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
@@ -43,8 +44,8 @@ def _pv(rates, params):
     """以前の実装と同じ手順(その場でブートストラップして評価)。比較の基準。"""
     boot = bootstrap_curve(VAL, rates)
     return price_swap(
-        boot.curve, VAL, params.terms, notional=params.notional, pay_rec=params.pay_rec,
-        fix_rate=params.fix_rate, index=boot.index,
+        Market(VAL, boot.curve, boot.index),
+        params.terms, notional=params.notional, pay_rec=params.pay_rec, fix_rate=params.fix_rate,
     ).pv
 
 
@@ -52,7 +53,7 @@ class CurveSetTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.curves = curve_set(realtime_snapshot(VAL, QUOTES))
-        spot = self.curves.base.spot_date
+        spot = self.curves.spot_date
         self.params = resolve_params(self.curves, SwapParams(SwapTerms(spot, CONV, tenor="7Y"), NOTIONAL, "PAY"))
 
     def test_only_used_tenors_are_bumped(self):
@@ -176,8 +177,8 @@ class ValuationDateTest(unittest.TestCase):
         quotes = {"O/N": FIXINGS[as_of], **{k: v for k, v in SPOT_RATES.items() if k != "40Y"}}
         boot = bootstrap_curve(as_of, quotes)
         par = udf.FairRate(boot.spot_date, "10y", None, *CONV_ARGS, rt, as_of)
-        expected = price_swap(boot.curve, as_of, SwapTerms(boot.spot_date, CONV, tenor="10y"),
-                              notional=1.0, pay_rec="PAY", index=boot.index).target_fixrate
+        market = Market(as_of, boot.curve, boot.index)
+        expected = price_swap(market, SwapTerms(boot.spot_date, CONV, tenor="10y"), notional=1.0, pay_rec="PAY").target_fixrate
         self.assertAlmostEqual(par, expected, delta=1e-12)
         self.assertIn("DB", udf.MarketInfo(rt, as_of))
 
@@ -190,10 +191,29 @@ class ValuationDateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "未来日"):
             udf.FairRate(None, "10y", None, *CONV_ARGS, _rt_range(), future)
 
-    def test_fixings_on_or_after_valuation_date_are_not_used(self):
-        rows = [[d, r] for d, r in FIXINGS.items()]
-        fixings = udf._fixings_from_range(rows, DAYS[1])
-        self.assertEqual(max(fixings), DAYS[0])
+    def test_today_past_start_uses_db_fixings(self):
+        """評価日=今日でも、過去起算のTONA実績はDBから読む(Excelの範囲は受け取らない)。"""
+        today, start = date(2026, 9, 28), date(2026, 7, 1)  # DBの実績は9/25まで
+        rt = _rt_range()
+        with mock.patch.object(udf, "_today", lambda: today):
+            par = udf.FairRate(start, "1y", None, *CONV_ARGS, rt)
+            curves = udf._market(rt, None)
+        market = Market(today, curves.base.curve, curves.base.index, FIXINGS)
+        expected = price_swap(market, SwapTerms(start, CONV, tenor="1y"), notional=1.0, pay_rec="PAY")
+        self.assertEqual(par, expected.target_fixrate)
+
+    def test_without_db_spot_start_works_and_past_start_asks_for_batch(self):
+        today = date(2026, 9, 28)
+        no_db = mock.patch.object(udf, "_historical_store", side_effect=ValueError("DBなし"))
+        with mock.patch.object(udf, "_today", lambda: today), no_db:
+            udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, _rt_range())
+            with self.assertRaisesRegex(ValueError, "curve_batch"):
+                udf.FairRate(date(2026, 7, 1), "1y", None, *CONV_ARGS, _rt_range())
+
+    def test_fixings_come_from_db_before_valuation_date(self):
+        """TONA実績はDBから読み、評価日より前の日だけが市場データに入る(当日以降は使わない)。"""
+        curves = udf._market(_rt_range(), DAYS[1])
+        self.assertEqual(dict(curves.base.fixings), {d: v for d, v in FIXINGS.items() if d < DAYS[1]})
 
 
 
@@ -204,7 +224,7 @@ class TenorStartUdfTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.rt = _rt_range()
-        self.spot = udf._market(self.rt, None).base.spot_date
+        self.spot = udf._market(self.rt, None).spot_date
         self.fwd = forward_start_date(self.spot, "10y")
 
     def test_pricing_udfs(self):

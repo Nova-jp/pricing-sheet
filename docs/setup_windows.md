@@ -72,12 +72,12 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
    逆順で開くと自動計算になり、編集のたびにUDFが走る。
 4. 任意のセルでF9を押して再計算されることを確認する
    (VBAマクロ・ボタンは一切不要)。
-5. 過去起算スワップを評価する場合は、リポジトリ直下の`historical_data.xlsx`
-   (LSEGの生データブック。雛形からコピーしたもの)も開いておく。LSEG Workspace(Excelアドイン)にログインした状態で開くと
-   `RDP.HistoricalPricing`でデータを自動取得する(Workspace未接続だと`#NAME?`、
-   取得されないときはLSEGリボンの「更新」)。直下のブックは`.gitignore`済みなので、
-   データ入りで保存してもコミットされない。pricingシートのUDFは
-   最後の引数で`[historical_data.xlsx]Fixing!$A$5#`(TONA実績)を参照している。
+5. 過去起算スワップのTONA実績は、ヒストリカルDB(下の「毎朝の手順」のバッチで作る)から読む。
+   pricingシートを使うときに`historical_data.xlsx`を開いておく必要はない。
+   `historical_data.xlsx`(リポジトリ直下。雛形からコピーしたもの)はバッチの入力で、LSEG Workspace
+   (Excelアドイン)にログインした状態で開くと`RDP.HistoricalPricing`でデータを自動取得する
+   (Workspace未接続だと`#NAME?`、取得されないときはLSEGリボンの「更新」)。直下のブックは
+   `.gitignore`済みなので、データ入りで保存してもコミットされない。
 
 ## 5. 毎朝の手順(ヒストリカルの日次カーブDBの更新)
 

@@ -28,6 +28,7 @@ from swap_pricing.historical_pricer import (  # noqa: E402
     historical_multi_rate_series,
     historical_swap_rate_series,
 )
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import SwapExpiredError, price_swap  # noqa: E402
 from swap_pricing.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
@@ -57,8 +58,8 @@ def _rates(dates=AS_OF_DATES):
 def _direct(as_of, start, tenor=None, end=None, fixings=None, conv=CONV):
     boot = bootstrap_curve(as_of, SPOT_RATES)
     return price_swap(
-        boot.curve, as_of, SwapTerms(start, conv, tenor=tenor, end=end), notional=1.0, pay_rec="PAY",
-        index=boot.index, fixings=fixings,
+        Market(as_of, boot.curve, boot.index, fixings or {}),
+        SwapTerms(start, conv, tenor=tenor, end=end), notional=1.0, pay_rec="PAY",
     )
 
 
