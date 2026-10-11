@@ -110,6 +110,19 @@ class PastStartTest(unittest.TestCase):
                 for d, v in expected.items():
                     self.assertAlmostEqual(registered[d], v, places=12)
 
+    def test_fixing_registry_recovers_after_failed_registration(self) -> None:
+        """登録の途中で例外が起きても、次の呼び出しで履歴が渡した内容に揃い直すこと
+        (記録が古いまま残ると、消えた分を入れ直さずに差分だけを足してしまう)。"""
+        index = self.boot.index
+        _set_fixing_history(index, FIXINGS)
+        broken = dict(FIXINGS)
+        broken[max(FIXINGS)] = "数値でない"  # 値が変わった扱い → 全部消した後の変換で失敗する
+        with self.assertRaises(TypeError):
+            _set_fixing_history(index, broken)
+        _set_fixing_history(index, FIXINGS)
+        ts = index.timeSeries()
+        self.assertEqual(len(ts.dates()), len(FIXINGS))
+
     def test_par_rate_matches_price_swap(self) -> None:
         """パーレートだけの経路(ヒストリカル用)が、price_swapのパーレート・満期日と一致すること。
         ヒストリカルは以前からprice_swapを想定元本1・PAYで呼んでいたので、その条件で完全一致を見る

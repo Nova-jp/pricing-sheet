@@ -127,7 +127,10 @@ def swap_dates(
     return dates[0].to_date(), dates[-1].to_date()
 
 
-_registered_fixings: Optional[Dict[date, float]] = None  # QuantLibの履歴に登録済みの内容(None=未確認)
+# QuantLibの履歴(指標名TONARごとにプロセス全体で共有)に登録済みの内容。None=未確認(次は全部入れ直す)。
+# この記録が履歴と一致している前提で差分だけを登録するため、TONARの履歴は_set_fixing_history
+# 以外から触らない(addFixings/clearFixingsを直接呼ばない)。
+_registered_fixings: Optional[Dict[date, float]] = None
 
 
 def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Dict[date, float]]) -> None:
@@ -142,13 +145,16 @@ def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Dict[date,
     global _registered_fixings
     target = dict(fixings) if fixings else {}
     prev = _registered_fixings
-    if prev is not None and all(target.get(d) == v for d, v in prev.items()):
-        added = {d: v for d, v in target.items() if d not in prev}
-        if not added:
-            return
-    else:
+    # 登録済みの内容が全てそのまま残っていれば(日付が増えただけなら)差分だけでよい
+    reset = prev is None or any(target.get(d) != v for d, v in prev.items())
+    added = target if reset else {d: v for d, v in target.items() if d not in prev}
+    if not reset and not added:
+        return
+    # 履歴に手を入れる前に記録を「未確認」にする。登録の途中で例外が起きても、記録が古いまま
+    # 残って次の呼び出しが差分だけを足す(消えた分を入れ直さない)ことがないように。
+    _registered_fixings = None
+    if reset:
         index.clearFixings()
-        added = target
     dates = [ql.Date.from_date(d) for d in added]
     valid = [(d, v / 100.0) for d, v in zip(dates, added.values()) if index.isValidFixingDate(d)]
     if valid:
@@ -212,6 +218,7 @@ def _prepare_swap(
     float_freq: str,
     float_dcf: str,
     roll_conv: str,
+    *,
     notional: float,
     pay_rec: str,
     tenor: Optional[str],
@@ -266,10 +273,12 @@ def par_rate(
     fixings: Optional[Dict[date, float]] = None,
 ) -> ParRateResult:
     """パーレートと満期日だけを求める(ヒストリカル用)。PV・アニュイティが要らないときに、
-    price_swapの2本目のスワップ(PV用)を組まずに済ませる。値はprice_swapのtarget_fixrateと同じ。"""
+    price_swapの2本目のスワップ(PV用)を組まずに済ませる。値は想定元本1・PAYで呼んだ
+    price_swapのtarget_fixrate・maturity_dateと完全に同じ(fairRateは想定元本が違うと
+    最下位ビットが変わりうるため、条件をそろえている)。"""
     prepared = _prepare_swap(
         curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        1.0, PAY, tenor, end, index, fixings,
+        notional=1.0, pay_rec=PAY, tenor=tenor, end=end, index=index, fixings=fixings,
     )
     return ParRateResult(
         target_fixrate=prepared.swap.fairRate() * 100.0,
@@ -299,21 +308,21 @@ def price_swap(
         raise ValueError(f"pay_recは'{PAY}'または'{REC}'である必要があります: {pay_rec!r}")
 
     # target fixrate(パーレート)・アニュイティは固定金利0のスワップから取る
-    probe_swap, index, engine = _prepare_swap(
+    prepared = _prepare_swap(
         curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional, pay_rec, tenor, end, index, fixings,
+        notional=notional, pay_rec=pay_rec, tenor=tenor, end=end, index=index, fixings=fixings,
     )
-    target_fixrate = probe_swap.fairRate() * 100.0
-    annuity = abs(probe_swap.fixedLegBPS()) / (notional * 0.0001)
+    target_fixrate = prepared.swap.fairRate() * 100.0
+    annuity = abs(prepared.swap.fixedLegBPS()) / (notional * 0.0001)
 
     fix_rate_used = target_fixrate if fix_rate is None else fix_rate
 
     # PVは入力の固定金利(空欄ならパーレート)で組んだスワップをQuantLibで評価する
     priced_swap = _build_swap(
-        index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        prepared.index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
         notional, pay_rec, fix_rate_used / 100.0, tenor=tenor, end=end,
     )
-    priced_swap.setPricingEngine(engine)
+    priced_swap.setPricingEngine(prepared.engine)
     pv = priced_swap.NPV()
 
     maturity_date = priced_swap.fixedSchedule().dates()[-1].to_date()

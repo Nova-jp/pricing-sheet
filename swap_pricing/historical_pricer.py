@@ -219,6 +219,8 @@ def historical_multi_rate_series(
         dates_on = [d.on(mode, as_of_spot) for d in legs_dates]
         until = max(_last_date(st, tenor, en) for st, tenor, en in dates_on)
         boot = curves.load(as_of_date, until=until + _HORIZON_MARGIN)
+        # 実績はDより前の日だけを渡す(当日を含めない)。Dの引け値の時点でDのTONAは未公表
+        # (公表は翌営業日)で、QuantLibは当日の実績が登録されているとそれを使ってしまうため。
         known_fixings = (
             None if fixings is None else {d: v for d, v in fixings.items() if d < as_of_date}
         )
