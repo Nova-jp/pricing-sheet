@@ -3,7 +3,7 @@
 計算するモジュール。
 
 各過去日付Dについて、カーブの供給元(通常は curve_store.CurveStore=朝バッチが
-作った日次カーブDB)からDのカーブを受け取り、price_swap()でパーレートを求める。
+作った日次カーブDB)からDのカーブを受け取り、par_rate()でパーレートを求める。
 ここではブートストラップをしない(カーブの引き方を知らない)ため、引き方を
 変えてもこのモジュールは影響を受けない。
 
@@ -50,7 +50,7 @@ from swap_pricing.conventions import (
     CALENDAR, ROLL_IMM, forward_start_date, imm_code_to_date, is_imm_code, is_tenor,
 )
 from swap_pricing.curve import spot_date_for
-from swap_pricing.swap_pricer import SwapExpiredError, price_swap, swap_dates
+from swap_pricing.swap_pricer import SwapExpiredError, par_rate, swap_dates
 
 FIXED = "FIXED"
 ROLLING = "ROLLING"
@@ -219,6 +219,8 @@ def historical_multi_rate_series(
         dates_on = [d.on(mode, as_of_spot) for d in legs_dates]
         until = max(_last_date(st, tenor, en) for st, tenor, en in dates_on)
         boot = curves.load(as_of_date, until=until + _HORIZON_MARGIN)
+        # 実績はDより前の日だけを渡す(当日を含めない)。Dの引け値の時点でDのTONAは未公表
+        # (公表は翌営業日)で、QuantLibは当日の実績が登録されているとそれを使ってしまうため。
         known_fixings = (
             None if fixings is None else {d: v for d, v in fixings.items() if d < as_of_date}
         )
@@ -226,9 +228,9 @@ def historical_multi_rate_series(
         legs: List[Optional[LegResult]] = []
         for spec, (swap_start, tenor, swap_end) in zip(specs, dates_on):
             try:
-                result = price_swap(
+                result = par_rate(
                     boot.curve, as_of_date, swap_start, spec.fix_freq, spec.fix_dcf,
-                    spec.float_freq, spec.float_dcf, spec.roll_conv, notional=1.0, pay_rec="PAY",
+                    spec.float_freq, spec.float_dcf, spec.roll_conv,
                     tenor=tenor, end=swap_end, index=boot.index, fixings=known_fixings,
                 )
             except SwapExpiredError:

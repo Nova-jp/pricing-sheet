@@ -20,7 +20,7 @@ from swap_pricing.conventions import CALENDAR  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
 from swap_pricing.risk import SwapParams, bucketed_delta  # noqa: E402
-from swap_pricing.swap_pricer import price_swap  # noqa: E402
+from swap_pricing.swap_pricer import _set_fixing_history, par_rate, price_swap  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 VALUATION = date(2026, 9, 25)  # 金曜(営業日)
@@ -81,6 +81,62 @@ class PastStartTest(unittest.TestCase):
         _price(self.boot, date(2026, 6, 24), "1Y", FIXINGS)
         with self.assertRaises(ValueError):
             _price(self.boot, date(2026, 6, 24), "1Y", {})
+
+    def test_fixing_registry_matches_passed_fixings(self) -> None:
+        """差分だけの登録でも、QuantLibの履歴は渡した内容と常に完全に一致すること
+        (日付が増える・値が変わる・日付が減る・空にする、を続けて確認する)。"""
+        index = self.boot.index
+        dates = sorted(FIXINGS)
+        changed = dict(FIXINGS)
+        changed[dates[100]] += 0.25
+        steps = [
+            {d: FIXINGS[d] for d in dates[:200]},
+            {d: FIXINGS[d] for d in dates[:201]},  # 1日増えた(差分だけ登録)
+            dict(FIXINGS),  # まとめて増えた
+            changed,  # 値が変わった(登録し直し)
+            {d: FIXINGS[d] for d in dates[:50]},  # 減った(登録し直し)
+            None,  # 空にする
+        ]
+        for n, fixings in enumerate(steps):
+            with self.subTest(step=n):
+                _set_fixing_history(index, fixings)
+                ts = index.timeSeries()
+                registered = {d.to_date(): v * 100.0 for d, v in zip(ts.dates(), ts.values())}
+                expected = {
+                    d: v for d, v in (fixings or {}).items()
+                    if index.isValidFixingDate(ql.Date.from_date(d))
+                }
+                self.assertEqual(registered.keys(), expected.keys())
+                for d, v in expected.items():
+                    self.assertAlmostEqual(registered[d], v, places=12)
+
+    def test_fixing_registry_recovers_after_failed_registration(self) -> None:
+        """登録の途中で例外が起きても、次の呼び出しで履歴が渡した内容に揃い直すこと
+        (記録が古いまま残ると、消えた分を入れ直さずに差分だけを足してしまう)。"""
+        index = self.boot.index
+        _set_fixing_history(index, FIXINGS)
+        broken = dict(FIXINGS)
+        broken[max(FIXINGS)] = "数値でない"  # 値が変わった扱い → 全部消した後の変換で失敗する
+        with self.assertRaises(TypeError):
+            _set_fixing_history(index, broken)
+        _set_fixing_history(index, FIXINGS)
+        ts = index.timeSeries()
+        self.assertEqual(len(ts.dates()), len(FIXINGS))
+
+    def test_par_rate_matches_price_swap(self) -> None:
+        """パーレートだけの経路(ヒストリカル用)が、price_swapのパーレート・満期日と一致すること。
+        ヒストリカルは以前からprice_swapを想定元本1・PAYで呼んでいたので、その条件で完全一致を見る
+        (fairRateは想定元本が違うと最下位ビットが変わりうる)。"""
+        for start, tenor, fixings in [(self.boot.spot_date, "10Y", None),
+                                      (date(2026, 6, 24), "1Y", FIXINGS),
+                                      (date(2024, 9, 24), "3Y", FIXINGS)]:
+            with self.subTest(start=start, tenor=tenor):
+                full = price_swap(self.boot.curve, VALUATION, start, notional=1.0, pay_rec="PAY",
+                                  tenor=tenor, index=self.boot.index, fixings=fixings, **CONV)
+                par = par_rate(self.boot.curve, VALUATION, start, tenor=tenor,
+                               index=self.boot.index, fixings=fixings, **CONV)
+                self.assertEqual(par.target_fixrate, full.target_fixrate)
+                self.assertEqual(par.maturity_date, full.maturity_date)
 
     def test_spot_start_does_not_need_fixings(self) -> None:
         _price(self.boot, self.boot.spot_date, "10Y", None)
