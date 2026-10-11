@@ -54,7 +54,6 @@ from swap_pricing.historical_pricer import (
 from swap_pricing.market import CurveSet, curve_set, db_snapshot, realtime_snapshot
 from swap_pricing.meeting_curve import MeetingPeriod, build_meeting_curve
 from swap_pricing.risk import (
-    SwapParams,
     annuity_delta,
     bucketed_delta,
     parallel_delta,
@@ -62,6 +61,7 @@ from swap_pricing.risk import (
     resolve_params,
     solve_notional_for_target_delta,
 )
+from swap_pricing.terms import PAY, STANDARD, SwapConvention, SwapParams, SwapTerms
 
 
 @xw.func
@@ -201,14 +201,17 @@ def _fixings_from_range(fixing_range, valuation_date: datetime.date) -> Optional
 
 
 def _params(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, fix_rate, fixings, spot: datetime.date,
 ) -> SwapParams:
-    """spot: 評価日のスポット日(startがテナー入力のときの起点)。"""
-    return SwapParams(
-        start=_start_date(start, spot), fix_freq=fix_freq, fix_dcf=fix_dcf, float_freq=float_freq,
-        float_dcf=float_dcf, roll_conv=roll_conv, notional=float(notional), pay_rec=pay_rec,
+    """pricingシートの1行分の入力 → ポジションの型。Excelの値を型に直すのはここだけ。
+    spot: 評価日のスポット日(startがテナー入力のときの起点)。"""
+    terms = SwapTerms(
+        _start_date(start, spot), SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
         tenor=None if _is_blank(tenor) else tenor, end=_to_date(end_date),
+    )
+    return SwapParams(
+        terms, float(notional), pay_rec,
         fix_rate=None if _is_blank(fix_rate) else float(fix_rate), fixings=fixings,
     )
 
@@ -217,7 +220,7 @@ def _params(
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("fixing_range", ndim=2)
 def FairRate(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     real_time_range, valuation_date=None, fixing_range=None,
 ) -> float:
     """指定コンベンションのパーレート(%)を返す。tenorかend_dateのどちらかは空欄にする。
@@ -230,7 +233,7 @@ def FairRate(
     """
     curves = _market(real_time_range, valuation_date)
     params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, 1.0, "PAY",
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0, "PAY",
         None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
     )
     return price(curves.base, curves.valuation_date, params).target_fixrate
@@ -240,13 +243,13 @@ def FairRate(
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("fixing_range", ndim=2)
 def SwapPV(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None, fixing_range=None,
 ) -> float:
     """PV(入力fix_rateが空欄ならパーレートで計算、常に0近辺)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, notional,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, fix_rate, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
     )
     return price(curves.base, curves.valuation_date, params).pv
@@ -256,14 +259,14 @@ def SwapPV(
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("fixing_range", ndim=2)
 def SwapDelta(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None, fixing_range=None,
 ) -> float:
     """カーブに使っている全テナーを+1bpしたときのデルタ(百万円単位)。
     fix_rateが空欄ならパーレートに固定してから計算する。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, notional,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, fix_rate, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
     )
     return parallel_delta(curves, resolve_params(curves, params)) / 1_000_000.0
@@ -273,13 +276,13 @@ def SwapDelta(
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("fixing_range", ndim=2)
 def SwapAnnuityDelta(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, real_time_range, valuation_date=None, fixing_range=None,
 ) -> float:
     """アニュイティデルタ(解析的近似、参考値、百万円単位)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, notional,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
     )
     result = price(curves.base, curves.valuation_date, params)
@@ -290,13 +293,13 @@ def SwapAnnuityDelta(
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("fixing_range", ndim=2)
 def NotionalForDelta(
-    target_delta_mm, start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+    target_delta_mm, start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     pay_rec, real_time_range, valuation_date=None, fixing_range=None,
 ) -> float:
     """目標delta(百万円単位)から必要なnotionalを逆算する(アニュイティデルタ基準)。"""
     curves = _market(real_time_range, valuation_date)
     params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, 1.0,
+        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0,
         pay_rec, None, _fixings_from_range(fixing_range, curves.valuation_date), curves.base.spot_date,
     )
     result = price(curves.base, curves.valuation_date, params)
@@ -307,7 +310,7 @@ def NotionalForDelta(
 # RiskGrid が pricing表から読む列(見出し名)
 _RISK_COLUMNS = (
     "risk_flag", "notional", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
-    "float freq", "float dcf", "roll conv", "pay/rec",
+    "float freq", "roll conv", "pay/rec",
 )
 
 
@@ -329,7 +332,7 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None, fixing_range=N
 
     pricing_table: pricingシートの見出し行(1行目)から最終行まで(例: pricing!$A$1:$T$201)。
         列は見出し名で探す(risk_flag, notional, start, tenor, end, fix rate, fix freq,
-        fix dcf, float freq, float dcf, roll conv, pay/rec)。
+        fix dcf, float freq, roll conv, pay/rec)。
     バンプするのはカーブに使っているテナーだけで、それ以外の行(フラグ0、会合スワップ等)は空欄。
     合計値(全テナーの和)はExcelのSUMで出す。
     """
@@ -352,7 +355,7 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None, fixing_range=N
         try:
             params = _params(
                 *(row[col[c]] for c in ("start", "tenor", "end", "fix freq", "fix dcf",
-                                        "float freq", "float dcf", "roll conv", "notional",
+                                        "float freq", "roll conv", "notional",
                                         "pay/rec", "fix rate")),
                 fixings, curves.base.spot_date,
             )
@@ -442,9 +445,7 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
             result.append([""])
             continue
         params = SwapParams(
-            start=boot.spot_date, fix_freq="PA", fix_dcf="act/365fixed", float_freq="PA",
-            float_dcf="act/365fixed", roll_conv="STD", notional=1.0, pay_rec="PAY",
-            tenor=str(label).strip().lower(),
+            SwapTerms(boot.spot_date, STANDARD, tenor=str(label).strip().lower()), 1.0, PAY,
         )
         try:
             result.append([price(boot, boot.valuation_date, params).target_fixrate])
@@ -466,16 +467,15 @@ def _historical_store() -> CurveStore:
 
 
 @xw.func
-def HistoricalOutright(tenor, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv) -> List[list]:
+def HistoricalOutright(tenor, fix_freq, fix_dcf, float_freq, roll_conv) -> List[list]:
     """
     スポット起点+tenorのヒストリカル・パーレート推移(Date/Rateの2列スピル配列)。
     HistoricalRate の ROLLING・start空欄 と同じ(Historicalシートの既存数式のために残す)。
     カーブ(スプレッド)やフライは、この結果をExcel側で引き算するだけで求まる。
     """
     with _historical_store() as store:
-        series = historical_swap_rate_series(
-            ROLLING, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, tenor=tenor, curves=store,
-        )
+        spec = SwapSpec(SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv), tenor=tenor)
+        series = historical_swap_rate_series(spec, ROLLING, curves=store)
     rows = [["Date", "Rate"]]
     rows += [[p.as_of_date, p.par_rate] for p in series]
     return rows
@@ -492,7 +492,7 @@ def _date_or_imm(value):
 
 @xw.func
 def HistoricalRate(
-    start, tenor, end_date, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, mode,
+    start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, mode,
     base_date=None, from_date=None, to_date=None,
 ) -> List[list]:
     """
@@ -507,9 +507,12 @@ def HistoricalRate(
     過去起算になる日のTONA実績は、DBに取り込み済みのもの(Fixingシート由来)を使う。
     """
     with _historical_store() as store:
-        series = historical_swap_rate_series(
-            mode, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        spec = SwapSpec(
+            SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
             start=_date_or_imm(start), tenor=tenor or None, end=_date_or_imm(end_date),
+        )
+        series = historical_swap_rate_series(
+            spec, mode,
             base_date=_to_date(base_date), from_date=_to_date(from_date), to_date=_to_date(to_date),
             fixings=store.fixings(), curves=store,
         )
@@ -523,19 +526,23 @@ _LEG_LABELS = ("A", "B", "C")
 
 
 def _specs_from_range(conventions) -> List[Optional[SwapSpec]]:
-    """コンベンション範囲(最大3行 × start/tenor/end/fix freq/fix dcf/float freq/float dcf/
-    roll conv の8列)→ 脚ごとの SwapSpec。start・tenor・endが全て空の行は脚なし(None)。"""
+    """コンベンション範囲(最大3行 × start/tenor/end/fix freq/fix dcf/float freq/roll conv の
+    7列)→ 脚ごとの SwapSpec。start・tenor・endが全て空の行は脚なし(None)。"""
     rows = [list(r) if r is not None else [] for r in (conventions or [])]
     if len(rows) > _MAX_LEGS:
         raise ValueError(f"脚は最大{_MAX_LEGS}本(3行)までです: {len(rows)}行")
     specs: List[Optional[SwapSpec]] = []
-    for row in rows:
-        start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv = (row + [None] * 8)[:8]
+    for n, row in enumerate(rows, start=1):
+        start, tenor, end, fix_freq, fix_dcf, float_freq, roll_conv = (row + [None] * 7)[:7]
         if all(_is_blank(v) for v in (start, tenor, end)):
             specs.append(None)
             continue
+        try:
+            convention = SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv)
+        except ValueError as e:
+            raise ValueError(f"{n}本目: {e}") from e
         specs.append(SwapSpec(
-            fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+            convention,
             start=_date_or_imm(start), tenor=None if _is_blank(tenor) else str(tenor).strip(),
             end=_date_or_imm(end),
         ))
@@ -572,8 +579,8 @@ def HistoricalRates(
     (Date/A/B/Cの4列スピル配列、1行目は見出し)。カーブ(B−A)・フライ(2B−A−C)の
     引き算はExcel側の数式で行う(ここでは各脚のパーレートだけを計算する)。
 
-    conventions: 最大3行 × 8列(start, tenor, end, fix freq, fix dcf, float freq,
-        float dcf, roll conv。pricingシートと同じ並び)。start・tenor・endが全て空の行は
+    conventions: 最大3行 × 7列(start, tenor, end, fix freq, fix dcf, float freq,
+        roll conv。pricingシートと同じ並び)。start・tenor・endが全て空の行は
         脚なしで、その列は空欄になる。脚が1本もなければ日付の列だけを返す。
     mode: "FIXED" / "ROLLING"(全脚に共通)。base_date/from_date/to_date は HistoricalRate と同じ。
     期間内でカーブのある日付は全て返し、計算できない日(FIXEDで満期後)は空欄("")にする。

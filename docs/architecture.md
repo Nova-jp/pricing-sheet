@@ -43,7 +43,8 @@ roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変
 |---|---|
 | `conventions.py` | 業務上の表記→QuantLibの対応表を集約: `ql.Japan()`カレンダー、dcf文字列→DayCounter、freq、roll conv→生成ルール、IMMコード(M27)→日付、テナー表記の読み替え(12M→1Y)。自前の日付計算ロジックは持たず、呼び出し側がQuantLibのAPIを直接使う |
 | `curve.py` | スポットレート辞書→`ql.PiecewiseConvexMonotoneForward`によるカーブ構築。O/Nは`DepositRateHelper`、それ以外は`OISRateHelper`(`rule=ql.DateGeneration.Forward`・`endOfMonth=False`で構築) |
-| `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。過去起算のスワップは引数で受け取ったTONA実績フィキシングを登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
+| `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは`udf.py`の入口だけ |
+| `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。取引条件は`SwapTerms`で受け取る。評価の前提(評価日・実績の登録・満期済み判定・実績の確認)は`_prepare_swap`に集約し、`price_swap`(パーレート・アニュイティ・PV)と`par_rate`(パーレートだけ、ヒストリカル用)が共通で通る。過去起算のスワップは引数で受け取ったTONA実績フィキシングを登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート)と、全行・全UDFで共有するカーブ一式(基準カーブ、全テナー+1bp、テナー別+1bp。必要になったときに1回だけ作り、バンプはカーブに使っているテナーだけ) |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使い、ここではブートストラップしない)、notional逆算 |
 | `historical_pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
@@ -128,10 +129,11 @@ UDFに渡す標準範囲は `RealTime!$B$2:$D$45`(フラグ/Ticker/Value)。
 
 ### pricingシート
 
-列A-W: `flag / risk_flag / remarks / notional / delta(target) / adj_notional /
+列A-V: `flag / risk_flag / remarks / notional / delta(target) / adj_notional /
 start / tenor / end / fix rate / fix freq / fix dcf / index / float freq /
-float dcf / roll conv / target fixrate / spred / fly / pay/rec / PV /
-delta(bump) / delta(annuity)`。target fixrate・PV・delta・adj_notionalは
+roll conv / target fixrate / spred / fly / pay/rec / PV /
+delta(bump) / delta(annuity)`。float dcfの列は持たない(TONAの変動脚の日数計算はQuantLibが
+指標に固定し、入力しても使われないため。2026-10-12に削除)。target fixrate・PV・delta・adj_notionalは
 UDF、spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則演算)。
 target fixrate(Q列)は`IF(flag=1, FairRate(...), "")`で、A列のflagが1の行だけ計算する。
 
@@ -169,7 +171,7 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 `B1#`等、`XLOOKUP`で日付を突き合わせ)で計算。単位はpricingシートのspred/flyと同じ%。
 データは日次カーブDB(`python -m swap_pricing.curve_batch`で作成)。DBが無いとエラーになる。
 
-任意のコンベンションは`HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq, float_dcf,
+任意のコンベンションは`HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq,
 roll_conv, mode, [基準日], [from], [to])`(Date/Rate/Start/Endの4列スピル)。modeは`FIXED`/`ROLLING`。
 基準日には通常`評価日`(Mainシート、空欄=今日)を渡す(`TODAY()`はF9のたびに再計算されるため使わない)。
 `HistoricalOutright`は`HistoricalRate`のROLLING・start空欄と同じ(既存数式のために残している)。

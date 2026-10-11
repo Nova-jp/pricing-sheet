@@ -11,7 +11,9 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
   (curve.pyのql.OISRateHelper)も同じ仕組みでスケジュールを組むため、両者が
   食い違うリスクが構造的になくなる(経緯はdocs/decisions.md参照)。なお
   overnight(変動)脚の日数計算はQuantLibのOISモデル自体がインデックス固有の
-  DayCounterに固定する仕様のため、float_dcf引数は現状も反映されない。
+  DayCounterに固定する仕様のため、float dcfは入力として持たない(swap_pricing/terms.py)。
+
+■ 取引条件は swap_pricing/terms.py の型(SwapTerms=規約+日付)で受け取る
 
 ■ 主要な出力
   - annuity: 固定脚のアニュイティ(Σ DF×dcf)。fixedLegBPS()から逆算する
@@ -42,9 +44,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import QuantLib as ql
 
 from swap_pricing.conventions import FREQ_TO_QL_FREQUENCY, day_counter, rule_and_eom
-
-PAY = "PAY"
-REC = "REC"
+from swap_pricing.terms import PAY, REC, SwapTerms
 
 _TYPE_MAP = {PAY: ql.OvernightIndexedSwap.Payer, REC: ql.OvernightIndexedSwap.Receiver}
 
@@ -66,63 +66,42 @@ class SwapPricingResult(NamedTuple):
 
 def _build_swap(
     index: "ql.OvernightIndex",
-    start: date,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
+    terms: SwapTerms,
     notional: float,
     pay_rec: str,
     fixed_rate: float,
-    tenor: Optional[str] = None,
-    end: Optional[date] = None,
 ) -> ql.OvernightIndexedSwap:
-    if (tenor is None) == (end is None):
-        raise ValueError("tenor と end のどちらか一方だけを指定してください")
-    if fix_freq not in FREQ_TO_QL_FREQUENCY or float_freq not in FREQ_TO_QL_FREQUENCY:
-        raise ValueError(f"未対応のfreqです (対応: {tuple(FREQ_TO_QL_FREQUENCY)})")
-
-    effective_ql = ql.Date.from_date(start)
-    rule, end_of_month = rule_and_eom(roll_conv)
+    """取引条件どおりのOISを組む。規約の値と tenor/end の指定は SwapTerms が確認済み。"""
+    conv = terms.convention
+    rule, end_of_month = rule_and_eom(conv.roll_conv)
     # tenor未指定(=end指定)の場合、スワップ全体の期間は withTerminationDate で
     # 上書きするため、最初の位置引数(swapTenor)はダミー値でよい。
-    swap_tenor = ql.PeriodParser.parse(tenor.upper()) if tenor is not None else ql.Period(0, ql.Days)
+    swap_tenor = (
+        ql.PeriodParser.parse(terms.tenor.upper()) if terms.tenor is not None else ql.Period(0, ql.Days)
+    )
 
     kwargs = dict(
         swapType=_TYPE_MAP[pay_rec],
         nominal=notional,
-        effectiveDate=effective_ql,
-        fixedLegPaymentFrequency=FREQ_TO_QL_FREQUENCY[fix_freq],
-        overnightLegPaymentFrequency=FREQ_TO_QL_FREQUENCY[float_freq],
-        fixedLegDayCount=day_counter(fix_dcf),
+        effectiveDate=ql.Date.from_date(terms.start),
+        fixedLegPaymentFrequency=FREQ_TO_QL_FREQUENCY[conv.fix_freq],
+        overnightLegPaymentFrequency=FREQ_TO_QL_FREQUENCY[conv.float_freq],
+        fixedLegDayCount=day_counter(conv.fix_dcf),
         convention=ql.ModifiedFollowing,
         terminationDateConvention=ql.ModifiedFollowing,
         dateGenerationRule=rule,
         endOfMonth=end_of_month,
     )
-    if end is not None:
-        kwargs["terminationDate"] = ql.Date.from_date(end)
+    if terms.end is not None:
+        kwargs["terminationDate"] = ql.Date.from_date(terms.end)
 
     return ql.MakeOIS(swap_tenor, index, fixed_rate, **kwargs)
 
 
-def swap_dates(
-    start: date,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
-    tenor: Optional[str] = None,
-    end: Optional[date] = None,
-) -> Tuple[date, date]:
+def swap_dates(terms: SwapTerms) -> Tuple[date, date]:
     """カーブを使わずに、QuantLibが組むスワップの起算日・満期日(休日調整後)を返す。
     price_swapと同じビルダーでスケジュールを組むので、日付は評価と同じになる。"""
-    swap = _build_swap(
-        ql.Tonar(), start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        1.0, PAY, 0.0, tenor=tenor, end=end,
-    )
+    swap = _build_swap(ql.Tonar(), terms, 1.0, PAY, 0.0)
     dates = swap.fixedSchedule().dates()
     return dates[0].to_date(), dates[-1].to_date()
 
@@ -212,17 +191,10 @@ class _PreparedSwap(NamedTuple):
 def _prepare_swap(
     curve: "ql.YieldTermStructureHandle",
     valuation_date: date,
-    start: date,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
+    terms: SwapTerms,
     *,
     notional: float,
     pay_rec: str,
-    tenor: Optional[str],
-    end: Optional[date],
     index: Optional["ql.OvernightIndex"],
     fixings: Optional[Dict[date, float]],
 ) -> _PreparedSwap:
@@ -237,10 +209,7 @@ def _prepare_swap(
     engine = ql.DiscountingSwapEngine(curve)
     _set_fixing_history(index, fixings)
 
-    swap = _build_swap(
-        index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional, pay_rec, 0.0, tenor=tenor, end=end,
-    )
+    swap = _build_swap(index, terms, notional, pay_rec, 0.0)
     # 評価日当日の支払いは発生済み扱い(QuantLibの既定 includeReferenceDateEvents=False と同じ)
     today = ql.Date.from_date(valuation_date)
     if all(cf.date() <= today for cf in (*swap.fixedLeg(), *swap.overnightLeg())):
@@ -261,14 +230,8 @@ class ParRateResult(NamedTuple):
 def par_rate(
     curve: "ql.YieldTermStructureHandle",
     valuation_date: date,
-    start: date,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
-    tenor: Optional[str] = None,
-    end: Optional[date] = None,
+    terms: SwapTerms,
+    *,
     index: Optional["ql.OvernightIndex"] = None,
     fixings: Optional[Dict[date, float]] = None,
 ) -> ParRateResult:
@@ -277,8 +240,7 @@ def par_rate(
     price_swapのtarget_fixrate・maturity_dateと完全に同じ(fairRateは想定元本が違うと
     最下位ビットが変わりうるため、条件をそろえている)。"""
     prepared = _prepare_swap(
-        curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional=1.0, pay_rec=PAY, tenor=tenor, end=end, index=index, fixings=fixings,
+        curve, valuation_date, terms, notional=1.0, pay_rec=PAY, index=index, fixings=fixings,
     )
     return ParRateResult(
         target_fixrate=prepared.swap.fairRate() * 100.0,
@@ -289,28 +251,22 @@ def par_rate(
 def price_swap(
     curve: "ql.YieldTermStructureHandle",
     valuation_date: date,
-    start: date,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
+    terms: SwapTerms,
+    *,
     notional: float,
     pay_rec: str,
-    tenor: Optional[str] = None,
-    end: Optional[date] = None,
     fix_rate: Optional[float] = None,
     index: Optional["ql.OvernightIndex"] = None,
     fixings: Optional[Dict[date, float]] = None,
 ) -> SwapPricingResult:
-    """fixings: {フィキシング対象日: TONA(%)}。過去起算のときのみ必要。"""
+    """fix_rate: 固定金利(%)。None ならパーレートで組む。
+    fixings: {フィキシング対象日: TONA(%)}。過去起算のときのみ必要。"""
     if pay_rec not in (PAY, REC):
         raise ValueError(f"pay_recは'{PAY}'または'{REC}'である必要があります: {pay_rec!r}")
 
     # target fixrate(パーレート)・アニュイティは固定金利0のスワップから取る
     prepared = _prepare_swap(
-        curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional=notional, pay_rec=pay_rec, tenor=tenor, end=end, index=index, fixings=fixings,
+        curve, valuation_date, terms, notional=notional, pay_rec=pay_rec, index=index, fixings=fixings,
     )
     target_fixrate = prepared.swap.fairRate() * 100.0
     annuity = abs(prepared.swap.fixedLegBPS()) / (notional * 0.0001)
@@ -318,10 +274,7 @@ def price_swap(
     fix_rate_used = target_fixrate if fix_rate is None else fix_rate
 
     # PVは入力の固定金利(空欄ならパーレート)で組んだスワップをQuantLibで評価する
-    priced_swap = _build_swap(
-        prepared.index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional, pay_rec, fix_rate_used / 100.0, tenor=tenor, end=end,
-    )
+    priced_swap = _build_swap(prepared.index, terms, notional, pay_rec, fix_rate_used / 100.0)
     priced_swap.setPricingEngine(prepared.engine)
     pv = priced_swap.NPV()
 

@@ -14,6 +14,7 @@ import datetime
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from unittest import mock
@@ -26,11 +27,12 @@ from swap_pricing.conventions import forward_start_date  # noqa: E402
 from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
 from swap_pricing.curve_store import CurveStore  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
-from swap_pricing.risk import SwapParams, bucketed_delta, parallel_delta, resolve_params  # noqa: E402
+from swap_pricing.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
+from swap_pricing.terms import SwapParams, SwapTerms  # noqa: E402
 from tests.test_curve_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
-from tests.test_past_start import CONV  # noqa: E402
+from tests.test_past_start import CONV, CONV_ARGS  # noqa: E402
 
 VAL = date(2026, 9, 25)
 NOTIONAL = 10_000_000_000
@@ -41,9 +43,8 @@ def _pv(rates, params):
     """以前の実装と同じ手順(その場でブートストラップして評価)。比較の基準。"""
     boot = bootstrap_curve(VAL, rates)
     return price_swap(
-        boot.curve, VAL, params.start, params.fix_freq, params.fix_dcf, params.float_freq,
-        params.float_dcf, params.roll_conv, params.notional, params.pay_rec, tenor=params.tenor,
-        end=params.end, fix_rate=params.fix_rate, index=boot.index,
+        boot.curve, VAL, params.terms, notional=params.notional, pay_rec=params.pay_rec,
+        fix_rate=params.fix_rate, index=boot.index,
     ).pv
 
 
@@ -52,9 +53,7 @@ class CurveSetTest(unittest.TestCase):
         market._cache.clear()
         self.curves = curve_set(realtime_snapshot(VAL, QUOTES))
         spot = self.curves.base.spot_date
-        self.params = resolve_params(self.curves, SwapParams(
-            start=spot, tenor="7Y", notional=NOTIONAL, pay_rec="PAY", **CONV,
-        ))
+        self.params = resolve_params(self.curves, SwapParams(SwapTerms(spot, CONV, tenor="7Y"), NOTIONAL, "PAY"))
 
     def test_only_used_tenors_are_bumped(self):
         self.assertNotIn("m1", self.curves.bump_labels)
@@ -79,9 +78,9 @@ class CurveSetTest(unittest.TestCase):
             again = curve_set(realtime_snapshot(VAL, dict(QUOTES)))
             self.assertIs(again, self.curves)
             parallel_delta(again, self.params)
-            parallel_delta(again, self.params._replace(tenor="10Y"))
+            parallel_delta(again, replace(self.params, terms=replace(self.params.terms, tenor="10Y")))
             bucketed_delta(again, self.params)
-            bucketed_delta(again, self.params._replace(tenor="10Y"))
+            bucketed_delta(again, replace(self.params, terms=replace(self.params.terms, tenor="10Y")))
         self.assertEqual(spy.call_count, 1 + len(self.curves.bump_labels))  # parallel 1 + バケット
 
 
@@ -95,13 +94,13 @@ def _rt_range(flags=None):
 
 
 _HEADER = ["flag", "risk_flag", "remarks", "notional", "delta", "adj_notional", "start", "tenor",
-           "end", "fix rate", "fix freq", "fix dcf", "index", "float freq", "float dcf", "roll conv",
+           "end", "fix rate", "fix freq", "fix dcf", "index", "float freq", "roll conv",
            "target fixrate", "spred", "fly", "pay/rec"]
 
 
 def _pricing_row(risk_flag, start, tenor, pay_rec="PAY", notional=NOTIONAL, end=None):
     return [1, risk_flag, "", notional, "", "", start, tenor, end, "", "PA", "act/365fixed", "JSCC",
-            "PA", "act/365fixed", "STD", 0.0, "", "", pay_rec]
+            "PA", "STD", 0.0, "", "", pay_rec]
 
 
 class RiskGridTest(unittest.TestCase):
@@ -127,9 +126,7 @@ class RiskGridTest(unittest.TestCase):
         curves = udf._market(self.rt, None)
         expected = {}
         for row in (self.table[1], self.table[3]):
-            params = resolve_params(curves, SwapParams(
-                start=row[6], tenor=row[7], notional=row[3], pay_rec=row[19], **CONV,
-            ))
+            params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor=row[7]), row[3], row[18]))
             for label, value in bucketed_delta(curves, params).items():
                 expected[label] = expected.get(label, 0.0) + value / 1_000_000.0
         for ticker, value in by_ticker.items():
@@ -148,11 +145,10 @@ class RiskGridTest(unittest.TestCase):
     def test_swap_delta_matches_sum_of_parallel(self):
         """SwapDelta(行ごとの全テナー+1bp)も共有カーブを使い、再ブートストラップと一致する。"""
         row = self.table[1]
-        delta = udf.SwapDelta(row[6], row[7], None, *[row[i] for i in (10, 11, 13, 14, 15)],
+        delta = udf.SwapDelta(row[6], row[7], None, *[row[i] for i in (10, 11, 13, 14)],
                               row[3], "PAY", "", self.rt)
         curves = udf._market(self.rt, None)
-        params = resolve_params(curves, SwapParams(start=row[6], tenor="5y", notional=NOTIONAL,
-                                                   pay_rec="PAY", **CONV))
+        params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor="5y"), NOTIONAL, "PAY"))
         self.assertAlmostEqual(delta, parallel_delta(curves, params) / 1_000_000.0, delta=1e-12)
 
 
@@ -179,20 +175,20 @@ class ValuationDateTest(unittest.TestCase):
         rt = _rt_range(flags={"40Y": 0})
         quotes = {"O/N": FIXINGS[as_of], **{k: v for k, v in SPOT_RATES.items() if k != "40Y"}}
         boot = bootstrap_curve(as_of, quotes)
-        par = udf.FairRate(boot.spot_date, "10y", None, *CONV.values(), rt, as_of)
-        expected = price_swap(boot.curve, as_of, boot.spot_date, notional=1.0, pay_rec="PAY",
-                              tenor="10y", index=boot.index, **CONV).target_fixrate
+        par = udf.FairRate(boot.spot_date, "10y", None, *CONV_ARGS, rt, as_of)
+        expected = price_swap(boot.curve, as_of, SwapTerms(boot.spot_date, CONV, tenor="10y"),
+                              notional=1.0, pay_rec="PAY", index=boot.index).target_fixrate
         self.assertAlmostEqual(par, expected, delta=1e-12)
         self.assertIn("DB", udf.MarketInfo(rt, as_of))
 
     def test_date_not_in_db_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "ヒストリカルDBにありません"):
-            udf.FairRate(None, "10y", None, *CONV.values(), _rt_range(), date(2026, 9, 26))
+            udf.FairRate(None, "10y", None, *CONV_ARGS, _rt_range(), date(2026, 9, 26))
 
     def test_future_date_is_rejected(self):
         future = datetime.date.today() + datetime.timedelta(days=1)
         with self.assertRaisesRegex(ValueError, "未来日"):
-            udf.FairRate(None, "10y", None, *CONV.values(), _rt_range(), future)
+            udf.FairRate(None, "10y", None, *CONV_ARGS, _rt_range(), future)
 
     def test_fixings_on_or_after_valuation_date_are_not_used(self):
         rows = [[d, r] for d, r in FIXINGS.items()]
@@ -212,7 +208,7 @@ class TenorStartUdfTest(unittest.TestCase):
         self.fwd = forward_start_date(self.spot, "10y")
 
     def test_pricing_udfs(self):
-        conv = list(CONV.values())
+        conv = list(CONV_ARGS)
         self.assertEqual(
             udf.FairRate("10y", "20y", None, *conv, self.rt),
             udf.FairRate(self.fwd, "20y", None, *conv, self.rt),
@@ -231,7 +227,7 @@ class TenorStartUdfTest(unittest.TestCase):
 class HistoricalLatestRealTimeTest(unittest.TestCase):
     """HistoricalRates: 基準日が今日なら、最新日(今日)はDBの引け値ではなくRealTimeのレートで計算する。"""
 
-    CONV_ROW = ["", "10y", "", *CONV.values()]
+    CONV_ROW = ["", "10y", "", *CONV_ARGS]
 
     def setUp(self):
         market._cache.clear()
@@ -259,7 +255,7 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
 
     def _fair_rate(self, today):
         with mock.patch.object(udf, "_today", lambda: today):
-            return udf.FairRate(spot_date_for(today), "10y", None, *CONV.values(), self.rt, None)
+            return udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, self.rt, None)
 
     def test_today_not_in_db_is_added_from_realtime(self):
         today = date(2026, 9, 29)  # 営業日、DBにない

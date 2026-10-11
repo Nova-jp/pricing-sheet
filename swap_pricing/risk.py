@@ -13,34 +13,19 @@
   deltaが常に0という無意味な結果になる。基準カーブでのパーレートを一度だけ求めて固定する。
 """
 
+from dataclasses import replace
 from datetime import date
-from typing import Dict, NamedTuple, Optional
+from typing import Dict
 
 from swap_pricing.curve import BootstrapResult
-from swap_pricing.swap_pricer import PAY, SwapPricingResult, price_swap
-
-
-class SwapParams(NamedTuple):
-    start: date
-    fix_freq: str
-    fix_dcf: str
-    float_freq: str
-    float_dcf: str
-    roll_conv: str
-    notional: float
-    pay_rec: str
-    tenor: Optional[str] = None
-    end: Optional[date] = None
-    fix_rate: Optional[float] = None
-    fixings: Optional[Dict[date, float]] = None  # 過去起算時のTONA実績 {日付: %}
+from swap_pricing.swap_pricer import SwapPricingResult, price_swap
+from swap_pricing.terms import PAY, SwapParams
 
 
 def price(boot: BootstrapResult, valuation_date: date, params: SwapParams) -> SwapPricingResult:
     return price_swap(
-        boot.curve, valuation_date, params.start, params.fix_freq, params.fix_dcf,
-        params.float_freq, params.float_dcf, params.roll_conv, params.notional, params.pay_rec,
-        tenor=params.tenor, end=params.end, fix_rate=params.fix_rate, index=boot.index,
-        fixings=params.fixings,
+        boot.curve, valuation_date, params.terms, notional=params.notional, pay_rec=params.pay_rec,
+        fix_rate=params.fix_rate, index=boot.index, fixings=params.fixings,
     )
 
 
@@ -49,7 +34,7 @@ def resolve_params(curves, params: SwapParams) -> SwapParams:
     if params.fix_rate is not None:
         return params
     base = price(curves.base, curves.valuation_date, params)
-    return params._replace(fix_rate=base.fix_rate_used)
+    return replace(params, fix_rate=base.fix_rate_used)
 
 
 def parallel_delta(curves, params: SwapParams) -> float:
