@@ -57,7 +57,7 @@ HistChartは最新日をRealTimeのライブのレートで計算するためRea
   (アウトライト/カーブ/フライ×複数系列)だった。現在は`HistChart`シートで、pricingシートの
   行を指定して最大3系列(アウトライト/カーブ/フライ、ROLLING/FIXED)を1枚のグラフで
   比較できる(2026-09-27実装)。「10枚のグラフ」という初期要件はもう有効ではない。
-  旧Historicalシート(2Y/5Y/10Y固定)は残している。
+  旧Historicalシート(2Y/5Y/10Y固定)は2026-10-12に削除した。
 - **行ごとのリスクグリッド(`BucketedDelta`)** — 廃止し、risk_flag=1の全行の合算を
   1つのUDF`RiskGrid`で出す形にした(2026-09-28)。
 - **15M/18M/21Mテナー** — `include_odd_tenors`引数は廃止済み。RealTime B列の

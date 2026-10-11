@@ -58,7 +58,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
    - これにより、ワークブックと同名の`PricingSheet.py`(実体は
      `swap_pricing/udf.py`を再エクスポートしているだけ)からUDF
      (`FairRate`, `SwapPV`, `SwapDelta`, `SwapAnnuityDelta`,
-     `NotionalForDelta`, `RiskGrid`, `MarketInfo`, `HistoricalOutright`,
+     `NotionalForDelta`, `RiskGrid`, `MarketInfo`,
      `HistoricalRate`, `HistoricalRates`)が
      Excelに登録される。
    - `_xlwings.conf`シートの「UDF Modules」に`swap_pricing.udf`が
