@@ -24,6 +24,7 @@ import QuantLib as ql  # noqa: E402
 
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.swap_pricer import _build_swap, price_swap  # noqa: E402
+from swap_pricing.terms import STANDARD, SwapConvention, SwapTerms  # noqa: E402
 
 # 実際のRealTimeシート(2026-09時点の実データ)のスポットレート一式。
 SPOT_RATES = {
@@ -57,9 +58,8 @@ class RepricingTest(unittest.TestCase):
         for tenor in _MONTH_YEAR_TENORS:
             with self.subTest(valuation_date=valuation_date, tenor=tenor):
                 result = price_swap(
-                    boot.curve, valuation_date, boot.spot_date,
-                    "PA", "act/365fixed", "PA", "act/365fixed", "STD",
-                    notional=1.0, pay_rec="PAY", tenor=tenor.lower(), index=boot.index,
+                    boot.curve, valuation_date, SwapTerms(boot.spot_date, STANDARD, tenor=tenor.lower()),
+                    notional=1.0, pay_rec="PAY", index=boot.index,
                 )
                 self.assertAlmostEqual(result.target_fixrate, SPOT_RATES[tenor], delta=TOLERANCE_PCT)
 
@@ -101,33 +101,31 @@ class ExplicitEndAndConventionTest(unittest.TestCase):
     def test_par_swap_has_zero_pv(self) -> None:
         """パーレートで組んだスワップのPVはゼロに近いはず(fix_rate未指定)。"""
         result = price_swap(
-            self.boot.curve, self.valuation_date, self.boot.spot_date,
-            "PA", "act/365fixed", "PA", "act/365fixed", "STD",
-            notional=1_000_000_000.0, pay_rec="PAY", tenor="10y", index=self.boot.index,
+            self.boot.curve, self.valuation_date, SwapTerms(self.boot.spot_date, STANDARD, tenor="10y"),
+            notional=1_000_000_000.0, pay_rec="PAY", index=self.boot.index,
         )
         self.assertAlmostEqual(result.pv, 0.0, delta=1e-3)
 
     def test_explicit_end_date_without_tenor(self) -> None:
         result = price_swap(
-            self.boot.curve, self.valuation_date, date(2026, 9, 8),
-            "PA", "act/365fixed", "PA", "act/365fixed", "STD",
-            notional=1.0, pay_rec="PAY", end=date(2026, 10, 8), index=self.boot.index,
+            self.boot.curve, self.valuation_date, SwapTerms(date(2026, 9, 8), STANDARD, end=date(2026, 10, 8)),
+            notional=1.0, pay_rec="PAY", index=self.boot.index,
         )
         self.assertEqual(result.maturity_date, date(2026, 10, 8))
 
     def test_mismatched_fixed_and_float_frequency(self) -> None:
+        conv = SwapConvention("SA", "act/365fixed", "PA", "STD")
         result = price_swap(
-            self.boot.curve, self.valuation_date, self.boot.spot_date,
-            "SA", "act/365fixed", "PA", "act/365fixed", "STD",
-            notional=1.0, pay_rec="PAY", tenor="5y", index=self.boot.index,
+            self.boot.curve, self.valuation_date, SwapTerms(self.boot.spot_date, conv, tenor="5y"),
+            notional=1.0, pay_rec="PAY", index=self.boot.index,
         )
         self.assertGreater(result.target_fixrate, 0.0)
 
     def test_eom_roll_keeps_month_end(self) -> None:
+        conv = SwapConvention("PA", "act/365fixed", "PA", "EOM")
         result = price_swap(
-            self.boot.curve, self.valuation_date, date(2027, 8, 31),
-            "PA", "act/365fixed", "PA", "act/365fixed", "EOM",
-            notional=1.0, pay_rec="PAY", tenor="10y", index=self.boot.index,
+            self.boot.curve, self.valuation_date, SwapTerms(date(2027, 8, 31), conv, tenor="10y"),
+            notional=1.0, pay_rec="PAY", index=self.boot.index,
         )
         self.assertEqual(result.maturity_date, date(2037, 8, 31))
 
@@ -139,28 +137,25 @@ class ExplicitEndAndConventionTest(unittest.TestCase):
         は不具合ではなく、EOM規約自体の定義(月末発の場合だけ意味を持つ)による。
         """
         start = date(2026, 9, 15)  # 月末ではない
-        common_args = (
-            self.boot.curve, self.valuation_date, start,
-            "PA", "act/365fixed", "PA", "act/365fixed",
-        )
-        result_eom = price_swap(*common_args, "EOM", notional=1.0, pay_rec="PAY", tenor="1y", index=self.boot.index)
-        result_std = price_swap(*common_args, "STD", notional=1.0, pay_rec="PAY", tenor="1y", index=self.boot.index)
+        def price(roll):
+            terms = SwapTerms(start, SwapConvention("PA", "act/365fixed", "PA", roll), tenor="1y")
+            return price_swap(self.boot.curve, self.valuation_date, terms,
+                              notional=1.0, pay_rec="PAY", index=self.boot.index)
+
+        result_eom = price("EOM")
+        result_std = price("STD")
         self.assertEqual(result_eom.maturity_date, result_std.maturity_date)
         self.assertAlmostEqual(result_eom.target_fixrate, result_std.target_fixrate, delta=1e-9)
 
     def test_imm_roll_intermediate_dates_land_on_third_wednesday(self) -> None:
+        terms = SwapTerms(self.boot.spot_date, SwapConvention("QA", "act/365fixed", "QA", "IMM"), tenor="2y")
         result = price_swap(
-            self.boot.curve, self.valuation_date, self.boot.spot_date,
-            "QA", "act/365fixed", "QA", "act/365fixed", "IMM",
-            notional=1.0, pay_rec="PAY", tenor="2y", index=self.boot.index,
+            self.boot.curve, self.valuation_date, terms, notional=1.0, pay_rec="PAY", index=self.boot.index,
         )
         self.assertGreater(result.target_fixrate, 0.0)
         # 中間のロール日(最初と最後の効果日・満期日を除く)はIMM(第3水曜)ルールに従う。
         # 最後の満期日は指定tenorの終端そのものであり、必ずしも第3水曜ではない。
-        swap = _build_swap(
-            self.boot.index, self.boot.spot_date, "QA", "act/365fixed", "QA", "act/365fixed",
-            "IMM", 1.0, "PAY", 0.0, tenor="2y",
-        )
+        swap = _build_swap(self.boot.index, terms, 1.0, "PAY", 0.0)
         dates = list(swap.fixedSchedule().dates())
         for d in dates[1:-1]:
             self.assertEqual(d.weekday(), ql.Wednesday)

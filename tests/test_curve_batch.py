@@ -23,10 +23,11 @@ import openpyxl  # noqa: E402
 from swap_pricing import curve_batch  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.curve_store import CurveStore  # noqa: E402
-from swap_pricing.historical_pricer import FIXED, historical_swap_rate_series  # noqa: E402
+from swap_pricing.historical_pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
+from swap_pricing.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
-from tests.test_past_start import CONV, _synthetic_fixings  # noqa: E402
+from tests.test_past_start import CONV, CONV_ARGS, _synthetic_fixings  # noqa: E402
 
 DAYS = [date(2026, 9, 24), date(2026, 9, 25), date(2026, 9, 28)]
 TENORS = list(SPOT_RATES)  # Midシートの見出し(12M/24M/36M表記を含む)
@@ -79,7 +80,7 @@ def _write_config(path: Path, tenors):
 
 def _par5y(curve, index, as_of, spot):
     return price_swap(
-        curve, as_of, spot, notional=1.0, pay_rec="PAY", tenor="5Y", index=index, **CONV,
+        curve, as_of, SwapTerms(spot, CONV, tenor="5Y"), notional=1.0, pay_rec="PAY", index=index,
     ).target_fixrate
 
 
@@ -158,7 +159,7 @@ class CurveBatchTest(unittest.TestCase):
         self._run()
         store = CurveStore(self.db)
         series = historical_swap_rate_series(
-            FIXED, start=date(2026, 7, 1), tenor="2Y", fixings=store.fixings(), curves=store, **CONV,
+            SwapSpec(CONV, start=date(2026, 7, 1), tenor="2Y"), FIXED, fixings=store.fixings(), curves=store,
         )
         self.assertEqual([p.as_of_date for p in series], DAYS)
 
@@ -178,8 +179,8 @@ class CurveBatchTest(unittest.TestCase):
 
         self._run()
         store = CurveStore(self.db)
-        conv = ["PA", "act/365fixed", "PA", "act/365fixed", "STD"]
-        table = [["", "5y", ""] + conv, ["", "", ""] + ["", "", "", "", ""], ["", "10Y", ""] + conv]
+        conv = list(CONV_ARGS)
+        table = [["", "5y", ""] + conv, ["", "", ""] + ["", "", "", ""], ["", "10Y", ""] + conv]
         with mock.patch.object(udf, "_historical_store", lambda: store):
             rows = udf.HistoricalRates(table, "rolling")
             single = udf.HistoricalRate("", "10Y", "", *conv, "ROLLING")
@@ -195,7 +196,7 @@ class CurveBatchTest(unittest.TestCase):
 
         self._run()
         with mock.patch.object(udf, "_historical_store", lambda: CurveStore(self.db)):
-            rows = udf.HistoricalRates([[""] * 8] * 3, "FIXED")
+            rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED")
         self.assertEqual(rows[1:], [[d, "", "", ""] for d in DAYS])
 
     def test_vol_sheet_is_imported(self):

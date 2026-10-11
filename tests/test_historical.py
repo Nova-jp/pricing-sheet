@@ -10,6 +10,7 @@
 
 import sys
 import unittest
+from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from swap_pricing.historical_pricer import (  # noqa: E402
     historical_swap_rate_series,
 )
 from swap_pricing.swap_pricer import SwapExpiredError, price_swap  # noqa: E402
+from swap_pricing.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, _synthetic_fixings  # noqa: E402
 
@@ -55,12 +57,17 @@ def _rates(dates=AS_OF_DATES):
 def _direct(as_of, start, tenor=None, end=None, fixings=None, conv=CONV):
     boot = bootstrap_curve(as_of, SPOT_RATES)
     return price_swap(
-        boot.curve, as_of, start, notional=1.0, pay_rec="PAY", tenor=tenor, end=end,
-        index=boot.index, fixings=fixings, **conv,
+        boot.curve, as_of, SwapTerms(start, conv, tenor=tenor, end=end), notional=1.0, pay_rec="PAY",
+        index=boot.index, fixings=fixings,
     )
 
 
-IMM_CONV = {**CONV, "roll_conv": "IMM"}
+def _series(mode, start=None, tenor=None, end=None, conv=CONV, **kwargs):
+    """1本の雛形(SwapSpec)のヒストリカル系列。"""
+    return historical_swap_rate_series(SwapSpec(conv, start, tenor, end), mode, **kwargs)
+
+
+IMM_CONV = replace(CONV, roll_conv="IMM")
 
 
 def _business_days(a, b):
@@ -83,8 +90,8 @@ class RollingTest(unittest.TestCase):
 
     def test_blank_start_keeps_business_day_length(self):
         """start空欄・tenor指定: 基準日のスポット起点+tenorと同じ営業日数の、各日のスポット起点の取引。"""
-        series = historical_swap_rate_series(
-            ROLLING, tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        series = _series(
+            ROLLING, tenor="5Y", base_date=BASE, curves=_rates(),
         )
         base = _direct(BASE, spot_date_for(BASE), tenor="5Y")
         self._assert_rolled(series, spot_date_for(BASE), base.maturity_date)
@@ -99,24 +106,24 @@ class RollingTest(unittest.TestCase):
     def test_forward_start_keeps_business_day_offset(self):
         base_spot = spot_date_for(BASE)
         start = CALENDAR.advance(ql.Date.from_date(base_spot), 1, ql.Years).to_date()  # 1年先スタート
-        series = historical_swap_rate_series(
-            ROLLING, start=start, tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        series = _series(
+            ROLLING, start=start, tenor="5Y", base_date=BASE, curves=_rates(),
         )
         self._assert_rolled(series, start, _direct(BASE, start, tenor="5Y").maturity_date)
 
     def test_base_date_reproduces_input_trade(self):
         """基準日当日の値は、入力どおりの日付の取引(=FairRate)と一致する。"""
         start, end = date(2027, 3, 31), date(2032, 3, 31)
-        series = historical_swap_rate_series(
-            ROLLING, start=start, end=end, base_date=BASE, curves=_rates([BASE]), **CONV,
+        series = _series(
+            ROLLING, start=start, end=end, base_date=BASE, curves=_rates([BASE]),
         )
         self.assertEqual(series[0].start_date, start)
         self.assertEqual(series[0].par_rate, _direct(BASE, start, end=end).target_fixrate)
 
     def test_imm_codes_are_rolled(self):
         """IMMコードも日付として読み、他の日付と同じく営業日数を保って移動する。"""
-        series = historical_swap_rate_series(
-            ROLLING, start="M27", end="M38", base_date=BASE, curves=_rates(), **CONV,
+        series = _series(
+            ROLLING, start="M27", end="M38", base_date=BASE, curves=_rates(),
         )
         start, end = imm_code_to_date("M27"), imm_code_to_date("M38")
         self._assert_rolled(series, start, _direct(BASE, start, end=end).maturity_date)
@@ -125,26 +132,26 @@ class RollingTest(unittest.TestCase):
     def test_tenor_start_equals_forward_date(self):
         """startのテナー(1Y)は基準日のスポット日+1Yの日付を入れたのと同じ。"""
         start = forward_start_date(spot_date_for(BASE), "1Y")
-        by_tenor = historical_swap_rate_series(
-            ROLLING, start="1Y", tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        by_tenor = _series(
+            ROLLING, start="1Y", tenor="5Y", base_date=BASE, curves=_rates(),
         )
-        by_date = historical_swap_rate_series(
-            ROLLING, start=start, tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        by_date = _series(
+            ROLLING, start=start, tenor="5Y", base_date=BASE, curves=_rates(),
         )
         self.assertEqual(by_tenor, by_date)
 
     def test_imm_roll_conv_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "IMM"):
-            historical_swap_rate_series(
-                ROLLING, start="M27", end="M38", base_date=BASE, curves=_rates(), **IMM_CONV,
+            _series(
+                ROLLING, start="M27", end="M38", base_date=BASE, curves=_rates(), conv=IMM_CONV,
             )
 
 
 class FixedTest(unittest.TestCase):
     def test_dates_are_kept_as_input(self):
         start = date(2027, 3, 31)
-        series = historical_swap_rate_series(
-            FIXED, start=start, tenor="5Y", curves=_rates(), **CONV,
+        series = _series(
+            FIXED, start=start, tenor="5Y", curves=_rates(),
         )
         self.assertEqual({p.start_date for p in series}, {start})
         self.assertEqual(len({p.maturity_date for p in series}), 1)
@@ -153,15 +160,15 @@ class FixedTest(unittest.TestCase):
                 self.assertEqual(p.par_rate, _direct(p.as_of_date, start, tenor="5Y").target_fixrate)
 
     def test_imm_codes_are_fixed_dates(self):
-        series = historical_swap_rate_series(
-            FIXED, start="M27", end="M38", curves=_rates(), **IMM_CONV,
+        series = _series(
+            FIXED, start="M27", end="M38", curves=_rates(), conv=IMM_CONV,
         )
         self.assertEqual({p.start_date for p in series}, {imm_code_to_date("M27")})
 
     def test_tenor_start_is_fixed_forward_date(self):
         start = forward_start_date(spot_date_for(BASE), "1Y")
-        series = historical_swap_rate_series(
-            FIXED, start="1y", tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        series = _series(
+            FIXED, start="1y", tenor="5Y", base_date=BASE, curves=_rates(),
         )
         self.assertEqual({p.start_date for p in series}, {start})
         for p in series:
@@ -172,8 +179,8 @@ class FixedTest(unittest.TestCase):
         """過去日Dの計算にはD当日以降の実績を使わない(先読みしない)。"""
         start = date(2026, 1, 6)
         fixings = _synthetic_fixings(date(2025, 12, 1), date(2026, 9, 30))  # 未来日の値も含む
-        series = historical_swap_rate_series(
-            FIXED, start=start, tenor="2Y", fixings=fixings, curves=_rates(), **CONV,
+        series = _series(
+            FIXED, start=start, tenor="2Y", fixings=fixings, curves=_rates(),
         )
         for p in series:
             with self.subTest(as_of=p.as_of_date):
@@ -183,23 +190,23 @@ class FixedTest(unittest.TestCase):
 
     def test_past_start_without_fixings_raises_with_date(self):
         with self.assertRaisesRegex(ValueError, "2026-03-25"):
-            historical_swap_rate_series(
-                FIXED, start=date(2026, 1, 6), tenor="2Y", curves=_rates(), **CONV,
+            _series(
+                FIXED, start=date(2026, 1, 6), tenor="2Y", curves=_rates(),
             )
 
     def test_matured_dates_are_skipped(self):
         """満期後の日付は系列から外す(エラーにしない)。"""
         fixings = _synthetic_fixings(date(2025, 12, 1), date(2026, 9, 30))
-        series = historical_swap_rate_series(
+        series = _series(
             FIXED, start=date(2026, 1, 6), end=date(2026, 5, 7), fixings=fixings,
-            curves=_rates(), **CONV,
+            curves=_rates(),
         )
         self.assertEqual([p.as_of_date for p in series], [date(2026, 3, 25)])
 
     def test_blank_start_is_base_spot_date(self):
         """start空欄は基準日のスポット日の取引として固定する。"""
-        series = historical_swap_rate_series(
-            FIXED, tenor="5Y", base_date=BASE, curves=_rates(), **CONV,
+        series = _series(
+            FIXED, tenor="5Y", base_date=BASE, curves=_rates(),
         )
         self.assertEqual({p.start_date for p in series}, {spot_date_for(BASE)})
         for p in series:
@@ -219,7 +226,7 @@ class _CountingSource(_BootstrapSource):
 
 
 def _spec(**kwargs):
-    return SwapSpec(**CONV, **kwargs)
+    return SwapSpec(CONV, **kwargs)
 
 
 class MultiLegTest(unittest.TestCase):
@@ -230,7 +237,7 @@ class MultiLegTest(unittest.TestCase):
         rows = historical_multi_rate_series(specs, ROLLING, curves=_rates())
         self.assertEqual([d for d, _ in rows], AS_OF_DATES)
         for i, tenor in enumerate(["2Y", "5Y", "10Y"]):
-            single = historical_swap_rate_series(ROLLING, tenor=tenor, curves=_rates(), **CONV)
+            single = _series(ROLLING, tenor=tenor, curves=_rates())
             with self.subTest(tenor=tenor):
                 self.assertEqual([legs[i].par_rate for _, legs in rows], [p.par_rate for p in single])
 
@@ -266,10 +273,10 @@ class MultiLegTest(unittest.TestCase):
 class InputTest(unittest.TestCase):
     def test_unknown_mode(self):
         with self.assertRaises(ValueError):
-            historical_swap_rate_series("SPOT", tenor="5Y", curves=_rates(), **CONV)
+            _series("SPOT", tenor="5Y", curves=_rates())
 
     def test_mode_is_case_insensitive(self):
-        series = historical_swap_rate_series(" rolling ", tenor="5Y", curves=_rates([BASE]), **CONV)
+        series = _series(" rolling ", tenor="5Y", curves=_rates([BASE]))
         self.assertEqual(len(series), 1)
 
     def test_price_swap_raises_expired_error(self):

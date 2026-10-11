@@ -18,6 +18,7 @@ import QuantLib as ql  # noqa: E402
 from swap_pricing.conventions import forward_start_date, imm_code_to_date, is_imm_code, is_tenor  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.swap_pricer import _build_swap, price_swap  # noqa: E402
+from swap_pricing.terms import SwapConvention, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 VALUATION = date(2026, 9, 25)
@@ -25,8 +26,8 @@ VALUATION = date(2026, 9, 25)
 
 def _schedule(start, end, freq, roll):
     ql.Settings.instance().evaluationDate = ql.Date.from_date(VALUATION)
-    swap = _build_swap(ql.Tonar(), start, freq, "act/365fixed", freq, "act/365fixed", roll,
-                       1.0, "PAY", 0.0, end=end)
+    terms = SwapTerms(start, SwapConvention(freq, "act/365fixed", freq, roll), end=end)
+    swap = _build_swap(ql.Tonar(), terms, 1.0, "PAY", 0.0)
     return [d.to_date() for d in swap.fixedSchedule().dates()]
 
 
@@ -86,9 +87,10 @@ class ImmRollScheduleTest(unittest.TestCase):
     def test_past_start_imm_swap_prices_with_fixings(self) -> None:
         from tests.test_past_start import FIXINGS
         boot = bootstrap_curve(VALUATION, SPOT_RATES)
+        terms = SwapTerms(imm_code_to_date("U26"), SwapConvention("QA", "act/365fixed", "QA", "IMM"),
+                          end=imm_code_to_date("U28"))
         result = price_swap(
-            boot.curve, VALUATION, imm_code_to_date("U26"), "QA", "act/365fixed", "QA",
-            "act/365fixed", "IMM", 1e10, "PAY", end=imm_code_to_date("U28"), fix_rate=1.0,
+            boot.curve, VALUATION, terms, notional=1e10, pay_rec="PAY", fix_rate=1.0,
             index=boot.index, fixings=FIXINGS,
         )
         self.assertEqual(result.maturity_date, date(2028, 9, 20))

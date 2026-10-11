@@ -42,6 +42,15 @@ Python/QuantLib + LSEG Workspace(データ供給元はLSEGのみ。クラウド�
   LSEG Workspaceの`RDP.HistoricalPricing`と
   Excel標準関数だけで構成する。
 
+## 開発の進め方(指示がなくても毎回この手順)
+
+- 作業ごとに最新の`main`(`git pull`済み)からブランチを切る(`feature/…`・`fix/…`・`perf/…`)。
+  `main`の上で直接コミットしない。同じファイルを触る開発は並行させず、前のPRのマージ後に始める。
+- 変更後は全テスト(`python -m unittest discover -s tests`)を流す。計算に関わる変更は、
+  実DBで変更前後の結果が一致することも確かめる。
+- コミット・push・PRの作成はユーザーの了承を得てから行う。マージ後はリモートと
+  ローカルのブランチを消す。
+
 ## リポジトリはPublic(コミット前に必ず確認)
 
 - 秘密情報・環境固有の値(接続文字列、社内のパス等)は

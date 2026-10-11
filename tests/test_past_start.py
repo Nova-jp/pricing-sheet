@@ -19,12 +19,15 @@ import QuantLib as ql  # noqa: E402
 from swap_pricing.conventions import CALENDAR  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
-from swap_pricing.risk import SwapParams, bucketed_delta  # noqa: E402
+from swap_pricing.risk import bucketed_delta  # noqa: E402
 from swap_pricing.swap_pricer import _set_fixing_history, par_rate, price_swap  # noqa: E402
+from swap_pricing.terms import STANDARD, SwapParams, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 VALUATION = date(2026, 9, 25)  # 金曜(営業日)
-CONV = dict(fix_freq="PA", fix_dcf="act/365fixed", float_freq="PA", float_dcf="act/365fixed", roll_conv="STD")
+CONV = STANDARD
+# UDFに渡すときの規約の列(Excelの fix freq / fix dcf / float freq / roll conv の並び)
+CONV_ARGS = (CONV.fix_freq, CONV.fix_dcf, CONV.float_freq, CONV.roll_conv)
 NOTIONAL = 10_000_000_000
 
 
@@ -44,8 +47,8 @@ FIXINGS = _synthetic_fixings(date(2025, 1, 6), VALUATION - timedelta(days=1))
 
 def _price(boot, start, tenor, fixings, fix_rate=0.9, valuation=VALUATION):
     return price_swap(
-        boot.curve, valuation, start, notional=NOTIONAL, pay_rec="PAY", tenor=tenor,
-        fix_rate=fix_rate, index=boot.index, fixings=fixings, **CONV,
+        boot.curve, valuation, SwapTerms(start, CONV, tenor=tenor), notional=NOTIONAL, pay_rec="PAY",
+        fix_rate=fix_rate, index=boot.index, fixings=fixings,
     )
 
 
@@ -131,10 +134,10 @@ class PastStartTest(unittest.TestCase):
                                       (date(2026, 6, 24), "1Y", FIXINGS),
                                       (date(2024, 9, 24), "3Y", FIXINGS)]:
             with self.subTest(start=start, tenor=tenor):
-                full = price_swap(self.boot.curve, VALUATION, start, notional=1.0, pay_rec="PAY",
-                                  tenor=tenor, index=self.boot.index, fixings=fixings, **CONV)
-                par = par_rate(self.boot.curve, VALUATION, start, tenor=tenor,
-                               index=self.boot.index, fixings=fixings, **CONV)
+                terms = SwapTerms(start, CONV, tenor=tenor)
+                full = price_swap(self.boot.curve, VALUATION, terms, notional=1.0, pay_rec="PAY",
+                                  index=self.boot.index, fixings=fixings)
+                par = par_rate(self.boot.curve, VALUATION, terms, index=self.boot.index, fixings=fixings)
                 self.assertEqual(par.target_fixrate, full.target_fixrate)
                 self.assertEqual(par.maturity_date, full.maturity_date)
 
@@ -142,8 +145,8 @@ class PastStartTest(unittest.TestCase):
         _price(self.boot, self.boot.spot_date, "10Y", None)
 
     def test_bucketed_delta_with_past_start(self) -> None:
-        params = SwapParams(start=date(2026, 6, 24), tenor="1Y", notional=NOTIONAL, pay_rec="PAY",
-                            fix_rate=0.9, fixings=FIXINGS, **CONV)
+        params = SwapParams(SwapTerms(date(2026, 6, 24), CONV, tenor="1Y"), NOTIONAL, "PAY",
+                            fix_rate=0.9, fixings=FIXINGS)
         curves = curve_set(realtime_snapshot(VALUATION, SPOT_RATES))
         deltas = bucketed_delta(curves, params)
         self.assertGreater(sum(deltas.values()), 0)  # PAYなので金利上昇で得
@@ -155,8 +158,8 @@ class EvaluationDateTest(unittest.TestCase):
         boot = bootstrap_curve(VALUATION, SPOT_RATES)
 
         def par() -> float:
-            return price_swap(boot.curve, VALUATION, boot.spot_date, notional=1.0, pay_rec="PAY",
-                              tenor="10Y", index=boot.index, **CONV).target_fixrate
+            return price_swap(boot.curve, VALUATION, SwapTerms(boot.spot_date, CONV, tenor="10Y"),
+                              notional=1.0, pay_rec="PAY", index=boot.index).target_fixrate
 
         base = par()
         bootstrap_curve(date(2026, 9, 24), SPOT_RATES)  # グローバル評価日が前日に変わる

@@ -51,6 +51,7 @@ from swap_pricing.conventions import (
 )
 from swap_pricing.curve import spot_date_for
 from swap_pricing.swap_pricer import SwapExpiredError, par_rate, swap_dates
+from swap_pricing.terms import SwapConvention, SwapTerms
 
 FIXED = "FIXED"
 ROLLING = "ROLLING"
@@ -97,55 +98,52 @@ def _input_start(value: DateInput, base_spot: date) -> date:
     return _input_date(value)
 
 
-class _LegDates(NamedTuple):
-    """1本の脚の、過去日ごとの日付の決め方(基準日の取引から1回だけ作る)。"""
-
-    start: date  # FIXED: 起算日(入力どおり)
-    tenor: Optional[str]  # FIXED: 入力どおり(tenorかendの一方)
-    end: Optional[date]
-    offset_days: int  # ROLLING: スポット日→起算日の営業日数
-    length_days: int  # ROLLING: 起算日→満期日の営業日数
-
-    def on(self, mode: str, as_of_spot: date) -> Tuple[date, Optional[str], Optional[date]]:
-        """過去日D(スポット日 as_of_spot)で組むスワップの (start, tenor, end)。"""
-        if mode == FIXED:
-            return self.start, self.tenor, self.end
-        start = CALENDAR.advance(ql.Date.from_date(as_of_spot), self.offset_days, ql.Days)
-        end = CALENDAR.advance(start, self.length_days, ql.Days)
-        return start.to_date(), None, end.to_date()
-
-
-def _leg_dates(spec: "SwapSpec", mode: str, base_spot: date) -> _LegDates:
-    start = _input_start(spec.start, base_spot)
-    end = _input_date(spec.end)
-    if mode == FIXED:
-        return _LegDates(start, spec.tenor, end, 0, 0)
-    if str(spec.roll_conv).strip().upper() == ROLL_IMM:
-        raise ValueError("roll convがIMMの脚はROLLINGで計算できません(移動後の日付がIMM日でなくなるため)")
-    # 基準日の取引の起算日・満期日(休日調整後)を QuantLib のスケジュールから取り、営業日数を数える
-    swap_start, swap_end = swap_dates(
-        start, spec.fix_freq, spec.fix_dcf, spec.float_freq, spec.float_dcf, spec.roll_conv,
-        tenor=spec.tenor, end=end,
-    )
-    ql_start = ql.Date.from_date(swap_start)
-    return _LegDates(
-        start, spec.tenor, end,
-        CALENDAR.businessDaysBetween(ql.Date.from_date(base_spot), ql_start),
-        CALENDAR.businessDaysBetween(ql_start, ql.Date.from_date(swap_end)),
-    )
-
-
 class SwapSpec(NamedTuple):
-    """ヒストリカルを計算する1本のスワップ(pricingシートの1行分のコンベンション)。"""
+    """ヒストリカルを計算する1本のスワップの雛形(pricingシートの1行分)。
 
-    fix_freq: str
-    fix_dcf: str
-    float_freq: str
-    float_dcf: str
-    roll_conv: str
+    規約は確定済み(SwapConvention)、start/end は日付に決まる前の入力のまま持つ
+    (空欄・テナー・IMMコードを含む)。基準日の取引に直すのは _leg_dates、各過去日の
+    具体的なスワップ(SwapTerms)にするのは _LegDates.on。
+    """
+
+    convention: SwapConvention
     start: DateInput = None
     tenor: Optional[str] = None
     end: DateInput = None
+
+
+class _LegDates(NamedTuple):
+    """1本の脚の、過去日ごとのスワップの決め方(基準日の取引から1回だけ作る)。"""
+
+    base: SwapTerms  # 基準日の取引(FIXEDは全ての過去日でこのまま使う)
+    offset_days: int  # ROLLING: スポット日→起算日の営業日数
+    length_days: int  # ROLLING: 起算日→満期日の営業日数
+
+    def on(self, mode: str, as_of_spot: date) -> SwapTerms:
+        """過去日D(スポット日 as_of_spot)で組むスワップ。"""
+        if mode == FIXED:
+            return self.base
+        start = CALENDAR.advance(ql.Date.from_date(as_of_spot), self.offset_days, ql.Days)
+        end = CALENDAR.advance(start, self.length_days, ql.Days)
+        return SwapTerms(start.to_date(), self.base.convention, end=end.to_date())
+
+
+def _leg_dates(spec: SwapSpec, mode: str, base_spot: date) -> _LegDates:
+    base = SwapTerms(
+        _input_start(spec.start, base_spot), spec.convention, tenor=spec.tenor, end=_input_date(spec.end),
+    )
+    if mode == FIXED:
+        return _LegDates(base, 0, 0)
+    if spec.convention.roll_conv == ROLL_IMM:
+        raise ValueError("roll convがIMMの脚はROLLINGで計算できません(移動後の日付がIMM日でなくなるため)")
+    # 基準日の取引の起算日・満期日(休日調整後)を QuantLib のスケジュールから取り、営業日数を数える
+    swap_start, swap_end = swap_dates(base)
+    ql_start = ql.Date.from_date(swap_start)
+    return _LegDates(
+        base,
+        CALENDAR.businessDaysBetween(ql.Date.from_date(base_spot), ql_start),
+        CALENDAR.businessDaysBetween(ql_start, ql.Date.from_date(swap_end)),
+    )
 
 
 class LegResult(NamedTuple):
@@ -161,11 +159,11 @@ def _normalize_mode(mode: str) -> str:
     return mode
 
 
-def _last_date(swap_start: date, tenor: Optional[str], swap_end: Optional[date]) -> date:
+def _last_date(terms: SwapTerms) -> date:
     """カーブを読み出す範囲の目安(満期日。tenor指定なら起算日+tenor)。"""
-    if swap_end is not None:
-        return swap_end
-    return (ql.Date.from_date(swap_start) + ql.PeriodParser.parse(tenor.upper())).to_date()
+    if terms.end is not None:
+        return terms.end
+    return (ql.Date.from_date(terms.start) + ql.PeriodParser.parse(terms.tenor.upper())).to_date()
 
 
 def historical_multi_rate_series(
@@ -194,10 +192,6 @@ def historical_multi_rate_series(
     curves: 日次カーブの供給元
     """
     mode = _normalize_mode(mode)
-    for n, spec in enumerate(specs, start=1):
-        if (spec.tenor is None) == (spec.end is None):
-            raise ValueError(f"{n}本目: tenor と end のどちらか一方だけを指定してください")
-
     legs_dates: List[_LegDates] = []
     if specs:
         base_spot = spot_date_for(base_date or date.today())
@@ -216,8 +210,8 @@ def historical_multi_rate_series(
             continue
 
         as_of_spot = spot_date_for(as_of_date)
-        dates_on = [d.on(mode, as_of_spot) for d in legs_dates]
-        until = max(_last_date(st, tenor, en) for st, tenor, en in dates_on)
+        terms_on = [d.on(mode, as_of_spot) for d in legs_dates]
+        until = max(_last_date(t) for t in terms_on)
         boot = curves.load(as_of_date, until=until + _HORIZON_MARGIN)
         # 実績はDより前の日だけを渡す(当日を含めない)。Dの引け値の時点でDのTONAは未公表
         # (公表は翌営業日)で、QuantLibは当日の実績が登録されているとそれを使ってしまうため。
@@ -226,34 +220,25 @@ def historical_multi_rate_series(
         )
 
         legs: List[Optional[LegResult]] = []
-        for spec, (swap_start, tenor, swap_end) in zip(specs, dates_on):
+        for terms in terms_on:
             try:
                 result = par_rate(
-                    boot.curve, as_of_date, swap_start, spec.fix_freq, spec.fix_dcf,
-                    spec.float_freq, spec.float_dcf, spec.roll_conv,
-                    tenor=tenor, end=swap_end, index=boot.index, fixings=known_fixings,
+                    boot.curve, as_of_date, terms, index=boot.index, fixings=known_fixings,
                 )
             except SwapExpiredError:
                 legs.append(None)  # FIXEDで満期後の日付
                 continue
             except Exception as e:
                 raise ValueError(f"{as_of_date}時点の計算に失敗しました: {e}") from e
-            legs.append(LegResult(result.target_fixrate, swap_start, result.maturity_date))
+            legs.append(LegResult(result.target_fixrate, terms.start, result.maturity_date))
         results.append((as_of_date, legs))
 
     return results
 
 
 def historical_swap_rate_series(
+    spec: SwapSpec,
     mode: str,
-    fix_freq: str,
-    fix_dcf: str,
-    float_freq: str,
-    float_dcf: str,
-    roll_conv: str,
-    start: DateInput = None,
-    tenor: Optional[str] = None,
-    end: DateInput = None,
     base_date: Optional[date] = None,
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
@@ -265,7 +250,6 @@ def historical_swap_rate_series(
     1本のスワップのヒストリカル・パーレート系列(as_of_dateの昇順)。
     historical_multi_rate_series の1本版で、計算できない日(FIXEDで満期後)は系列に含めない。
     """
-    spec = SwapSpec(fix_freq, fix_dcf, float_freq, float_dcf, roll_conv, start, tenor, end)
     rows = historical_multi_rate_series(
         [spec], mode, base_date, from_date, to_date, fixings, curves=curves,
     )
