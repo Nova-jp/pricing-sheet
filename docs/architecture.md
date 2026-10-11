@@ -26,7 +26,7 @@
         ▼  日中はDBを読むだけ(ブートストラップしない)
 [Excel: PricingSheet.xlsm]
   RealTimeシート(LSEGアドインが手動更新するTicker/Value) ─▶ FairRate等のUDF(その場でカーブ構築)
-  HistoricalRate / HistoricalOutright ─────────────────────▶ DBのカーブで評価
+  HistoricalRate / HistoricalRates ───────────────────────▶ DBのカーブで評価
 ```
 
 データの供給元はLSEG Workspaceだけ(クラウドは使わない)。
@@ -164,17 +164,15 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 - `TODAY()`をやめたので、F9だけでは値は変わらない(レート・入力・評価日が変わったセルだけ
   再計算される)。日付をまたいでもRealTimeのレートが変われば再計算される。
 
-### Historicalシート
+### ヒストリカルのUDF
 
-2Y/5Y/10Yの`HistoricalOutright`UDF(B1/F1/J1、Date/Rateの2列スピル配列、1行目は見出し)+
-2s10sカーブ(N2: 10Y−2Y)・2s5s10sフライ(R2: 2×5Y−2Y−10Y)をExcel数式(スピル参照
-`B1#`等、`XLOOKUP`で日付を突き合わせ)で計算。単位はpricingシートのspred/flyと同じ%。
 データは日次カーブDB(`python -m swap_pricing.curve_batch`で作成)。DBが無いとエラーになる。
+(旧Historicalシート(2Y/5Y/10Y固定)と`HistoricalOutright`、空のCalcシートは2026-10-12に削除した。
+グラフはHistChartシートで見る。)
 
 任意のコンベンションは`HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq,
 roll_conv, mode, [基準日], [from], [to])`(Date/Rate/Start/Endの4列スピル)。modeは`FIXED`/`ROLLING`。
 基準日には通常`評価日`(Mainシート、空欄=今日)を渡す(`TODAY()`はF9のたびに再計算されるため使わない)。
-`HistoricalOutright`は`HistoricalRate`のROLLING・start空欄と同じ(既存数式のために残している)。
 `HistoricalRates`(HistChart用、最大3脚)は省略可能な最後の引数`real_time_range`にRealTimeの範囲を渡すと、
 基準日が今日で営業日なら今日をRealTimeのライブのレートで計算した最新日として加える(HistChart参照)。
 ROLLINGは営業日数を固定するので、満期日は「スポット日+tenor」から数日ずれる日があり、

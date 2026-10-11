@@ -19,13 +19,13 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   - 過去起算スワップ用のTONA実績フィキシングは引数(fixing_range、省略可)で受け取る。
     historical_data.xlsxのFixingシート(日付/TONAの2列スピル)を
     `[historical_data.xlsx]Fixing!$A$5#` のように参照する想定。評価日より前の日だけを使う。
-  - ヒストリカル系UDF(HistoricalRate(s), HistoricalOutright)はブートストラップをせず、
+  - ヒストリカル系UDF(HistoricalRate, HistoricalRates)はブートストラップをせず、
     朝バッチ(python -m swap_pricing.curve_batch)が作った日次カーブDB
     (data/historical.db)を読むだけ。TONA実績もDBに取り込み済みのものを使う。
-  - 配列を返すUDF(RiskGrid, HistoricalOutright, HistoricalRate, HistoricalRates)は、
+  - 配列を返すUDF(RiskGrid, HistoricalRate, HistoricalRates)は、
     Excelの動的配列のスピルにそのまま任せる。xlwingsの @xw.ret(expand="table") は使わない
     (計算後に非同期でセル範囲を旧式の配列数式に書き換えるため、動的配列の
-    スピル参照(B1#等)や数式の@付与と衝突する。実際にHistoricalシートが
+    スピル参照(B1#等)や数式の@付与と衝突する。実際に旧Historicalシートが
     旧式配列化して先頭1セルしか表示されなくなっていた)。
 
 ■ 使い方(Windows実機でのセットアップ)
@@ -46,7 +46,6 @@ from swap_pricing.conventions import CALENDAR, forward_start_date, imm_code_to_d
 from swap_pricing.curve import BootstrapResult, ON_KEYS
 from swap_pricing.curve_store import CurveStore
 from swap_pricing.historical_pricer import (
-    ROLLING,
     SwapSpec,
     historical_multi_rate_series,
     historical_swap_rate_series,
@@ -464,21 +463,6 @@ def _historical_store() -> CurveStore:
             "python -m swap_pricing.curve_batch を実行してください"
         )
     return store
-
-
-@xw.func
-def HistoricalOutright(tenor, fix_freq, fix_dcf, float_freq, roll_conv) -> List[list]:
-    """
-    スポット起点+tenorのヒストリカル・パーレート推移(Date/Rateの2列スピル配列)。
-    HistoricalRate の ROLLING・start空欄 と同じ(Historicalシートの既存数式のために残す)。
-    カーブ(スプレッド)やフライは、この結果をExcel側で引き算するだけで求まる。
-    """
-    with _historical_store() as store:
-        spec = SwapSpec(SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv), tenor=tenor)
-        series = historical_swap_rate_series(spec, ROLLING, curves=store)
-    rows = [["Date", "Rate"]]
-    rows += [[p.as_of_date, p.par_rate] for p in series]
-    return rows
 
 
 def _date_or_imm(value):
