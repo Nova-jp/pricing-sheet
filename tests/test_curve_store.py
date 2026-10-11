@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import QuantLib as ql  # noqa: E402
 
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
-from swap_pricing.curve_store import GRID_DAYS, CurveStore, discount_grid  # noqa: E402
+from swap_pricing.curve_store import GRID_DAYS, CurveStore, _grid_dates, discount_grid  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
@@ -87,6 +87,22 @@ class CurveStoreTest(unittest.TestCase):
     def test_missing_date_is_rejected(self):
         with self.assertRaises(ValueError):
             self.store.load(date(2025, 4, 1))
+
+
+class GridDatesTest(unittest.TestCase):
+    """日付の並びの使い回し(切り出し・範囲外での作り直し)で、連続した暦日がずれないこと。"""
+
+    def assert_grid(self, start, n):
+        grid = _grid_dates(start, n)
+        first = ql.Date.from_date(start).serialNumber()
+        self.assertEqual([d.serialNumber() for d in grid], list(range(first, first + n)))
+
+    def test_slices_are_consecutive_calendar_days(self):
+        # 同じ範囲内 → 過去にはみ出す → 未来にはみ出す(作り直し)の順に確認する
+        for start, n in [(AS_OF, 3700), (AS_OF + timedelta(days=1), 10), (date(1990, 1, 1), 400),
+                         (date(2025, 3, 30), GRID_DAYS), (date(2090, 1, 1), 5)]:
+            with self.subTest(start=start, n=n):
+                self.assert_grid(start, n)
 
 
 class QuotesTest(unittest.TestCase):

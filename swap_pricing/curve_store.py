@@ -25,8 +25,9 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
 
 ■ 復元
   ql.DiscountCurve(日付, DF) で組み直す(ノード上はDFそのもの)。構築時の評価日には
-  依存しないカーブになる。ql.Dateオブジェクトの生成が復元時間の大半を占めるため、
-  日付リストはプロセス内で1本だけ作って使い回し、必要な期間(until)だけ読み出す。
+  依存しないカーブになる。日付の並びはC++側の配列(ql.DateVector)としてプロセス内に
+  1本だけ作って使い回し、必要な期間(until)だけ切り出して渡す。Pythonのリストで渡すと
+  呼び出しのたびに全要素をC++の配列へ変換し、それが復元時間の大半(約95%)を占めていた。
 """
 
 import json
@@ -86,18 +87,20 @@ def discount_grid(curve: ql.YieldTermStructureHandle, as_of_date: date) -> array
     return array("d", (curve.discount(d) for d in _grid_dates(as_of_date, GRID_DAYS)))
 
 
-_date_cache: List[ql.Date] = []  # 連続した暦日の ql.Date
+_date_cache = ql.DateVector()  # 連続した暦日(C++側の配列。切り出しもC++内で行われる)
+_date_cache_base = 0  # _date_cache[0] のシリアル値
 _DATE_CACHE_MARGIN = 10 * 366  # 作り直しの頻度を下げるため前後に余分に確保する
 
 
-def _grid_dates(start: date, n: int) -> List[ql.Date]:
-    global _date_cache
+def _grid_dates(start: date, n: int) -> "ql.DateVector":
+    global _date_cache, _date_cache_base
     first = ql.Date.from_date(start).serialNumber()
-    base = _date_cache[0].serialNumber() if _date_cache else first
-    if first < base or first + n > base + len(_date_cache):
-        base = first - _DATE_CACHE_MARGIN
-        _date_cache = [ql.Date(s) for s in range(base, first + GRID_DAYS + _DATE_CACHE_MARGIN)]
-    offset = first - base
+    if first < _date_cache_base or first + n > _date_cache_base + len(_date_cache):
+        _date_cache_base = first - _DATE_CACHE_MARGIN
+        _date_cache = ql.DateVector(
+            [ql.Date(s) for s in range(_date_cache_base, first + GRID_DAYS + _DATE_CACHE_MARGIN)]
+        )
+    offset = first - _date_cache_base
     return _date_cache[offset:offset + n]
 
 
