@@ -26,7 +26,7 @@ historical_pricer.SwapSpec が持ち、日付ごとに SwapTerms に直す。
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, Optional
+from typing import Optional
 
 from swap_pricing.conventions import (
     ACT_365_FIXED, FREQ_TO_QL_FREQUENCY, ROLL_STD, SUPPORTED_DCF, SUPPORTED_ROLL,
@@ -83,15 +83,13 @@ class SwapParams:
     """ポジション(取引条件+想定元本・PAY/REC・固定金利)。PV・デルタの計算に使う。
 
     fix_rate: 固定金利(%)。None なら市場のパーレートで組む(risk.resolve_params で固定する)。
-    fixings: 過去起算時のTONA実績 {日付: %}。市場データで本来ここに置くものではない
-        (docs/roadmap.md の§10で、市場のまとまりに移す予定)。
+    TONA実績は市場データなのでここには持たない(market_data.Market.fixings)。
     """
 
     terms: SwapTerms
     notional: float
     pay_rec: str
     fix_rate: Optional[float] = None
-    fixings: Optional[Dict[date, float]] = None
 
     def __post_init__(self) -> None:
         if self.pay_rec not in (PAY, REC):

@@ -7,13 +7,16 @@
   - 評価日が過去: ヒストリカルDB(data/historical.db)に取り込み済みのその日のレートのうち、
     RealTimeシートのフラグで選んだテナー(今日と同じグリッドにするため)。O/Nはその日の
     TONA実績。DBにない日はエラー
-  どちらも同じ MarketSnapshot(評価日+レート一式)にしてから、同じ関数でカーブを組む。
+  どちらも同じ MarketSnapshot(評価日+レート一式+TONA実績)にしてから、同じ関数でカーブを組む。
+  TONA実績(過去起算の計算に使う)はどちらの場合もヒストリカルDBから読む(db_fixings。
+  DBファイルが変わるまで=朝のバッチまで使い回す。DBが無ければ空で、過去起算だけがエラーになる)。
 
 ■ カーブ一式の共有(CurveSet)
   pricingシートの全行・全UDFで、同じスナップショットなら同じカーブを使い回す。
-  - base: 基準カーブ
-  - parallel(): カーブに使っている全テナーを+1bpしたカーブ(SwapDelta用)
-  - bucket(ラベル): そのテナーだけ+1bpしたカーブ(RiskGrid用)
+  計算に渡す市場データ(market_data.Market=カーブ+実績)を返す。バンプしても実績は同じ。
+  - base: 基準カーブの市場データ
+  - parallel(): カーブに使っている全テナーを+1bpしたもの(SwapDelta用)
+  - bucket(ラベル): そのテナーだけ+1bpしたもの(RiskGrid用)
   バンプしたカーブは初めて必要になったときに1回だけ作る。バンプするのは実際にカーブに
   使っているテナーだけ(フラグ0のテナーや会合スワップのような未使用のテナーは作らない)。
   以前は行ごと・UDFごとにバンプしたカーブを作り直していた(SwapDeltaで1行2回、
@@ -29,6 +32,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from swap_pricing.curve import BootstrapResult, bootstrap_curve, normalize_tenor
 from swap_pricing.curve_store import CurveStore
+from swap_pricing.market_data import Market
 
 BUMP_BP = 1.0
 ON_LABEL = "o/n"
@@ -39,11 +43,36 @@ class MarketSnapshot(NamedTuple):
     valuation_date: date
     quotes: Tuple[Tuple[str, float], ...]  # (テナーのラベル(小文字), レート%)。キャッシュのキーにする
     source: str  # "RealTime" / "DB"
+    fixings: Tuple[Tuple[date, float], ...] = ()  # TONA実績(評価日より前)。キャッシュのキーにも入る
 
 
-def realtime_snapshot(valuation_date: date, rates: Dict[str, float]) -> MarketSnapshot:
-    """rates: RealTimeシートでフラグ≠0のテナーのレート(udf._rates_from_range の結果)。"""
-    return MarketSnapshot(valuation_date, tuple(sorted(rates.items())), "RealTime")
+def _before(fixings: Dict[date, float], valuation_date: date) -> Tuple[Tuple[date, float], ...]:
+    return tuple(sorted((d, v) for d, v in fixings.items() if d < valuation_date))
+
+
+_db_fixings_cache: Dict[tuple, Dict[date, float]] = {}
+
+
+def db_fixings(store: CurveStore) -> Dict[date, float]:
+    """DBのTONA実績(全期間)。DBファイルが変わるまで使い回す(全UDFが呼ぶため)。DBが無ければ空。"""
+    if not store.exists():
+        return {}
+    stat = store.db_path.stat()
+    key = (str(store.db_path), stat.st_mtime_ns, stat.st_size)
+    if key not in _db_fixings_cache:
+        _db_fixings_cache.clear()  # 直近1件だけ保持
+        _db_fixings_cache[key] = store.fixings()
+    return _db_fixings_cache[key]
+
+
+def realtime_snapshot(
+    valuation_date: date, rates: Dict[str, float], fixings: Optional[Dict[date, float]] = None,
+) -> MarketSnapshot:
+    """rates: RealTimeシートでフラグ≠0のテナーのレート(udf._rates_from_range の結果)。
+    fixings: TONA実績(通常は db_fixings)。過去起算の計算にだけ使う。"""
+    return MarketSnapshot(
+        valuation_date, tuple(sorted(rates.items())), "RealTime", _before(fixings or {}, valuation_date),
+    )
 
 
 def db_snapshot(valuation_date: date, labels: Sequence[str], store: CurveStore) -> MarketSnapshot:
@@ -54,42 +83,52 @@ def db_snapshot(valuation_date: date, labels: Sequence[str], store: CurveStore) 
         raise ValueError(
             f"評価日{valuation_date}のレートがヒストリカルDBにありません(休日か、取り込み期間外)"
         )
-    fixing = store.fixings().get(valuation_date)
+    all_fixings = db_fixings(store)
+    fixing = all_fixings.get(valuation_date)
     quotes = {}
     for label in labels:
         key = label.strip().lower()
         value = fixing if key == ON_LABEL else day_quotes.get(key)
         if value is not None:
             quotes[key] = value
-    return MarketSnapshot(valuation_date, tuple(sorted(quotes.items())), "DB")
+    return MarketSnapshot(
+        valuation_date, tuple(sorted(quotes.items())), "DB", _before(all_fixings, valuation_date),
+    )
 
 
 class CurveSet:
-    """1つのスナップショットに対する基準カーブと、+1bpしたカーブ(必要になったら作る)。"""
+    """1つのスナップショットに対する基準カーブと、+1bpしたカーブ(必要になったら作る)。
+    計算には、カーブにスナップショットのTONA実績を添えた市場データ(Market)を渡す。"""
 
     def __init__(self, snapshot: MarketSnapshot):
         self.snapshot = snapshot
         self.valuation_date = snapshot.valuation_date
         self._quotes = dict(snapshot.quotes)
-        self.base: BootstrapResult = bootstrap_curve(self.valuation_date, self._quotes)
-        used = set(self.base.used_tenors)
+        self._fixings = dict(snapshot.fixings)
+        self.base_curve: BootstrapResult = bootstrap_curve(self.valuation_date, self._quotes)
+        self.spot_date = self.base_curve.spot_date
+        self.base: Market = self._market(self.base_curve)
+        used = set(self.base_curve.used_tenors)
         # バンプの対象 = 実際にカーブに使っているテナーだけ(入力のラベルのまま)
         self.bump_labels: List[str] = [k for k in self._quotes if normalize_tenor(k) in used]
-        self._parallel: Optional[BootstrapResult] = None
-        self._bucket: Dict[str, BootstrapResult] = {}
+        self._parallel: Optional[Market] = None
+        self._bucket: Dict[str, Market] = {}
 
-    def _bumped(self, labels) -> BootstrapResult:
+    def _market(self, boot: BootstrapResult) -> Market:
+        return Market(self.valuation_date, boot.curve, boot.index, self._fixings)
+
+    def _bumped(self, labels) -> Market:
         bumped = dict(self._quotes)
         for label in labels:
             bumped[label] += BUMP_BP / 100.0
-        return bootstrap_curve(self.valuation_date, bumped)
+        return self._market(bootstrap_curve(self.valuation_date, bumped))
 
-    def parallel(self) -> BootstrapResult:
+    def parallel(self) -> Market:
         if self._parallel is None:
             self._parallel = self._bumped(self.bump_labels)
         return self._parallel
 
-    def bucket(self, label: str) -> BootstrapResult:
+    def bucket(self, label: str) -> Market:
         if label not in self._bucket:
             if label not in self.bump_labels:
                 raise ValueError(f"カーブに使っていないテナーはバンプできません: {label}")

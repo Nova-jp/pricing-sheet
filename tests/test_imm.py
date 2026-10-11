@@ -17,6 +17,7 @@ import QuantLib as ql  # noqa: E402
 
 from swap_pricing.conventions import forward_start_date, imm_code_to_date, is_imm_code, is_tenor  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import _build_swap, price_swap  # noqa: E402
 from swap_pricing.terms import SwapConvention, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
@@ -90,8 +91,8 @@ class ImmRollScheduleTest(unittest.TestCase):
         terms = SwapTerms(imm_code_to_date("U26"), SwapConvention("QA", "act/365fixed", "QA", "IMM"),
                           end=imm_code_to_date("U28"))
         result = price_swap(
-            boot.curve, VALUATION, terms, notional=1e10, pay_rec="PAY", fix_rate=1.0,
-            index=boot.index, fixings=FIXINGS,
+            Market(VALUATION, boot.curve, boot.index, FIXINGS),
+            terms, notional=1e10, pay_rec="PAY", fix_rate=1.0,
         )
         self.assertEqual(result.maturity_date, date(2028, 9, 20))
 

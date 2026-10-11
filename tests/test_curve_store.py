@@ -22,6 +22,7 @@ import QuantLib as ql  # noqa: E402
 
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.curve_store import GRID_DAYS, CurveStore, _grid_dates, discount_grid  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapConvention, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
@@ -32,7 +33,7 @@ TOLERANCE_PCT = 1e-9
 
 def _par(curve, index, start, tenor, roll="STD"):
     terms = SwapTerms(start, SwapConvention("PA", "act/365fixed", "PA", roll), tenor=tenor)
-    return price_swap(curve, AS_OF, terms, notional=1.0, pay_rec="PAY", index=index).target_fixrate
+    return price_swap(Market(AS_OF, curve, index), terms, notional=1.0, pay_rec="PAY").target_fixrate
 
 
 class CurveStoreTest(unittest.TestCase):

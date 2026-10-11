@@ -20,6 +20,7 @@ from swap_pricing.conventions import CALENDAR  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
 from swap_pricing.risk import bucketed_delta  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import _set_fixing_history, par_rate, price_swap  # noqa: E402
 from swap_pricing.terms import STANDARD, SwapParams, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
@@ -47,8 +48,8 @@ FIXINGS = _synthetic_fixings(date(2025, 1, 6), VALUATION - timedelta(days=1))
 
 def _price(boot, start, tenor, fixings, fix_rate=0.9, valuation=VALUATION):
     return price_swap(
-        boot.curve, valuation, SwapTerms(start, CONV, tenor=tenor), notional=NOTIONAL, pay_rec="PAY",
-        fix_rate=fix_rate, index=boot.index, fixings=fixings,
+        Market(valuation, boot.curve, boot.index, fixings or {}),
+        SwapTerms(start, CONV, tenor=tenor), notional=NOTIONAL, pay_rec="PAY", fix_rate=fix_rate,
     )
 
 
@@ -135,9 +136,9 @@ class PastStartTest(unittest.TestCase):
                                       (date(2024, 9, 24), "3Y", FIXINGS)]:
             with self.subTest(start=start, tenor=tenor):
                 terms = SwapTerms(start, CONV, tenor=tenor)
-                full = price_swap(self.boot.curve, VALUATION, terms, notional=1.0, pay_rec="PAY",
-                                  index=self.boot.index, fixings=fixings)
-                par = par_rate(self.boot.curve, VALUATION, terms, index=self.boot.index, fixings=fixings)
+                market = Market(VALUATION, self.boot.curve, self.boot.index, fixings or {})
+                full = price_swap(market, terms, notional=1.0, pay_rec="PAY")
+                par = par_rate(market, terms)
                 self.assertEqual(par.target_fixrate, full.target_fixrate)
                 self.assertEqual(par.maturity_date, full.maturity_date)
 
@@ -145,9 +146,8 @@ class PastStartTest(unittest.TestCase):
         _price(self.boot, self.boot.spot_date, "10Y", None)
 
     def test_bucketed_delta_with_past_start(self) -> None:
-        params = SwapParams(SwapTerms(date(2026, 6, 24), CONV, tenor="1Y"), NOTIONAL, "PAY",
-                            fix_rate=0.9, fixings=FIXINGS)
-        curves = curve_set(realtime_snapshot(VALUATION, SPOT_RATES))
+        params = SwapParams(SwapTerms(date(2026, 6, 24), CONV, tenor="1Y"), NOTIONAL, "PAY", fix_rate=0.9)
+        curves = curve_set(realtime_snapshot(VALUATION, SPOT_RATES, FIXINGS))  # 実績は市場データに入る
         deltas = bucketed_delta(curves, params)
         self.assertGreater(sum(deltas.values()), 0)  # PAYなので金利上昇で得
 
@@ -158,8 +158,8 @@ class EvaluationDateTest(unittest.TestCase):
         boot = bootstrap_curve(VALUATION, SPOT_RATES)
 
         def par() -> float:
-            return price_swap(boot.curve, VALUATION, SwapTerms(boot.spot_date, CONV, tenor="10Y"),
-                              notional=1.0, pay_rec="PAY", index=boot.index).target_fixrate
+            market = Market(VALUATION, boot.curve, boot.index)
+            return price_swap(market, SwapTerms(boot.spot_date, CONV, tenor="10Y"), notional=1.0, pay_rec="PAY").target_fixrate
 
         base = par()
         bootstrap_curve(date(2026, 9, 24), SPOT_RATES)  # グローバル評価日が前日に変わる

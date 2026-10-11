@@ -24,6 +24,7 @@ import QuantLib as ql  # noqa: E402
 
 from swap_pricing.curve import spot_date_for  # noqa: E402
 from swap_pricing.meeting_curve import MeetingPeriod, build_meeting_curve, on_period  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import STANDARD, SwapTerms  # noqa: E402
 
@@ -47,8 +48,8 @@ TOLERANCE_PCT = 1e-8
 
 def _par(boot, valuation_date, start, end=None, tenor=None):
     return price_swap(
-        boot.curve, valuation_date, SwapTerms(start, STANDARD, tenor=tenor, end=end),
-        notional=1.0, pay_rec="PAY", index=boot.index,
+        Market(valuation_date, boot.curve, boot.index),
+        SwapTerms(start, STANDARD, tenor=tenor, end=end), notional=1.0, pay_rec="PAY",
     ).target_fixrate
 
 

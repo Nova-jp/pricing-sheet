@@ -50,6 +50,7 @@ from swap_pricing.conventions import (
     CALENDAR, ROLL_IMM, forward_start_date, imm_code_to_date, is_imm_code, is_tenor,
 )
 from swap_pricing.curve import spot_date_for
+from swap_pricing.market_data import Market
 from swap_pricing.swap_pricer import SwapExpiredError, par_rate, swap_dates
 from swap_pricing.terms import SwapConvention, SwapTerms
 
@@ -213,18 +214,13 @@ def historical_multi_rate_series(
         terms_on = [d.on(mode, as_of_spot) for d in legs_dates]
         until = max(_last_date(t) for t in terms_on)
         boot = curves.load(as_of_date, until=until + _HORIZON_MARGIN)
-        # 実績はDより前の日だけを渡す(当日を含めない)。Dの引け値の時点でDのTONAは未公表
-        # (公表は翌営業日)で、QuantLibは当日の実績が登録されているとそれを使ってしまうため。
-        known_fixings = (
-            None if fixings is None else {d: v for d, v in fixings.items() if d < as_of_date}
-        )
+        # 日付Dの市場データ。実績はDより前の日だけになる(先読みの排除はMarketが行う)
+        market = Market(as_of_date, boot.curve, boot.index, fixings or {})
 
         legs: List[Optional[LegResult]] = []
         for terms in terms_on:
             try:
-                result = par_rate(
-                    boot.curve, as_of_date, terms, index=boot.index, fixings=known_fixings,
-                )
+                result = par_rate(market, terms)
             except SwapExpiredError:
                 legs.append(None)  # FIXEDで満期後の日付
                 continue

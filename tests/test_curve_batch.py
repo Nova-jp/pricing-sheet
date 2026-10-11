@@ -24,6 +24,7 @@ from swap_pricing import curve_batch  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.curve_store import CurveStore  # noqa: E402
 from swap_pricing.historical_pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
+from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
@@ -80,7 +81,8 @@ def _write_config(path: Path, tenors):
 
 def _par5y(curve, index, as_of, spot):
     return price_swap(
-        curve, as_of, SwapTerms(spot, CONV, tenor="5Y"), notional=1.0, pay_rec="PAY", index=index,
+        Market(as_of, curve, index),
+        SwapTerms(spot, CONV, tenor="5Y"), notional=1.0, pay_rec="PAY",
     ).target_fixrate
 
 

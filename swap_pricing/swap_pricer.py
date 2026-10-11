@@ -26,9 +26,11 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
   まだ支払われていないクーポンの期間のうち評価日より前の日について、TONAの
   実績フィキシングを要求する(評価日当日は登録されていれば実績、無ければ
   カーブから予測。評価日より後は常に予測で、履歴に未来日の値があっても
-  使われない)。実績はExcel側(historical_data.xlsxのFixingシート=LSEGの
-  JPONMU=RR)から fixings 引数で受け取り、ql.Tonar の履歴に登録する。
+  使われない)。実績は市場データ(market_data.Market.fixings、評価日より前の日だけ。
+  元はヒストリカルDB=LSEGのJPONMU=RR)から取り出し、ql.Tonar の履歴に登録する。
   必要な日が欠けていれば、欠損日を示してエラーにする(別物の値での代用はしない)。
+
+■ 計算は取引条件(terms.SwapTerms)と市場データ(market_data.Market)を受け取る
 
 ■ 評価日(ql.Settings.evaluationDate)は計算のたびに設定し直す
   evaluationDateはプロセス全体で1つのグローバル値で、構築済みのカーブ
@@ -39,11 +41,12 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
 """
 
 from datetime import date
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 import QuantLib as ql
 
 from swap_pricing.conventions import FREQ_TO_QL_FREQUENCY, day_counter, rule_and_eom
+from swap_pricing.market_data import Market
 from swap_pricing.terms import PAY, REC, SwapTerms
 
 _TYPE_MAP = {PAY: ql.OvernightIndexedSwap.Payer, REC: ql.OvernightIndexedSwap.Receiver}
@@ -112,7 +115,7 @@ def swap_dates(terms: SwapTerms) -> Tuple[date, date]:
 _registered_fixings: Optional[Dict[date, float]] = None
 
 
-def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Dict[date, float]]) -> None:
+def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Mapping[date, float]]) -> None:
     """TONAのフィキシング履歴を、渡されたものと完全に一致させる(Noneなら空にする)。
 
     履歴は指標名ごとにグローバル共有のため、前回の呼び出しで登録した値が
@@ -162,23 +165,16 @@ def _required_fixing_dates(
 
 def _check_fixings(
     swap: ql.OvernightIndexedSwap, index: "ql.OvernightIndex", valuation_date: date,
-    fixings: Optional[Dict[date, float]],
+    fixings: Mapping[date, float],
 ) -> None:
-    required = _required_fixing_dates(swap, index, valuation_date)
-    if not required:
-        return
-    if fixings is None:
-        raise ValueError(
-            f"過去起算のためTONA実績フィキシング({required[0]}〜{required[-1]})が必要です。"
-            "fixing_range引数にhistorical_data.xlsxのFixingシートを指定してください"
-        )
-    missing = [d for d in required if d not in fixings]
+    """取引条件から必要な実績の日付を判断し、市場データに全てあるか確かめる。"""
+    missing = [d for d in _required_fixing_dates(swap, index, valuation_date) if d not in fixings]
     if missing:
         shown = ", ".join(str(d) for d in missing[:3])
         raise ValueError(
-            f"TONAフィキシングが{len(missing)}日分不足しています({shown}...)。"
-            "historical_data.xlsxが開いているか、Fixingの取得期間が起算日を"
-            "カバーしているか確認してください"
+            f"過去起算に必要なTONA実績(フィキシング)が{len(missing)}日分不足しています({shown}...)。"
+            "historical_data.xlsxを更新・保存してから python -m swap_pricing.curve_batch を実行し、"
+            "DBに取り込んでください(Fixingの取得期間が起算日をカバーしているかも確認)"
         )
 
 
@@ -188,28 +184,18 @@ class _PreparedSwap(NamedTuple):
     engine: "ql.DiscountingSwapEngine"
 
 
-def _prepare_swap(
-    curve: "ql.YieldTermStructureHandle",
-    valuation_date: date,
-    terms: SwapTerms,
-    *,
-    notional: float,
-    pay_rec: str,
-    index: Optional["ql.OvernightIndex"],
-    fixings: Optional[Dict[date, float]],
-) -> _PreparedSwap:
+def _prepare_swap(market: Market, terms: SwapTerms, *, notional: float, pay_rec: str) -> _PreparedSwap:
     """評価の前提をそろえ、固定金利0のスワップを評価できる状態で返す(price_swap/par_rate共通)。
 
     評価日の設定・フィキシング履歴の登録・満期済みの判定・必要な実績の確認をここに集める。
     固定金利0なのは、クーポンレートがfairRate/BPSに影響しないため。
     """
+    valuation_date = market.valuation_date
     ql.Settings.instance().evaluationDate = ql.Date.from_date(valuation_date)
-    if index is None:
-        index = ql.Tonar(curve)
-    engine = ql.DiscountingSwapEngine(curve)
-    _set_fixing_history(index, fixings)
+    engine = ql.DiscountingSwapEngine(market.curve)
+    _set_fixing_history(market.index, market.fixings)
 
-    swap = _build_swap(index, terms, notional, pay_rec, 0.0)
+    swap = _build_swap(market.index, terms, notional, pay_rec, 0.0)
     # 評価日当日の支払いは発生済み扱い(QuantLibの既定 includeReferenceDateEvents=False と同じ)
     today = ql.Date.from_date(valuation_date)
     if all(cf.date() <= today for cf in (*swap.fixedLeg(), *swap.overnightLeg())):
@@ -217,9 +203,9 @@ def _prepare_swap(
             f"評価日{valuation_date}時点で満期済みのスワップです"
             f"(最終支払日 {swap.maturityDate().to_date()})"
         )
-    _check_fixings(swap, index, valuation_date, fixings)
+    _check_fixings(swap, market.index, valuation_date, market.fixings)
     swap.setPricingEngine(engine)
-    return _PreparedSwap(swap, index, engine)
+    return _PreparedSwap(swap, market.index, engine)
 
 
 class ParRateResult(NamedTuple):
@@ -227,21 +213,12 @@ class ParRateResult(NamedTuple):
     maturity_date: date
 
 
-def par_rate(
-    curve: "ql.YieldTermStructureHandle",
-    valuation_date: date,
-    terms: SwapTerms,
-    *,
-    index: Optional["ql.OvernightIndex"] = None,
-    fixings: Optional[Dict[date, float]] = None,
-) -> ParRateResult:
+def par_rate(market: Market, terms: SwapTerms) -> ParRateResult:
     """パーレートと満期日だけを求める(ヒストリカル用)。PV・アニュイティが要らないときに、
     price_swapの2本目のスワップ(PV用)を組まずに済ませる。値は想定元本1・PAYで呼んだ
     price_swapのtarget_fixrate・maturity_dateと完全に同じ(fairRateは想定元本が違うと
     最下位ビットが変わりうるため、条件をそろえている)。"""
-    prepared = _prepare_swap(
-        curve, valuation_date, terms, notional=1.0, pay_rec=PAY, index=index, fixings=fixings,
-    )
+    prepared = _prepare_swap(market, terms, notional=1.0, pay_rec=PAY)
     return ParRateResult(
         target_fixrate=prepared.swap.fairRate() * 100.0,
         maturity_date=prepared.swap.fixedSchedule().dates()[-1].to_date(),
@@ -249,25 +226,19 @@ def par_rate(
 
 
 def price_swap(
-    curve: "ql.YieldTermStructureHandle",
-    valuation_date: date,
+    market: Market,
     terms: SwapTerms,
     *,
     notional: float,
     pay_rec: str,
     fix_rate: Optional[float] = None,
-    index: Optional["ql.OvernightIndex"] = None,
-    fixings: Optional[Dict[date, float]] = None,
 ) -> SwapPricingResult:
-    """fix_rate: 固定金利(%)。None ならパーレートで組む。
-    fixings: {フィキシング対象日: TONA(%)}。過去起算のときのみ必要。"""
+    """fix_rate: 固定金利(%)。None ならパーレートで組む。過去起算の実績は market.fixings から使う。"""
     if pay_rec not in (PAY, REC):
         raise ValueError(f"pay_recは'{PAY}'または'{REC}'である必要があります: {pay_rec!r}")
 
     # target fixrate(パーレート)・アニュイティは固定金利0のスワップから取る
-    prepared = _prepare_swap(
-        curve, valuation_date, terms, notional=notional, pay_rec=pay_rec, index=index, fixings=fixings,
-    )
+    prepared = _prepare_swap(market, terms, notional=notional, pay_rec=pay_rec)
     target_fixrate = prepared.swap.fairRate() * 100.0
     annuity = abs(prepared.swap.fixedLegBPS()) / (notional * 0.0001)
 
