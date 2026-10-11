@@ -33,7 +33,7 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
   (OISRateHelper)もこれに連動して再計算される。xlwingsのUDFは同一プロセスで
   動くため、別日付のカーブ構築(ヒストリカル計算等)を挟んだ後にキャッシュ済み
   カーブを使い回すと、評価日がずれたまま計算される(10Yパーで約0.05bpのズレを
-  実測)。price_swapの入口で必ずvaluation_dateに戻す。
+  実測)。評価の入口(price_swap・par_rateが共通で通る_prepare_swap)で必ずvaluation_dateに戻す。
 """
 
 from datetime import date
@@ -127,26 +127,33 @@ def swap_dates(
     return dates[0].to_date(), dates[-1].to_date()
 
 
-_registered_fixings_key: Optional[tuple] = None
+_registered_fixings: Optional[Dict[date, float]] = None  # QuantLibの履歴に登録済みの内容(None=未確認)
 
 
 def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Dict[date, float]]) -> None:
     """TONAのフィキシング履歴を、渡されたものと完全に一致させる(Noneなら空にする)。
 
     履歴は指標名ごとにグローバル共有のため、前回の呼び出しで登録した値が
-    残って黙って使われることがないよう、毎回入れ替える。同じ内容なら何もしない
-    (バケットデルタ等で同じ系列を何十回も渡されるため)。
+    残って黙って使われることがないよう、渡された内容に揃える。登録済みの内容に
+    日付が増えただけなら増えた分だけを登録し、消す必要がある(日付が減った・値が
+    変わった)ときは全部消して登録し直す(QuantLibに1件だけ消す機能はないため)。
+    ヒストリカルは日付を進めるごとに前日までの実績を渡すので、毎回1日分の登録で済む。
     """
-    global _registered_fixings_key
-    items = tuple(sorted(fixings.items())) if fixings else ()
-    if items == _registered_fixings_key:
-        return
-    index.clearFixings()
-    dates = [ql.Date.from_date(d) for d, _ in items]
-    valid = [(d, v / 100.0) for d, (_, v) in zip(dates, items) if index.isValidFixingDate(d)]
+    global _registered_fixings
+    target = dict(fixings) if fixings else {}
+    prev = _registered_fixings
+    if prev is not None and all(target.get(d) == v for d, v in prev.items()):
+        added = {d: v for d, v in target.items() if d not in prev}
+        if not added:
+            return
+    else:
+        index.clearFixings()
+        added = target
+    dates = [ql.Date.from_date(d) for d in added]
+    valid = [(d, v / 100.0) for d, v in zip(dates, added.values()) if index.isValidFixingDate(d)]
     if valid:
         index.addFixings([d for d, _ in valid], [v for _, v in valid], True)
-    _registered_fixings_key = items
+    _registered_fixings = target
 
 
 def _required_fixing_dates(
@@ -190,6 +197,86 @@ def _check_fixings(
         )
 
 
+class _PreparedSwap(NamedTuple):
+    swap: ql.OvernightIndexedSwap  # 固定金利0・評価エンジン設定済み
+    index: "ql.OvernightIndex"
+    engine: "ql.DiscountingSwapEngine"
+
+
+def _prepare_swap(
+    curve: "ql.YieldTermStructureHandle",
+    valuation_date: date,
+    start: date,
+    fix_freq: str,
+    fix_dcf: str,
+    float_freq: str,
+    float_dcf: str,
+    roll_conv: str,
+    notional: float,
+    pay_rec: str,
+    tenor: Optional[str],
+    end: Optional[date],
+    index: Optional["ql.OvernightIndex"],
+    fixings: Optional[Dict[date, float]],
+) -> _PreparedSwap:
+    """評価の前提をそろえ、固定金利0のスワップを評価できる状態で返す(price_swap/par_rate共通)。
+
+    評価日の設定・フィキシング履歴の登録・満期済みの判定・必要な実績の確認をここに集める。
+    固定金利0なのは、クーポンレートがfairRate/BPSに影響しないため。
+    """
+    ql.Settings.instance().evaluationDate = ql.Date.from_date(valuation_date)
+    if index is None:
+        index = ql.Tonar(curve)
+    engine = ql.DiscountingSwapEngine(curve)
+    _set_fixing_history(index, fixings)
+
+    swap = _build_swap(
+        index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        notional, pay_rec, 0.0, tenor=tenor, end=end,
+    )
+    # 評価日当日の支払いは発生済み扱い(QuantLibの既定 includeReferenceDateEvents=False と同じ)
+    today = ql.Date.from_date(valuation_date)
+    if all(cf.date() <= today for cf in (*swap.fixedLeg(), *swap.overnightLeg())):
+        raise SwapExpiredError(
+            f"評価日{valuation_date}時点で満期済みのスワップです"
+            f"(最終支払日 {swap.maturityDate().to_date()})"
+        )
+    _check_fixings(swap, index, valuation_date, fixings)
+    swap.setPricingEngine(engine)
+    return _PreparedSwap(swap, index, engine)
+
+
+class ParRateResult(NamedTuple):
+    target_fixrate: float  # % 表記
+    maturity_date: date
+
+
+def par_rate(
+    curve: "ql.YieldTermStructureHandle",
+    valuation_date: date,
+    start: date,
+    fix_freq: str,
+    fix_dcf: str,
+    float_freq: str,
+    float_dcf: str,
+    roll_conv: str,
+    tenor: Optional[str] = None,
+    end: Optional[date] = None,
+    index: Optional["ql.OvernightIndex"] = None,
+    fixings: Optional[Dict[date, float]] = None,
+) -> ParRateResult:
+    """パーレートと満期日だけを求める(ヒストリカル用)。PV・アニュイティが要らないときに、
+    price_swapの2本目のスワップ(PV用)を組まずに済ませる。値はprice_swapのtarget_fixrateと同じ。"""
+    prepared = _prepare_swap(
+        curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        1.0, PAY, tenor, end, index, fixings,
+    )
+    return ParRateResult(
+        target_fixrate=prepared.swap.fairRate() * 100.0,
+        maturity_date=prepared.swap.fixedSchedule().dates()[-1].to_date(),
+    )
+
+
 def price_swap(
     curve: "ql.YieldTermStructureHandle",
     valuation_date: date,
@@ -211,31 +298,17 @@ def price_swap(
     if pay_rec not in (PAY, REC):
         raise ValueError(f"pay_recは'{PAY}'または'{REC}'である必要があります: {pay_rec!r}")
 
-    ql.Settings.instance().evaluationDate = ql.Date.from_date(valuation_date)
-    if index is None:
-        index = ql.Tonar(curve)
-    engine = ql.DiscountingSwapEngine(curve)
-    _set_fixing_history(index, fixings)
-
-    # target fixrate(パーレート)取得用(クーポンレートはBPS/fairRateに影響しないため0でよい)
-    probe_swap = _build_swap(
-        index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
-        notional, pay_rec, 0.0, tenor=tenor, end=end,
+    # target fixrate(パーレート)・アニュイティは固定金利0のスワップから取る
+    probe_swap, index, engine = _prepare_swap(
+        curve, valuation_date, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
+        notional, pay_rec, tenor, end, index, fixings,
     )
-    # 評価日当日の支払いは発生済み扱い(QuantLibの既定 includeReferenceDateEvents=False と同じ)
-    today = ql.Date.from_date(valuation_date)
-    if all(cf.date() <= today for cf in (*probe_swap.fixedLeg(), *probe_swap.overnightLeg())):
-        raise SwapExpiredError(
-            f"評価日{valuation_date}時点で満期済みのスワップです"
-            f"(最終支払日 {probe_swap.maturityDate().to_date()})"
-        )
-    _check_fixings(probe_swap, index, valuation_date, fixings)
-    probe_swap.setPricingEngine(engine)
     target_fixrate = probe_swap.fairRate() * 100.0
     annuity = abs(probe_swap.fixedLegBPS()) / (notional * 0.0001)
 
     fix_rate_used = target_fixrate if fix_rate is None else fix_rate
 
+    # PVは入力の固定金利(空欄ならパーレート)で組んだスワップをQuantLibで評価する
     priced_swap = _build_swap(
         index, start, fix_freq, fix_dcf, float_freq, float_dcf, roll_conv,
         notional, pay_rec, fix_rate_used / 100.0, tenor=tenor, end=end,

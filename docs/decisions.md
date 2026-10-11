@@ -76,7 +76,7 @@
   欠損日を示してエラーにする(別の値で黙って代用しない。ユーザー確認済み)。
   評価日は作業日のままでよい(QuantLibは評価日より前=実績必須、当日=実績が
   あれば使用・無ければ予測、以後=予測。履歴に未来日の値があっても使わない)。
-- **QuantLibの評価日(`ql.Settings.evaluationDate`)は`price_swap`の入口で毎回
+- **QuantLibの評価日(`ql.Settings.evaluationDate`)は評価の入口(`price_swap`・`par_rate`が共通で通る`_prepare_swap`)で毎回
   設定し直す**。理由: 評価日はプロセス全体で1つのグローバル値で、構築済みの
   カーブ(OISRateHelper)もこれに連動して再計算される。xlwingsのUDFは同一
   プロセスで動くため、ヒストリカル計算で別日付のカーブを組んだ後に今日の
