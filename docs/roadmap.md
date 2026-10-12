@@ -36,12 +36,12 @@ HistChartは最新日をRealTimeのライブのレートで計算するためRea
 
 ## 11. ASWヒストリカルチャート機能(2段構成の2段目の残り)
 
-2段構成のうち、Neonからの取得(`asw_quotes`への保存、1段目)と、機能ごとのディレクトリ分割
-(`udf.py`・`historical_pricer.py`・`meeting_curve.py`を`historical/`・`boj/`に分割。2段目の前半)
-は完了(2026-10-12)。残りは:
+2段構成のうち、Neonからの取得(`asw_quotes`への保存、1段目)と、ディレクトリ構成の再編
+(`engine/`配下を`common/`・`swap_pricing/`・`pca/`の3並列パッケージにし、`swap_pricing/`の中を
+`pricing/`・`historical/`・`boj/`の機能ごとに分割。2段目の前半)は完了(2026-10-12)。残りは:
 - `asw_quotes`を表示するヒストリカルチャート機能を追加する(BOJシート・HistChartシートのような
-  専用シートになる想定。UI・UDFの形は未定、着手前に相談)。新設する`asw/`パッケージに
-  `pricer.py`・`udf.py`を置く形(`historical/`・`boj/`と同じ構成)を想定。
+  専用シートになる想定。UI・UDFの形は未定、着手前に相談)。新設する`engine/swap_pricing/asw/`
+  パッケージに`pricer.py`・`udf.py`を置く形(`historical/`・`boj/`と同じ構成)を想定。
 
 ## (参考)既に決着済みで「保留」ではないもの
 

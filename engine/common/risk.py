@@ -16,9 +16,9 @@
 from dataclasses import replace
 from typing import Dict
 
-from swap_pricing.market_data import Market
-from swap_pricing.swap_pricer import SwapPricingResult, price_swap
-from swap_pricing.terms import PAY, SwapParams
+from engine.common.market_data import Market
+from engine.common.swap_pricer import SwapPricingResult, price_swap
+from engine.common.terms import PAY, SwapParams
 
 
 def price(market: Market, params: SwapParams) -> SwapPricingResult:

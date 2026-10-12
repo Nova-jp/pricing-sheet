@@ -1,7 +1,7 @@
 """
 Main/RealTime/pricingシート用のUDF(パーレート・PV・デルタ・notional逆算・リスクの合算)。
 
-Excel境界の型変換と評価日時点のカーブ解決(`_market`等)は`swap_pricing.udf_common`に
+Excel境界の型変換と評価日時点のカーブ解決(`_market`等)は`engine.common.udf_common`に
 共有されている。このモジュールからは`udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。
 理由は`udf_common.py`のdocstring)。
 """
@@ -10,9 +10,9 @@ from typing import List
 
 import xlwings as xw
 
-from swap_pricing import udf_common
-from swap_pricing.conventions import forward_start_date, is_tenor
-from swap_pricing.risk import (
+from engine.common import udf_common
+from engine.common.conventions import forward_start_date, is_tenor
+from engine.common.risk import (
     annuity_delta,
     bucketed_delta,
     parallel_delta,
@@ -20,7 +20,7 @@ from swap_pricing.risk import (
     resolve_params,
     solve_notional_for_target_delta,
 )
-from swap_pricing.terms import SwapConvention, SwapParams, SwapTerms
+from engine.common.terms import SwapConvention, SwapParams, SwapTerms
 
 
 def _start_date(value, spot):

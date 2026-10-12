@@ -1,5 +1,5 @@
 """
-PCA(swap_analysis)のリグレッションテスト。
+PCA(engine.pca)のリグレッションテスト。
 
 実行方法:
     python -m unittest tests.test_pca -v
@@ -20,8 +20,8 @@ sys.path.insert(0, str(REPO_ROOT))
 import numpy as np  # noqa: E402
 import QuantLib as ql  # noqa: E402
 
-from swap_analysis.history import SWAP, VOL, load_history, parse_dataset  # noqa: E402
-from swap_analysis.pca import (  # noqa: E402
+from engine.pca.history import SWAP, VOL, load_history, parse_dataset  # noqa: E402
+from engine.pca.pca import (  # noqa: E402
     CHANGE,
     LEVEL,
     default_until,
@@ -32,8 +32,8 @@ from swap_analysis.pca import (  # noqa: E402
     parse_standardize,
     principal_components,
 )
-from swap_pricing.conventions import CALENDAR  # noqa: E402
-from swap_pricing.historical_store import HistoricalStore  # noqa: E402
+from engine.common.conventions import CALENDAR  # noqa: E402
+from engine.common.historical_store import HistoricalStore  # noqa: E402
 
 LABELS = ["O/N", "1Y", "2Y", "5Y", "10Y"]
 

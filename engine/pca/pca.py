@@ -36,8 +36,8 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
 import numpy as np
 import QuantLib as ql
 
-from swap_analysis.history import History, normalize_label
-from swap_pricing.conventions import CALENDAR
+from engine.pca.history import History, normalize_label
+from engine.common.conventions import CALENDAR
 
 LEVEL = "LEVEL"
 CHANGE = "CHANGE"

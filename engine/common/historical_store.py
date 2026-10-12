@@ -1,7 +1,7 @@
 """
 ヒストリカル日次カーブのローカルDB(SQLite、data/historical.db)。
 
-朝のバッチ(swap_pricing/morning_batch.py、手動実行)が historical_data.xlsx(LSEG)から
+朝のバッチ(engine/common/morning_batch.py、手動実行)が historical_data.xlsx(LSEG)から
 作成し、日中のヒストリカル系UDFはここを読むだけにする(ブートストラップをしない)。
 LSEG由来のデータを含むためコミットしない(*.db は .gitignore 済み)。
 
@@ -10,11 +10,11 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               変えたとき、xlsxの取得期間から外れた過去日もここから作り直せる
   - fixings : TONA実績(Fixingシート)。O/Nのピラーと、過去起算の計算に使う
   - vol_quotes : スワップションATMノーマルvol(Volシート、bp/年)。銘柄は「満期x原資産」
-              (例 1Yx10Y)。分析ブック(swap_analysis)のPCAが読む。カーブには使わない
+              (例 1Yx10Y)。分析ブック(engine.pca)のPCAが読む。カーブには使わない
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
   - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
-              Neon(swap_pricing/neon_source.py)から朝バッチが取得する参照データ。
+              Neon(engine/common/neon_source.py)から朝バッチが取得する参照データ。
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
 
 ■ asw_quotesの差分取得(updated_atウォッチマーク)
@@ -48,7 +48,7 @@ from typing import Dict, Iterable, List, NamedTuple, Optional
 
 import QuantLib as ql
 
-from swap_pricing.paths import HISTORICAL_DB_PATH
+from engine.common.paths import HISTORICAL_DB_PATH
 
 GRID_YEARS = 50  # 最長テナー40Y+フォワード分の余裕
 GRID_DAYS = GRID_YEARS * 366

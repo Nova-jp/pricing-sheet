@@ -34,8 +34,8 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
 
 import QuantLib as ql
 
-from swap_pricing.conventions import CALENDAR
-from swap_pricing.curve import BootstrapResult, _standard_spot_date
+from engine.common.conventions import CALENDAR
+from engine.common.curve import BootstrapResult, _standard_spot_date
 
 _DAY_COUNT = ql.Actual365Fixed()
 

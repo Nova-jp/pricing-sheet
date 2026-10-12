@@ -13,12 +13,14 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
 
 ## 関連ファイル(コード側)
 
-- `swap_pricing/` — 計算エンジン本体(QuantLibベース)。各ファイル冒頭のdocstringに
-  役割を明記しているので、詳細はコードを直接参照するのが最新かつ正確。
-- `swap_pricing/udf.py` — Excelから直接呼べるUDFの単一の窓口(`PricingSheet.py`が再エクスポート)。
-  実体はシート(機能)ごとに`pricing_udf.py`・`historical/udf.py`・`boj/udf.py`に分かれている
-  (共有部分は`udf_common.py`)
-- `swap_pricing/conventions.py` — 業務上の表記(テナー・dcf・freq・roll・IMMコード・startのテナー)→
+- `engine/` — 計算エンジン本体(QuantLibベース)。`common/`(共有)・`swap_pricing/`
+  (PricingSheet.xlsm固有)・`pca/`(SwapAnalysis.xlsm固有)の3つの並列パッケージ。
+  各ファイル冒頭のdocstringに役割を明記しているので、詳細はコードを直接参照するのが
+  最新かつ正確。
+- `engine/swap_pricing/udf.py` — Excelから直接呼べるUDFの単一の窓口(`PricingSheet.py`が再エクスポート)。
+  実体はシート(機能)ごとに`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`に分かれている
+  (共有部分は`engine/common/udf_common.py`)
+- `engine/common/conventions.py` — 業務上の表記(テナー・dcf・freq・roll・IMMコード・startのテナー)→
   QuantLibの対応表とカレンダー
 - `tests/` — リグレッションテスト(`python -m unittest discover -s tests`、QuantLibの入った
   x64 Python環境で実行)。価格の値はQuantLibを正とし、自前ロジックだけをテストする
@@ -30,7 +32,7 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
   - `test_neon_source.py` — ASWスプレッド取得の対象テーブル・差分取得・接続の後始末(psycopg2をモック)
 - `historical_curve.toml` — ヒストリカル日次カーブの設定(引き方・使うテナー)。
-  `python -m swap_pricing.morning_batch`が読む
+  `python -m engine.common.morning_batch`が読む
 - `templates/` — Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う。
   直下のブックは`.gitignore`済み。雛形は`python -m tools.template`(`tools/template.py`)で作る
   (仕組みはarchitecture.mdの「Excelブックの雛形」)

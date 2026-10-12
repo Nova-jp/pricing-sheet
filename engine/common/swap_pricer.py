@@ -11,9 +11,9 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
   (curve.pyのql.OISRateHelper)も同じ仕組みでスケジュールを組むため、両者が
   食い違うリスクが構造的になくなる(経緯はdocs/decisions.md参照)。なお
   overnight(変動)脚の日数計算はQuantLibのOISモデル自体がインデックス固有の
-  DayCounterに固定する仕様のため、float dcfは入力として持たない(swap_pricing/terms.py)。
+  DayCounterに固定する仕様のため、float dcfは入力として持たない(engine/common/terms.py)。
 
-■ 取引条件は swap_pricing/terms.py の型(SwapTerms=規約+日付)で受け取る
+■ 取引条件は engine/common/terms.py の型(SwapTerms=規約+日付)で受け取る
 
 ■ 主要な出力
   - annuity: 固定脚のアニュイティ(Σ DF×dcf)。fixedLegBPS()から逆算する
@@ -45,9 +45,9 @@ from typing import Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 import QuantLib as ql
 
-from swap_pricing.conventions import FREQ_TO_QL_FREQUENCY, day_counter, rule_and_eom
-from swap_pricing.market_data import Market
-from swap_pricing.terms import PAY, REC, SwapTerms
+from engine.common.conventions import FREQ_TO_QL_FREQUENCY, day_counter, rule_and_eom
+from engine.common.market_data import Market
+from engine.common.terms import PAY, REC, SwapTerms
 
 _TYPE_MAP = {PAY: ql.OvernightIndexedSwap.Payer, REC: ql.OvernightIndexedSwap.Receiver}
 
@@ -173,7 +173,7 @@ def _check_fixings(
         shown = ", ".join(str(d) for d in missing[:3])
         raise ValueError(
             f"過去起算に必要なTONA実績(フィキシング)が{len(missing)}日分不足しています({shown}...)。"
-            "historical_data.xlsxを更新・保存してから python -m swap_pricing.morning_batch を実行し、"
+            "historical_data.xlsxを更新・保存してから python -m engine.common.morning_batch を実行し、"
             "DBに取り込んでください(Fixingの取得期間が起算日をカバーしているかも確認)"
         )
 

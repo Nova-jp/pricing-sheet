@@ -14,12 +14,12 @@
   - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、RealTimeシートと同じ系列)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
         │                                                                              │
-        ▼  朝に手動実行: python -m swap_pricing.morning_batch                          │ SELECTのみ、updated_atで差分取得
-[朝バッチ swap_pricing/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)   │
+        ▼  朝に手動実行: python -m engine.common.morning_batch                          │ SELECTのみ、updated_atで差分取得
+[朝バッチ engine/common/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)   │
   ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)              │
   ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存        │
      (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
-  ③ swap_pricing/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
+  ③ engine/common/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
      (Neonに繋がらなくても①②は続行する)
         │
         ▼
@@ -35,7 +35,7 @@
 Neonはクラウドだが、ASWスプレッド以外には使わない(クラウドの計算・保存基盤には戻さない)。
 ASWはカーブのブートストラップには使わず、`asw_quotes`に保存するだけ(詳細は[decisions.md](decisions.md))。
 
-## 計算エンジン(`swap_pricing/`)
+## 計算エンジン(`engine/`)
 
 プライシング計算(日付・スケジュール生成を含む)は自前実装を持たず、全て
 QuantLib純正のAPI(`ql.MakeOIS`/`ql.OISRateHelper`/`ql.PeriodParser`/
@@ -43,33 +43,46 @@ QuantLib純正のAPI(`ql.MakeOIS`/`ql.OISRateHelper`/`ql.PeriodParser`/
 roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変換のみ
 (経緯は[decisions.md](decisions.md)参照)。
 
+`engine/`配下は3つの並列パッケージ(2026-10-12、機能ごと+共通に分解。理由は[decisions.md](decisions.md)):
+
+```
+engine/
+  common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
+  swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/bojの3機能)
+  pca/             # SwapAnalysis.xlsm固有のPCA分析
+```
+
+### 共有エンジン・データ層(`engine/common/`)
+
 | ファイル | 役割 |
 |---|---|
 | `conventions.py` | 業務上の表記→QuantLibの対応表を集約: `ql.Japan()`カレンダー、dcf文字列→DayCounter、freq、roll conv→生成ルール、IMMコード(M27)→日付、テナー表記の読み替え(12M→1Y)。自前の日付計算ロジックは持たず、呼び出し側がQuantLibのAPIを直接使う |
 | `curve.py` | スポットレート辞書→`ql.PiecewiseConvexMonotoneForward`によるカーブ構築。O/Nは`DepositRateHelper`、それ以外は`OISRateHelper`(`rule=ql.DateGeneration.Forward`・`endOfMonth=False`で構築) |
-| `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは各feature udfモジュール(`pricing_udf.py`等)の入口だけ |
+| `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは各feature udfモジュール(`pricing/udf.py`等)の入口だけ |
 | `market_data.py` | 評価日時点の市場データ一式の型`Market`(評価日・カーブ・TONA指標・TONA実績)。実績は作るときに「評価日より前」だけに切る(先読みの排除はここだけ)。QuantLib以外に依存しない |
 | `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。取引条件(`SwapTerms`)と市場データ(`Market`)を受け取る。評価の前提(評価日・実績の登録・満期済み判定・実績の確認)は`_prepare_swap`に集約し、`price_swap`(パーレート・アニュイティ・PV)と`par_rate`(パーレートだけ、ヒストリカル用)が共通で通る。過去起算のスワップは、取引条件から必要な日を判断して`Market`の実績を登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブ、全テナー+1bp、テナー別+1bp。必要になったときに1回だけ作り、バンプはカーブに使っているテナーだけ)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使い、ここではブートストラップしない)、notional逆算 |
-| `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存 |
+| `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存。`engine/pca/`も`HistoricalStore`をここから読む |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
-| `udf_common.py` | pricing/historical/BOJのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
-| `pricing_udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
-| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing_udf.py`・`historical/udf.py`・`boj/udf.py`) |
+| `udf_common.py` | pricing/historical/BOJ/PCAのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
 
-機能ごとのサブパッケージ(シート単位):
+### PricingSheet.xlsm固有のUDF(`engine/swap_pricing/`)
 
 | ファイル | 役割 |
 |---|---|
+| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`) |
+| `pricing/udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates` |
 | `boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
 
 (将来のASWヒストリカルチャート機能用に`asw/`を追加する想定。現時点では未着手)
+
+分析ブック(`engine/pca/`)は後述の「分析ブック」節を参照。
 
 `tests/test_past_start.py`: 過去起算スワップ(合成フィキシング)と評価日の扱いの
 リグレッションテスト(`python -m unittest tests.test_past_start -v`)。
@@ -103,10 +116,10 @@ LSEGのデータには依存しない。
 
 ## UDF専用設計(VBAなし)
 
-- `PricingSheet.py`(ワークブックと同名)は`from swap_pricing.udf import *`のみ。
+- `PricingSheet.py`(ワークブックと同名)は`from engine.swap_pricing.udf import *`のみ。
   xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要。
-  `swap_pricing/udf.py`自体は薄い再エクスポート層で、実体はシート(機能)ごとに
+  `engine/swap_pricing/udf.py`自体は薄い再エクスポート層で、実体はシート(機能)ごとに
   `pricing_udf.py`(Main/RealTime/pricing)・`historical/udf.py`(HistChart)・
   `boj/udf.py`(BOJ)に分かれている。共有部分(Excel境界の型変換・評価日解決・`_market`)は
   `udf_common.py`に集約している(2026-10-12、機能ごとのディレクトリに分割。理由は[decisions.md](decisions.md))。
@@ -145,7 +158,7 @@ UDFに渡す標準範囲は `RealTime!$B$2:$D$45`(フラグ/Ticker/Value)。
 過去起算のスワップのTONA実績は、ヒストリカルDB(朝のバッチが取り込んだもの)から読む。UDFの引数では
 受け取らず、`historical_data.xlsx`を開いておく必要もない(以前の`fixing_range`引数と外部リンクは
 2026-10-12に廃止)。DBが無ければスポット起点の計算だけが動き、過去起算は「実績が不足」のエラーになる。
-「どのスポットレートをカーブに使うか」の判定は`swap_pricing/udf.py`の
+「どのスポットレートをカーブに使うか」の判定は`engine/swap_pricing/udf.py`の
 `_rates_from_range`(過去の評価日では`_market`が同じフラグ)で行い、フラグ0のテナーは
 カーブにもデルタのバンプにも入らない(RiskGridでは空欄になる)。
 15M/18M/21Mも普通のスポットとして扱う(旧`include_odd_tenors`は廃止、
@@ -162,7 +175,7 @@ UDF、spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則�
 target fixrate(Q列)は`IF(flag=1, FairRate(...), "")`で、A列のflagが1の行だけ計算する。
 
 start/end列には日付のほか、IMMコード(月記号H/M/U/Z+2桁年、例: `M27`)も入力できる
-(`swap_pricing/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
+(`engine/common/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
 (例: `10y`)も入力でき、評価日のスポット日+tenor(休日調整前)を起算日にする
 (フォワードスタート。`10y`+tenor`20y`で10y20y。`conventions.forward_start_date`)。roll conv列(P列)は
 既定で数式になっており、startとendが両方IMMコードなら`IMM`、それ以外は`STD`を返す。
@@ -190,7 +203,7 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 
 ### ヒストリカルのUDF
 
-データは日次カーブDB(`python -m swap_pricing.morning_batch`で作成)。DBが無いとエラーになる。
+データは日次カーブDB(`python -m engine.common.morning_batch`で作成)。DBが無いとエラーになる。
 (旧Historicalシート(2Y/5Y/10Y固定)と`HistoricalOutright`、空のCalcシートは2026-10-12に削除した。
 グラフはHistChartシートで見る。)
 
@@ -250,22 +263,22 @@ BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のず�
   最後の会合期間より先のテナーはその行だけエラーの文字列。
 - ずれはミッド同士(売値・買値の幅は考慮しない)。差・変化はExcelの数式。
 
-## 分析ブック(`SwapAnalysis.xlsm`、`swap_analysis/`)
+## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`)
 
 pricingとは切り分けた分析用のブック。現状はスワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)。将来はボラのリアライズとインプライドの
 軌跡を追加する予定。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
 スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し)はPythonのUDF、
 得点・復元(行列の積)・差分・寄与率などはExcelの数式。`SwapAnalysis.py`は
-`swap_analysis/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+`engine/pca/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
 
 | ファイル | 役割 |
 |---|---|
-| `swap_analysis/history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ |
-| `swap_analysis/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
-| `swap_analysis/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
+| `engine/pca/history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ |
+| `engine/pca/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
+| `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
 
-ボラのヒストリカルは、朝のバッチ(`swap_pricing/morning_batch.py`)が`historical_data.xlsx`の
+ボラのヒストリカルは、朝のバッチ(`engine/common/morning_batch.py`)が`historical_data.xlsx`の
 Volシートを読んでDBの`vol_quotes`に取り込む(カーブには使わない)。
 
 PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):

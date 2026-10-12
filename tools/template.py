@@ -72,11 +72,11 @@ PATH_CHECK_EXEMPT = {"xl/vbaProject.bin"}
 LOCAL_PATH_PATTERNS = (re.compile(rb"[a-z]:\\users\\", re.I), re.compile(rb"file:///", re.I))
 
 UDF_MODULES = (
-    ROOT / "swap_pricing" / "udf.py",
-    ROOT / "swap_pricing" / "pricing_udf.py",
-    ROOT / "swap_pricing" / "historical" / "udf.py",
-    ROOT / "swap_pricing" / "boj" / "udf.py",
-    ROOT / "swap_analysis" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "pricing" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "historical" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "boj" / "udf.py",
+    ROOT / "engine" / "pca" / "udf.py",
 )
 
 _CELL = re.compile(r'<c r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)', re.S)

@@ -56,12 +56,12 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 1. `PricingSheet.xlsm`をExcelで開く。
 2. xlwingsリボンの **「Import Functions」** をクリック。
    - これにより、ワークブックと同名の`PricingSheet.py`(実体は
-     `swap_pricing/udf.py`を再エクスポートしているだけ)からUDF
+     `engine/swap_pricing/udf.py`を再エクスポートしているだけ)からUDF
      (`FairRate`, `SwapPV`, `SwapDelta`, `SwapAnnuityDelta`,
      `NotionalForDelta`, `RiskGrid`, `MarketInfo`,
      `HistoricalRate`, `HistoricalRates`)が
      Excelに登録される。
-   - `_xlwings.conf`シートの「UDF Modules」に`swap_pricing.udf`が
+   - `_xlwings.conf`シートの「UDF Modules」に`engine.swap_pricing.udf`が
      設定済みだが、Windowsの「Import Functions」はワークブック名と
      同名の`.py`ファイルを見に行く仕様のため、`PricingSheet.py`が
      実際にUDF定義を含んでいる(再エクスポートしている)ことが必須。
@@ -86,7 +86,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 2. リポジトリ直下で実行する:
 
    ```
-   python -m swap_pricing.morning_batch
+   python -m engine.common.morning_batch
    ```
 
    初回は全日付を作るので1〜2分(465日で約80秒)、2回目以降は入力が変わった日だけ作り直す。
@@ -128,7 +128,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 - [ ] `Main`シートの評価日に過去日(ヒストリカルDBにある日)を入れてF9すると、
       B4が「DB 日付」になり、pricingシートがその日のレートで計算される。
       空欄に戻すと今日(RealTime)に戻る
-- [ ] `python -m swap_pricing.morning_batch`の実行後、`Historical`シートの2Y/5Y/10Y
+- [ ] `python -m engine.common.morning_batch`の実行後、`Historical`シートの2Y/5Y/10Y
       アウトライトが下方向に広がり、2s10sカーブ・2s5s10sフライも表示される
 - [ ] `HistChart`シートの系列表に行番号を1つ(アウトライト)/2つ(カーブ)/3つ(フライ)
       入れてF9すると、グラフに最大3本の線が重なって表示される。カーブ/フライを含むと

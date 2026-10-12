@@ -1,7 +1,7 @@
 """
 BOJシート用のUDF(会合スワップ(RD・M1〜)とスポットの歪み比較)。
 
-Excel境界の型変換(`_is_blank`等)と評価日解決は`swap_pricing.udf_common`を
+Excel境界の型変換(`_is_blank`等)と評価日解決は`engine.common.udf_common`を
 `udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。理由はudf_common.pyのdocstring)。
 """
 
@@ -9,12 +9,12 @@ from typing import Dict, List
 
 import xlwings as xw
 
-from swap_pricing import udf_common
-from swap_pricing.boj.meeting_curve import MeetingPeriod, build_meeting_curve
-from swap_pricing.curve import BootstrapResult, ON_KEYS
-from swap_pricing.market_data import Market
-from swap_pricing.risk import price
-from swap_pricing.terms import PAY, STANDARD, SwapParams, SwapTerms
+from engine.common import udf_common
+from engine.swap_pricing.boj.meeting_curve import MeetingPeriod, build_meeting_curve
+from engine.common.curve import BootstrapResult, ON_KEYS
+from engine.common.market_data import Market
+from engine.common.risk import price
+from engine.common.terms import PAY, STANDARD, SwapParams, SwapTerms
 
 
 def _meeting_periods(meeting_range) -> List[MeetingPeriod]:
@@ -71,7 +71,7 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
 
     tenors: テナーの列(例: BOJ!A21:A33)。real_time_range: RealTime!B2:D45(O/Nを読む)。
     meeting_range: RealTime!C36:F45(Ticker/Value/起算日/満期日)。valuation_date: Main!評価日。
-    カーブの引き方は swap_pricing/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
+    カーブの引き方は engine/swap_pricing/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
     エラーの文字列になる。
     """
     boot = _meeting_curve(real_time_range, meeting_range, valuation_date)

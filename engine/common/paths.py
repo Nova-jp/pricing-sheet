@@ -7,6 +7,6 @@
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = REPO_ROOT / "data"
 HISTORICAL_DB_PATH = DATA_DIR / "historical.db"

@@ -23,7 +23,7 @@ from typing import List, Optional
 
 import psycopg2
 
-from swap_pricing.historical_store import AswQuoteRow
+from engine.common.historical_store import AswQuoteRow
 
 _ASW_TABLE = 'public."ASW_data"'
 

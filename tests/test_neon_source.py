@@ -1,5 +1,5 @@
 """
-swap_pricing.neon_source のリグレッションテスト。
+engine.common.neon_source のリグレッションテスト。
 
 実際のNeonには繋がず、psycopg2.connect をモックして「どのSQL・パラメータで
 呼んでいるか」「結果をどう組み立てるか」だけを確認する(public."ASW_data" 以外に
@@ -18,8 +18,8 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from swap_pricing import neon_source  # noqa: E402
-from swap_pricing.historical_store import AswQuoteRow  # noqa: E402
+from engine.common import neon_source  # noqa: E402
+from engine.common.historical_store import AswQuoteRow  # noqa: E402
 
 _ROWS = [
     (datetime(2026, 10, 9).date(), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6)),

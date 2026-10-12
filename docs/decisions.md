@@ -83,13 +83,14 @@
   キャッシュ済みカーブを使い回すと、評価日がずれたまま計算される
   (10Yパーで約0.056bpのズレを実測、過去起算ではエラーになるケースも)。
   回帰テストは`tests/test_past_start.py`の`EvaluationDateTest`。
-- **コンベンション関連の対応表を`swap_pricing/conventions.py`に集約(2026-09-27)**。
+- **コンベンション関連の対応表を`engine/common/conventions.py`に集約(2026-09-27)**。
   旧`calendars.py`(カレンダー・IMMコード)、旧`daycount.py`(dcf)、`swap_pricer.py`内の
   freq/roll対応表、`curve.py`内の`TENOR_ALIASES`が分散していたため、「業務上の表記→
-  QuantLibの引数」を1か所で見られるようにした(動作は不変、純粋な移動)。パッケージは
-  約1,200行と小さく、`PricingSheet.py`経由のimportもあるため、サブディレクトリには
-  分けずフラットのまま。インデックス(LCH/TIBOR等)ごとのコンベンションが増えたら
-  `conventions/`への分割を検討する。Excel境界の型変換(日付シリアル値)は`udf.py`に残す。
+  QuantLibの引数」を1か所で見られるようにした(動作は不変、純粋な移動)。`conventions.py`
+  自体は約1,200行と小さいため、これ以上`conventions/`パッケージには分割しない
+  (ディレクトリ構成全体の再編は後述の「UDFの実体をシート(機能)ごとのディレクトリに分割」参照)。
+  インデックス(LCH/TIBOR等)ごとのコンベンションが増えたら`conventions/`への分割を検討する。
+  Excel境界の型変換(日付シリアル値)は各feature udfモジュールに残す。
 - **`historical_data.xlsx`はデータを空にした雛形だけをコミットする(2026-09-27)**。
   理由: ブック(シート構成・数式)はバージョン管理したいが、リポジトリはPublicで、
   LSEGのコンテンツは再配布が禁止されている。→ 2026-10-07に全ブックの雛形方式へ置き換え(下記)。
@@ -107,7 +108,7 @@
     判断が食い違わず、新しい種類のデータ置き場が出てきたら止まる(消し損ねても公開されない)。
   - コードからブックを毎回生成する案は、動的配列・LET・グラフ・VBA参照の再現にCOMでの組み立てが
     要り、Excel上で直接編集する運用もできなくなるため採らなかった。
-- **取引条件は型を3段に分けて渡す(2026-10-12、ユーザー合意)**。`swap_pricing/terms.py`の
+- **取引条件は型を3段に分けて渡す(2026-10-12、ユーザー合意)**。`engine/common/terms.py`の
   `SwapConvention`(規約)⊂`SwapTerms`(規約+日付)⊂`SwapParams`(+想定元本・PAY/REC・固定金利)。
   以前は8個の引数を関数ごとに並べて渡しており、取り違えの余地があった。規約と日付を分けるのは、
   同じ規約を多くのスワップで共有し(`STANDARD`)、ヒストリカルでは規約を固定したまま日付ごとに
@@ -224,7 +225,7 @@
   理由: 従来は15M/18M/21M "だけ" を`include_odd_tenors`引数で除外可能にして
   いたが、RealTime B列に全スポット共通の採否フラグ(1/空欄=使う, 0=使わない)を
   設けたため、15M/18M/21Mも普通のスポットとして扱えばよくなった。判定は
-  `swap_pricing/udf.py`の`_rates_from_range`に一本化し、`bootstrap_curve`は
+  `engine/swap_pricing/udf.py`の`_rates_from_range`に一本化し、`bootstrap_curve`は
   渡された辞書をそのまま使う(壊れにくくするため)。
 
 ## テナー表記
@@ -241,23 +242,31 @@
   ゼロでよい」という方針転換。手動計算モード+F9でxlwingsのUDFが
   ネイティブのExcel関数と同じ挙動で再計算されることを確認済みのため、
   トリガー用のマクロボタンが不要になった。
-- **`PricingSheet.py`は`swap_pricing/udf.py`を再エクスポートするだけ**。
+- **`PricingSheet.py`は`engine/swap_pricing/udf.py`を再エクスポートするだけ**。
   理由: xlwingsのExcelアドイン(Windows)の「Import Functions」は、
   ワークブックと同名の`.py`ファイルからUDFを探す仕様。`_xlwings.conf`
   シートの「UDF Modules」設定だけでは不十分だった(実際にWindows実機で
   F9が効かず、旧`main()`ベースの`PricingSheet.py`にはUDF定義が
   存在しなかったことが根本原因と判明)。
-- **UDFの実体をシート(機能)ごとのディレクトリに分割した(`pricing_udf.py`・`historical/`・
-  `boj/`、2026-10-12、ユーザー指摘)**。理由: `swap_pricing/udf.py`1ファイルに
-  pricing/historical/BOJの全UDFが集約されていたが、ASW追加を機にさらに肥大化する前に
-  機能ごとへ分けた方が自然と判断。`swap_pricing/udf.py`自体はxlwingsの制約を満たすための
-  薄い再エクスポート層として残す(`Ping`以外の実体は持たない)。共有エンジン
-  (`conventions.py`/`curve.py`/`swap_pricer.py`/`terms.py`/`market.py`/`market_data.py`/
-  `risk.py`/`paths.py`)と朝バッチ・DB層(`historical_store.py`/`morning_batch.py`/
-  `neon_source.py`)は、どの機能からも使う共通基盤のため分割していない。
+- **UDFの実体をシート(機能)ごとのディレクトリに分割し、さらに`engine/`配下を
+  `common/`・`swap_pricing/`・`pca/`の3つの並列パッケージに再編した(2026-10-12、
+  ユーザー指摘・2段階)**。
+  - 1段目: `swap_pricing/udf.py`1ファイルにpricing/historical/BOJの全UDFが集約されていたが、
+    ASW追加を機にさらに肥大化する前に機能ごと(`historical/`・`boj/`、当初の`pricing_udf.py`)へ
+    分けた。
+  - 2段目: 1段目では共有エンジン(`conventions.py`等)が`swap_pricing/`直下に"素のまま"残り、
+    機能ディレクトリ(`historical/`・`boj/`)だけがサブディレクトリ化された非対称な状態だった
+    (ユーザー指摘)。さらに、分析ブック用の`swap_analysis/`パッケージが実際に使っているのは
+    `conventions.py`・`historical_store.py`・`udf_common.py`の3つだけで、これらは`swap_pricing`
+    固有ではなく本当の意味での「共通」だった。この2点から、`engine/`という新しい親ディレクトリの下に
+    `common/`(共有エンジン・データ層: `conventions.py`/`curve.py`/`swap_pricer.py`/`terms.py`/
+    `market.py`/`market_data.py`/`risk.py`/`paths.py`/`historical_store.py`/`morning_batch.py`/
+    `neon_source.py`/`udf_common.py`)・`swap_pricing/`(PricingSheet.xlsm固有、`pricing/`・
+    `historical/`・`boj/`の3機能)・`pca/`(旧`swap_analysis/`、PCAはボラも含む汎用の分析なので
+    「swap」を外した名前にした)を並列に置く構成にした。
   - **Excel境界の型変換・評価日解決・`_market`は`udf_common.py`に集約し、各feature udf
     モジュールは`udf_common.xxx(...)`の形(モジュール越しの属性参照)で呼ぶ**。
-    `from swap_pricing.udf_common import xxx`のように名前をコピーすると、コピー先の
+    `from engine.common.udf_common import xxx`のように名前をコピーすると、コピー先の
     モジュールでは別の束縛になり、既存テストの`mock.patch.object(udf, "_historical_store", ...)`
     のような1か所のパッチが他のfeatureモジュールの呼び出しには反映されない
     (パッチが効くのは呼び出し側が実際に名前を参照するモジュールの属性であり、コピー元の
@@ -349,7 +358,7 @@
 
 ## 分析ブック(SwapAnalysis.xlsm)
 
-- **分析はpricingと切り分けて別ブック`SwapAnalysis.xlsm`+パッケージ`swap_analysis/`にする
+- **分析はpricingと切り分けて別ブック`SwapAnalysis.xlsm`+パッケージ`engine/pca/`にする
   (2026-10-04、ユーザー指示)**。RealTimeシートも専用に持つ(PricingSheetと同じRIC)。今後も
   Excelでは扱いづらい計算をしていくので、VBAに頼るような部分はPythonにしてよい。
   ただし四則演算などExcelの関数で済むものはExcelの数式で書く(ユーザー指示)。
@@ -408,7 +417,7 @@
   ブートストラップには混ぜない(`vol_quotes`と同じ「参照データのみ」の位置づけ。
   ユーザー判断、2026-10-12)。
 - **このNeonインスタンスは他プロジェクトのテーブルと同居する共有DB**(`auth`/`storage`/`realtime`
-  スキーマ、`boj_meetings`・`bond_data`・`irs_data`・`swap_data`等)。`swap_pricing/neon_source.py`は
+  スキーマ、`boj_meetings`・`bond_data`・`irs_data`・`swap_data`等)。`engine/common/neon_source.py`は
   `public."ASW_data"`への読み取り専用SELECTしか行わない(他テーブルの読み書きは一切しない)。
   接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`、gitignore対象)。
 - **差分取得はローカルDBの`asw_quotes.updated_at`の最大値を基準にする**(別の監視用テーブルを

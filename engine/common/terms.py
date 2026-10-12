@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
-from swap_pricing.conventions import (
+from engine.common.conventions import (
     ACT_365_FIXED, FREQ_TO_QL_FREQUENCY, ROLL_STD, SUPPORTED_DCF, SUPPORTED_ROLL,
 )
 

@@ -1,9 +1,9 @@
 """
 HistChartシート用のUDF(任意コンベンションのヒストリカル・パーレート推移)。
 
-ブートストラップをせず、朝バッチ(swap_pricing/morning_batch.py)が作った日次カーブDB
+ブートストラップをせず、朝バッチ(engine/common/morning_batch.py)が作った日次カーブDB
 (data/historical.db)を読むだけ。Excel境界の型変換・評価日解決・`_market`は
-`swap_pricing.udf_common`を`udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。
+`engine.common.udf_common`を`udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。
 理由はudf_common.pyのdocstring)。
 """
 
@@ -13,16 +13,16 @@ from typing import List, Optional
 import QuantLib as ql
 import xlwings as xw
 
-from swap_pricing import udf_common
-from swap_pricing.conventions import CALENDAR, is_imm_code, is_tenor
-from swap_pricing.historical.pricer import (
+from engine.common import udf_common
+from engine.common.conventions import CALENDAR, is_imm_code, is_tenor
+from engine.swap_pricing.historical.pricer import (
     SwapSpec,
     historical_multi_rate_series,
     historical_swap_rate_series,
 )
-from swap_pricing.historical_store import HistoricalStore
-from swap_pricing.market import db_fixings
-from swap_pricing.terms import SwapConvention
+from engine.common.historical_store import HistoricalStore
+from engine.common.market import db_fixings
+from engine.common.terms import SwapConvention
 
 
 def _date_or_imm(value):
@@ -45,7 +45,7 @@ def HistoricalRate(
 
     mode: "FIXED"(同じ日付の取引をそのまま過去日で評価)/
           "ROLLING"(基準日のスポット日からの距離を保って各過去日へ平行移動)。
-          詳細は swap_pricing/historical/pricer.py。
+          詳細は engine/swap_pricing/historical/pricer.py。
     base_date: ROLLINGの基準日(空欄=今日)。通常は Main!評価日 を渡す。
     from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
     過去起算になる日のTONA実績は、DBに取り込み済みのもの(Fixingシート由来)を使う。

@@ -1,5 +1,5 @@
 """
-カーブ一式の共有(swap_pricing/market.py)、デルタ計算(risk.py)、pricingシート用UDFの
+カーブ一式の共有(engine/common/market.py)、デルタ計算(risk.py)、pricingシート用UDFの
 評価日の扱い・RiskGrid のリグレッションテスト。
 
 - 共有カーブで計算したデルタが、以前の「毎回ブートストラップし直す」計算と一致すること
@@ -22,15 +22,16 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from swap_pricing import morning_batch, market, udf, udf_common  # noqa: E402
-from swap_pricing.conventions import forward_start_date  # noqa: E402
-from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
-from swap_pricing.historical_store import HistoricalStore  # noqa: E402
-from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
-from swap_pricing.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
-from swap_pricing.market_data import Market  # noqa: E402
-from swap_pricing.swap_pricer import price_swap  # noqa: E402
-from swap_pricing.terms import SwapParams, SwapTerms  # noqa: E402
+from engine.common import morning_batch, market, udf_common  # noqa: E402
+from engine.swap_pricing import udf  # noqa: E402
+from engine.common.conventions import forward_start_date  # noqa: E402
+from engine.common.curve import bootstrap_curve, spot_date_for  # noqa: E402
+from engine.common.historical_store import HistoricalStore  # noqa: E402
+from engine.common.market import curve_set, realtime_snapshot  # noqa: E402
+from engine.common.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
+from engine.common.swap_pricer import price_swap  # noqa: E402
+from engine.common.terms import SwapParams, SwapTerms  # noqa: E402
 from tests.test_morning_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, CONV_ARGS  # noqa: E402

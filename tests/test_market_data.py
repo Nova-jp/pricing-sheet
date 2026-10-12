@@ -1,5 +1,5 @@
 """
-市場データの型(swap_pricing/market_data.py)のテスト。先読みの排除(評価日より前の実績だけ)を
+市場データの型(engine/common/market_data.py)のテスト。先読みの排除(評価日より前の実績だけ)を
 作る時点で行うこと。
 
 実行方法:
@@ -16,7 +16,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import QuantLib as ql  # noqa: E402
 
-from swap_pricing.market_data import Market  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
 
 VAL = date(2026, 9, 25)
 

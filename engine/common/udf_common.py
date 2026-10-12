@@ -4,7 +4,7 @@ UDFの各機能(pricing_udf.py・historical/udf.py・boj/udf.py)が共有する�
 
 ■ テストでの差し替え方
   各feature udfモジュールはここの関数を`udf_common.xxx(...)`の形(モジュール越しの属性参照)
-  で呼ぶ。`from swap_pricing.udf_common import xxx`のように名前をコピーすると、コピー先の
+  で呼ぶ。`from engine.common.udf_common import xxx`のように名前をコピーすると、コピー先の
   モジュールの中では別の束縛になり、`mock.patch.object(udf_common, "xxx", ...)`で
   差し替えても反映されない(パッチが効くのは参照した側、ではなく定義側のモジュール
   オブジェクトの属性のため)。`udf_common.xxx(...)`の形にしておけば、テストはこの
@@ -14,9 +14,9 @@ UDFの各機能(pricing_udf.py・historical/udf.py・boj/udf.py)が共有する�
 import datetime
 from typing import Dict, Optional
 
-from swap_pricing.conventions import imm_code_to_date, is_imm_code
-from swap_pricing.historical_store import HistoricalStore
-from swap_pricing.market import CurveSet, curve_set, db_fixings, db_snapshot, realtime_snapshot
+from engine.common.conventions import imm_code_to_date, is_imm_code
+from engine.common.historical_store import HistoricalStore
+from engine.common.market import CurveSet, curve_set, db_fixings, db_snapshot, realtime_snapshot
 
 _EXCEL_EPOCH = datetime.date(1899, 12, 30)  # Excelのシリアル値1900-01-01=1、1900うるう年バグ込み
 
@@ -91,13 +91,13 @@ def _resolve_valuation_date(valuation_date) -> datetime.date:
 
 
 def _historical_store() -> HistoricalStore:
-    """ヒストリカルの日次カーブDB(朝バッチ swap_pricing/morning_batch.py が作成)。
+    """ヒストリカルの日次カーブDB(朝バッチ engine/common/morning_batch.py が作成)。
     with 文で使うと、計算中はDB接続を1本だけ開いて使い回す。"""
     store = HistoricalStore()
     if not store.exists():
         raise ValueError(
             "ヒストリカルカーブDBがありません。historical_data.xlsxを更新・保存してから "
-            "python -m swap_pricing.morning_batch を実行してください"
+            "python -m engine.common.morning_batch を実行してください"
         )
     return store
 

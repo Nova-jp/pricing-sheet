@@ -4,7 +4,7 @@
 使い方:
   1. historical_data.xlsx をExcelで開き、LSEGのデータ更新が終わったら保存する
      (このバッチは保存済みの値を読む。Excelで開いたままでもよい)
-  2. python -m swap_pricing.morning_batch
+  2. python -m engine.common.morning_batch
      オプション: --xlsx パス / --config パス / --db パス / --rebuild(全日付を作り直す)
 
 処理:
@@ -21,7 +21,7 @@
        カーブは意味を持たないため
      - 入力(構築方法・使うレート)のハッシュが前回と同じ日は作り直さない。
        テナー選択や構築方法を変えれば、該当する日が自動で作り直される
-  ③ Neon(swap_pricing/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
+  ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
      asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
      Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
 
@@ -40,11 +40,11 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from swap_pricing import neon_source
-from swap_pricing.conventions import CALENDAR
-from swap_pricing.curve import get_curve_builder
-from swap_pricing.historical_store import GRID_DAYS, HistoricalStore, discount_grid
-from swap_pricing.paths import HISTORICAL_DB_PATH, REPO_ROOT
+from engine.common import neon_source
+from engine.common.conventions import CALENDAR
+from engine.common.curve import get_curve_builder
+from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
+from engine.common.paths import HISTORICAL_DB_PATH, REPO_ROOT
 
 DEFAULT_XLSX = REPO_ROOT / "historical_data.xlsx"
 DEFAULT_CONFIG = REPO_ROOT / "historical_curve.toml"

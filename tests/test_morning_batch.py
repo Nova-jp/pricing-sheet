@@ -1,5 +1,5 @@
 """
-日次カーブDBを作るバッチ(swap_pricing/morning_batch.py)のリグレッションテスト。
+日次カーブDBを作るバッチ(engine/common/morning_batch.py)のリグレッションテスト。
 
 LSEGのデータはPublicリポジトリに置けないため、historical_data.xlsx と同じ構成
 (Mid: A列「日付」の見出し行+RIC行+日付×テナー / Fixing: 日付・TONA)の合成ブックを
@@ -20,13 +20,13 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import openpyxl  # noqa: E402
 
-from swap_pricing import morning_batch  # noqa: E402
-from swap_pricing.curve import bootstrap_curve  # noqa: E402
-from swap_pricing.historical_store import HistoricalStore  # noqa: E402
-from swap_pricing.historical.pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
-from swap_pricing.market_data import Market  # noqa: E402
-from swap_pricing.swap_pricer import price_swap  # noqa: E402
-from swap_pricing.terms import SwapTerms  # noqa: E402
+from engine.common import morning_batch  # noqa: E402
+from engine.common.curve import bootstrap_curve  # noqa: E402
+from engine.common.historical_store import HistoricalStore  # noqa: E402
+from engine.swap_pricing.historical.pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
+from engine.common.swap_pricer import price_swap  # noqa: E402
+from engine.common.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, CONV_ARGS, _synthetic_fixings  # noqa: E402
 
@@ -177,7 +177,8 @@ class CurveBatchTest(unittest.TestCase):
         """UDF HistoricalRates: 空の行は空欄の列、各脚は1本ずつ計算した値と一致する。"""
         from unittest import mock
 
-        from swap_pricing import udf, udf_common
+        from engine.common import udf_common
+        from engine.swap_pricing import udf
 
         self._run()
         store = HistoricalStore(self.db)
@@ -194,7 +195,8 @@ class CurveBatchTest(unittest.TestCase):
     def test_udf_historical_rates_without_legs_returns_dates(self):
         from unittest import mock
 
-        from swap_pricing import udf, udf_common
+        from engine.common import udf_common
+        from engine.swap_pricing import udf
 
         self._run()
         with mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db)):
@@ -219,7 +221,7 @@ class CurveBatchTest(unittest.TestCase):
     def test_asw_quotes_are_synced_from_neon(self):
         from unittest import mock
 
-        from swap_pricing.historical_store import AswQuoteRow
+        from engine.common.historical_store import AswQuoteRow
 
         rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
         with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows) as fetch:
@@ -234,7 +236,7 @@ class CurveBatchTest(unittest.TestCase):
     def test_second_run_passes_watermark_as_since(self):
         from unittest import mock
 
-        from swap_pricing.historical_store import AswQuoteRow
+        from engine.common.historical_store import AswQuoteRow
 
         rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
         with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows):
