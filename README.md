@@ -15,7 +15,7 @@ JPY OIS(TONA)スワップのプライシングシート。Excelブック(`Pricin
 LSEG Workspace
   ├─ PricingSheet.xlsm の RealTimeシート ──────▶ UDF(その場でカーブ構築)
   └─ historical_data.xlsx(Mid / Fixing)
-        │  朝に手動実行: python -m swap_pricing.curve_batch
+        │  朝に手動実行: python -m swap_pricing.morning_batch
         ▼
      data/historical.db(ローカルのSQLite)──▶ ヒストリカル系UDF(読むだけ)
 ```
@@ -51,6 +51,11 @@ copy templates\*.xls* .
 Excelのブックは`templates/`の雛形(LSEGのデータを含まない)を直下にコピーして使う。
 直下のブックは作業用で、データ入りで保存してもgitに入らない(`.gitignore`済み)。
 
+ASWスプレッド取得(朝バッチの一部)にはNeonへの接続文字列が必要。リポジトリ直下に
+`.env`を作り、`NEON_CONNECTION_STRING=postgres://...`を1行追加する(値は`OPERATIONS.md`を
+参照するか、ユーザーに確認する。`.env`はgitignore対象でコミットしない)。設定が無い・
+Neonに繋がらない場合もバッチ自体は止まらず、ASWの取り込みだけスキップされる。
+
 このあと、xlwingsが使うPython(venvの`pythonw.exe`)の指定、ブックでの
 「Import Functions」、計算方法の確認などを行う。手順の詳細とトラブルシューティングは
 [docs/setup_windows.md](docs/setup_windows.md)を参照。
@@ -65,7 +70,7 @@ Excelのブックは`templates/`の雛形(LSEGのデータを含まない)を直
 
    ```
    .venv\Scripts\activate
-   python -m swap_pricing.curve_batch
+   python -m swap_pricing.morning_batch
    ```
 
    2回目以降は入力が変わった日だけ作り直す。全日付を作り直すときは`--rebuild`を付ける。

@@ -4,7 +4,7 @@
 使い方:
   1. historical_data.xlsx をExcelで開き、LSEGのデータ更新が終わったら保存する
      (このバッチは保存済みの値を読む。Excelで開いたままでもよい)
-  2. python -m swap_pricing.curve_batch
+  2. python -m swap_pricing.morning_batch
      オプション: --xlsx パス / --config パス / --db パス / --rebuild(全日付を作り直す)
 
 処理:
@@ -13,7 +13,7 @@
      Volシート(スワップションATMノーマルvol)があれば vol_quotes にも取り込む
      (分析ブックのPCA用。カーブには使わない)
   ② DBにある全日付について、historical_curve.toml で選んだテナーでカーブを構築し、
-     暦日ごとのDFを curves に保存する(形式は curve_store.py)。
+     暦日ごとのDFを curves に保存する(形式は historical_store.py)。
      - "O/N" はその日のTONA実績(フィキシング対象日=その日)を使う
      - その日に値が無いテナーは外し、あるテナーだけで引く(使用/不使用テナーを記録)
      - 日本の非営業日(ql.Japan)は作らない。LSEGには祝日にも一部テナーの値が
@@ -21,6 +21,9 @@
        カーブは意味を持たないため
      - 入力(構築方法・使うレート)のハッシュが前回と同じ日は作り直さない。
        テナー選択や構築方法を変えれば、該当する日が自動で作り直される
+  ③ Neon(swap_pricing/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
+     asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
+     Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -37,9 +40,10 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
+from swap_pricing import neon_source
 from swap_pricing.conventions import CALENDAR
 from swap_pricing.curve import get_curve_builder
-from swap_pricing.curve_store import GRID_DAYS, CurveStore, discount_grid
+from swap_pricing.historical_store import GRID_DAYS, HistoricalStore, discount_grid
 from swap_pricing.paths import HISTORICAL_DB_PATH, REPO_ROOT
 
 DEFAULT_XLSX = REPO_ROOT / "historical_data.xlsx"
@@ -178,6 +182,20 @@ def input_hash(builder: str, selected: Dict[str, float]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def sync_asw_quotes(store: HistoricalStore, log=print) -> None:
+    """Neonから差分のASWスプレッドを取得してasw_quotesに保存する。
+    Neonに繋がらない・取得に失敗した場合もバッチ全体は止めず、ここだけスキップする。"""
+    since = store.asw_quotes_max_updated_at()
+    try:
+        rows = neon_source.fetch_asw_quotes(since=since)
+    except Exception as e:
+        log(f"ASW取得: 失敗のためスキップ ({e})")
+        return
+    if rows:
+        store.save_asw_quotes(rows)
+    log(f"ASW取得: {len(rows)}行({'差分' if since else '全件'})")
+
+
 def run(
     xlsx_path: Path = DEFAULT_XLSX,
     config_path: Path = DEFAULT_CONFIG,
@@ -187,7 +205,7 @@ def run(
 ) -> BatchSummary:
     config = load_config(config_path)
     builder = get_curve_builder(config.builder)
-    store = CurveStore(db_path)
+    store = HistoricalStore(db_path)
 
     mid, fixings = read_historical_workbook(xlsx_path)
     store.save_quotes(mid)
@@ -195,6 +213,7 @@ def run(
     vols = read_vol_sheet(xlsx_path)
     store.save_vol_quotes(vols)
     log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分 / Vol {len(vols)}日分")
+    sync_asw_quotes(store, log)
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()
@@ -247,6 +266,10 @@ def run(
 
 
 def main(argv=None) -> int:
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")  # NEON_CONNECTION_STRING(sync_asw_quotes用)
+
     parser = argparse.ArgumentParser(description="historical_data.xlsx からヒストリカル日次カーブDBを作る")
     parser.add_argument("--xlsx", type=Path, default=DEFAULT_XLSX)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)

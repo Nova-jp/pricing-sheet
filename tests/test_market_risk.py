@@ -22,16 +22,16 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from swap_pricing import curve_batch, market, udf  # noqa: E402
+from swap_pricing import morning_batch, market, udf  # noqa: E402
 from swap_pricing.conventions import forward_start_date  # noqa: E402
 from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
-from swap_pricing.curve_store import CurveStore  # noqa: E402
+from swap_pricing.historical_store import HistoricalStore  # noqa: E402
 from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
 from swap_pricing.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
 from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapParams, SwapTerms  # noqa: E402
-from tests.test_curve_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
+from tests.test_morning_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, CONV_ARGS  # noqa: E402
 
@@ -163,8 +163,8 @@ class ValuationDateTest(unittest.TestCase):
         xlsx, config, self.db = tmp / "h.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
-        curve_batch.run(xlsx, config, self.db, log=lambda *_: None)
-        self.patch = mock.patch.object(udf, "_historical_store", lambda: CurveStore(self.db))
+        morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
+        self.patch = mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db))
         self.patch.start()
 
     def tearDown(self):
@@ -207,7 +207,7 @@ class ValuationDateTest(unittest.TestCase):
         no_db = mock.patch.object(udf, "_historical_store", side_effect=ValueError("DBなし"))
         with mock.patch.object(udf, "_today", lambda: today), no_db:
             udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, _rt_range())
-            with self.assertRaisesRegex(ValueError, "curve_batch"):
+            with self.assertRaisesRegex(ValueError, "morning_batch"):
                 udf.FairRate(date(2026, 7, 1), "1y", None, *CONV_ARGS, _rt_range())
 
     def test_fixings_come_from_db_before_valuation_date(self):
@@ -256,8 +256,8 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
         xlsx, config, self.db = tmp / "h.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
-        curve_batch.run(xlsx, config, self.db, log=lambda *_: None)
-        self.patches = [mock.patch.object(udf, "_historical_store", lambda: CurveStore(self.db))]
+        morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
+        self.patches = [mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db))]
         for p in self.patches:
             p.start()
         # DB(SPOT_RATES)と区別できるよう、RealTimeは全テナー+10bp

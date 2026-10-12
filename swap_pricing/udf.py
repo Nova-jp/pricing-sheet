@@ -20,7 +20,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
     Fixingシートから取り込んだもの)から読む。評価日より前の日だけを使う(market_data.Market)。
     UDFの引数では受け取らない(以前のfixing_range引数とhistorical_data.xlsxへの外部リンクは廃止)。
   - ヒストリカル系UDF(HistoricalRate, HistoricalRates)はブートストラップをせず、
-    朝バッチ(python -m swap_pricing.curve_batch)が作った日次カーブDB
+    朝バッチ(python -m swap_pricing.morning_batch)が作った日次カーブDB
     (data/historical.db)を読むだけ。TONA実績もDBに取り込み済みのものを使う。
   - 配列を返すUDF(RiskGrid, HistoricalRate, HistoricalRates)は、
     Excelの動的配列のスピルにそのまま任せる。xlwingsの @xw.ret(expand="table") は使わない
@@ -44,7 +44,7 @@ import xlwings as xw
 
 from swap_pricing.conventions import CALENDAR, forward_start_date, imm_code_to_date, is_imm_code, is_tenor
 from swap_pricing.curve import BootstrapResult, ON_KEYS
-from swap_pricing.curve_store import CurveStore
+from swap_pricing.historical_store import HistoricalStore
 from swap_pricing.historical_pricer import (
     SwapSpec,
     historical_multi_rate_series,
@@ -414,14 +414,14 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
     return result
 
 
-def _historical_store() -> CurveStore:
-    """ヒストリカルの日次カーブDB(朝バッチ swap_pricing/curve_batch.py が作成)。
+def _historical_store() -> HistoricalStore:
+    """ヒストリカルの日次カーブDB(朝バッチ swap_pricing/morning_batch.py が作成)。
     with 文で使うと、計算中はDB接続を1本だけ開いて使い回す。"""
-    store = CurveStore()
+    store = HistoricalStore()
     if not store.exists():
         raise ValueError(
             "ヒストリカルカーブDBがありません。historical_data.xlsxを更新・保存してから "
-            "python -m swap_pricing.curve_batch を実行してください"
+            "python -m swap_pricing.morning_batch を実行してください"
         )
     return store
 
@@ -509,7 +509,7 @@ class _WithRealTimeLatest:
     供給元。今日のカーブはpricingシートと同じ market のカーブ一式を使う(DBに今日の引け値が
     あっても、今日はライブのレートを優先する)。日付だけを求める呼び出しではカーブを作らない。"""
 
-    def __init__(self, store: CurveStore, real_time_range, today: datetime.date):
+    def __init__(self, store: HistoricalStore, real_time_range, today: datetime.date):
         self._store = store
         self._real_time_range = real_time_range
         self._today = today

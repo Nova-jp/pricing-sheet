@@ -1,7 +1,7 @@
 """
 ヒストリカル日次カーブのローカルDB(SQLite、data/historical.db)。
 
-朝のバッチ(swap_pricing/curve_batch.py、手動実行)が historical_data.xlsx(LSEG)から
+朝のバッチ(swap_pricing/morning_batch.py、手動実行)が historical_data.xlsx(LSEG)から
 作成し、日中のヒストリカル系UDFはここを読むだけにする(ブートストラップをしない)。
 LSEG由来のデータを含むためコミットしない(*.db は .gitignore 済み)。
 
@@ -13,12 +13,20 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               (例 1Yx10Y)。分析ブック(swap_analysis)のPCAが読む。カーブには使わない
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
+  - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
+              Neon(swap_pricing/neon_source.py)から朝バッチが取得する参照データ。
+              カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
+
+■ asw_quotesの差分取得(updated_atウォッチマーク)
+  別のメタデータテーブルを持たず、ローカルのasw_quotesに保存済みのupdated_atの最大値
+  (asw_quotes_max_updated_at)をそのまま次回取得の基準にする。curvesがinput_hashを
+  自分の中に持つのと同じ考え方(別テーブルを増やさない)。
 
 ■ なぜ暦日ごとのDFを保存するか(カーブの引き方に依存しないため)
   どんな引き方(Convex Monotone、将来のステップアップ等)で作ったカーブも、
   「日付→DF」に落とせば同じ形式で保存・復元できる。OISの評価はフィキシング日・
   利払日など日付上のDFしか使わないため、全暦日のDFを持てば元のカーブと
-  同じパーレートになる(tests/test_curve_store.py で確認)。ピラーと補間方法を
+  同じパーレートになる(tests/test_historical_store.py で確認)。ピラーと補間方法を
   保存する方式だと、読む側で同じ補間を再現する必要があり引き方に依存してしまう。
   営業日だけでなく暦日で持つのは、祝日カレンダーの違い(QuantLibのバージョン差等)で
   ノードが欠けないようにするため。GRID_DAYSを超える日付は外挿せずエラーにする。
@@ -72,12 +80,35 @@ CREATE TABLE IF NOT EXISTS curves (
     dfs BLOB NOT NULL,
     built_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS asw_quotes (
+    as_of_date TEXT NOT NULL,
+    bond_code TEXT NOT NULL,
+    asw_pa REAL NOT NULL,
+    asw_sa REAL NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (as_of_date, bond_code)
+);
 """
 
 
 class StoredCurve(NamedTuple):
     curve: ql.YieldTermStructureHandle
     index: "ql.OvernightIndex"
+
+
+class AswQuoteRow(NamedTuple):
+    """neon_source.fetch_asw_quotes() が返す1行(取引日・銘柄・ASW・Neon側の更新時刻)。"""
+
+    trade_date: date
+    bond_code: str
+    asw_pa: float
+    asw_sa: float
+    updated_at: datetime
+
+
+class AswRate(NamedTuple):
+    pa: float
+    sa: float
 
 
 def discount_grid(curve: ql.YieldTermStructureHandle, as_of_date: date) -> array:
@@ -108,7 +139,7 @@ def _iso(d: date) -> str:
     return d.isoformat()
 
 
-class CurveStore:
+class HistoricalStore:
     def __init__(self, db_path: Path = HISTORICAL_DB_PATH):
         self.db_path = Path(db_path)
         self._session: Optional[sqlite3.Connection] = None
@@ -116,7 +147,7 @@ class CurveStore:
     def exists(self) -> bool:
         return self.db_path.exists()
 
-    def __enter__(self) -> "CurveStore":
+    def __enter__(self) -> "HistoricalStore":
         """with ブロックの間は接続を1本だけ開いて使い回す(日付ごとに load する
         ヒストリカル計算で、毎回の接続・切断のコストを避けるため)。"""
         self._session = self._open()
@@ -196,7 +227,38 @@ class CurveStore:
                 ),
             )
 
+    def save_asw_quotes(self, rows: Iterable["AswQuoteRow"]) -> None:
+        """Neonから取得した行をupsertする(同じ(日付,銘柄)は上書き)。"""
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO asw_quotes (as_of_date, bond_code, asw_pa, asw_sa, updated_at) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT(as_of_date, bond_code) DO UPDATE SET "
+                "asw_pa=excluded.asw_pa, asw_sa=excluded.asw_sa, updated_at=excluded.updated_at",
+                [
+                    (_iso(r.trade_date), r.bond_code, r.asw_pa, r.asw_sa, r.updated_at.isoformat())
+                    for r in rows
+                ],
+            )
+
     # --- 読み込み ---
+
+    def asw_quotes_max_updated_at(self) -> Optional[datetime]:
+        """ローカルに保存済みのasw_quotesの最新updated_at。次回のNeon差分取得の基準にする
+        (保存済みが無ければNoneを返し、呼び出し側は全期間を取得する)。"""
+        with self._connect() as conn:
+            row = conn.execute("SELECT MAX(updated_at) FROM asw_quotes").fetchone()
+        return datetime.fromisoformat(row[0]) if row and row[0] is not None else None
+
+    def asw_quotes(self) -> Dict[date, Dict[str, "AswRate"]]:
+        """{日付: {bond_code: AswRate(pa, sa)}}。"""
+        result: Dict[date, Dict[str, AswRate]] = {}
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT as_of_date, bond_code, asw_pa, asw_sa FROM asw_quotes"
+            ).fetchall()
+        for d, bond_code, pa, sa in rows:
+            result.setdefault(date.fromisoformat(d), {})[bond_code] = AswRate(pa, sa)
+        return result
 
     def quotes(self) -> Dict[date, Dict[str, float]]:
         result: Dict[date, Dict[str, float]] = {}

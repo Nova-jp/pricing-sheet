@@ -9,19 +9,21 @@
 ## データフロー
 
 ```
-[Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]
-  LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する
+[Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]       [Neon(Postgres、他プロジェクトと共用)]
+  LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する                      public."ASW_data"(JGB銘柄別ASW、他プロジェクトのテーブルは触れない)
   - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、RealTimeシートと同じ系列)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
-        │
-        ▼  朝に手動実行: python -m swap_pricing.curve_batch
-[朝バッチ swap_pricing/curve_batch.py]  設定: historical_curve.toml(引き方・使うテナー)
-  ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)
-  ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存
-     (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)
+        │                                                                              │
+        ▼  朝に手動実行: python -m swap_pricing.morning_batch                          │ SELECTのみ、updated_atで差分取得
+[朝バッチ swap_pricing/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)   │
+  ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)              │
+  ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存        │
+     (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
+  ③ swap_pricing/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
+     (Neonに繋がらなくても①②は続行する)
         │
         ▼
-[data/historical.db(ローカルのSQLite。LSEG由来なのでコミットしない)]
+[data/historical.db(ローカルのSQLite。LSEG/Neon由来なのでコミットしない)]
         │
         ▼  日中はDBを読むだけ(ブートストラップしない)
 [Excel: PricingSheet.xlsm]
@@ -29,7 +31,9 @@
   HistoricalRate / HistoricalRates ───────────────────────▶ DBのカーブで評価
 ```
 
-データの供給元はLSEG Workspaceだけ(クラウドは使わない)。
+データの供給元はLSEG Workspace(カーブ・プライシング本体)とNeon(ASWスプレッド、参照データのみ)。
+Neonはクラウドだが、ASWスプレッド以外には使わない(クラウドの計算・保存基盤には戻さない)。
+ASWはカーブのブートストラップには使わず、`asw_quotes`に保存するだけ(詳細は[decisions.md](decisions.md))。
 
 ## 計算エンジン(`swap_pricing/`)
 
@@ -49,8 +53,9 @@ roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブ、全テナー+1bp、テナー別+1bp。必要になったときに1回だけ作り、バンプはカーブに使っているテナーだけ)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使い、ここではブートストラップしない)、notional逆算 |
 | `historical_pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
-| `curve_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績も保存 |
-| `curve_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存 |
+| `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存 |
+| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
+| `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
 | `meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
 | `udf.py` | **Excelから直接呼べるUDF定義。ここが計算エンジンとExcelの唯一の接点** |
@@ -61,9 +66,12 @@ roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変
 `tests/test_historical.py`: ヒストリカル計算(FIXED/ROLLINGの日付の決め方、先読みしない
 フィキシングの扱い、満期後の除外)のリグレッションテスト(`python -m unittest tests.test_historical -v`)。
 
-`tests/test_curve_store.py` / `tests/test_curve_batch.py`: 日次カーブDBの保存・復元の精度と、
-バッチ(テナー選択・欠損テナー・O/N・祝日除外・差分更新)のリグレッションテスト。
-LSEGデータの代わりに合成したブックを使う。
+`tests/test_historical_store.py` / `tests/test_morning_batch.py`: 日次カーブDBの保存・復元の精度と、
+バッチ(テナー選択・欠損テナー・O/N・祝日除外・差分更新・ASW取得の失敗時の継続)のリグレッションテスト。
+LSEGデータの代わりに合成したブックを使う。ASWはNeonへの接続をモックして確認する(実際には繋がない)。
+
+`tests/test_neon_source.py`: ASWスプレッド取得の対象テーブル・差分取得の条件(`updated_at > since`)・
+接続の後始末(成功・失敗どちらでもclose)のリグレッションテスト。psycopg2をモックし、実際のNeonには繋がない。
 
 `tests/test_meeting_curve.py`: 会合スワップのカーブの再現精度(各会合スワップ・O/Nが機械精度で戻る)、
 決定日の夜が決定前のフォワードになること、休日の評価日、日付の重なり・範囲外のエラー、`BojImpliedRates`の範囲の読み方。
@@ -168,7 +176,7 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 
 ### ヒストリカルのUDF
 
-データは日次カーブDB(`python -m swap_pricing.curve_batch`で作成)。DBが無いとエラーになる。
+データは日次カーブDB(`python -m swap_pricing.morning_batch`で作成)。DBが無いとエラーになる。
 (旧Historicalシート(2Y/5Y/10Y固定)と`HistoricalOutright`、空のCalcシートは2026-10-12に削除した。
 グラフはHistChartシートで見る。)
 
@@ -243,7 +251,7 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)。将
 | `swap_analysis/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
 | `swap_analysis/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
 
-ボラのヒストリカルは、朝のバッチ(`swap_pricing/curve_batch.py`)が`historical_data.xlsx`の
+ボラのヒストリカルは、朝のバッチ(`swap_pricing/morning_batch.py`)が`historical_data.xlsx`の
 Volシートを読んでDBの`vol_quotes`に取り込む(カーブには使わない)。
 
 PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):

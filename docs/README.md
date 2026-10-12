@@ -25,9 +25,9 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   - `test_market_risk.py` — カーブ一式の共有とデルタ(旧手順との一致)、RiskGrid、評価日の切り替え、startのテナー入力、HistChartの最新日(RealTime)
   - `test_imm.py` — IMMコードの解釈とIMMロールのスケジュール、startのテナー表記の判定
   - `test_historical.py` — ヒストリカル計算(FIXED/ROLLINGの日付の決め方・営業日数の固定、先読みしないフィキシング、満期後の除外)
-  - `test_curve_store.py` / `test_curve_batch.py` — 日次カーブDBの保存・復元精度とバッチ
+  - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
 - `historical_curve.toml` — ヒストリカル日次カーブの設定(引き方・使うテナー)。
-  `python -m swap_pricing.curve_batch`が読む
+  `python -m swap_pricing.morning_batch`が読む
 - `templates/` — Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う。
   直下のブックは`.gitignore`済み。雛形は`python -m tools.template`(`tools/template.py`)で作る
   (仕組みはarchitecture.mdの「Excelブックの雛形」)

@@ -5,7 +5,7 @@
     python -m unittest tests.test_historical -v
     (カーブは全日付で同じ合成スポットレートからその場で組み、日付の決め方・
      フィキシングの扱い・満期後の除外といった自前ロジックだけを確認する。
-     DBへの保存・復元は test_curve_store.py)
+     DBへの保存・復元は test_historical_store.py)
 """
 
 import sys

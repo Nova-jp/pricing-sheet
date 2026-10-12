@@ -20,7 +20,7 @@ from typing import Dict, Optional, Tuple
 import QuantLib as ql
 
 from swap_pricing.conventions import CALENDAR
-from swap_pricing.curve_store import CurveStore
+from swap_pricing.historical_store import HistoricalStore
 
 ON_TENOR = "O/N"
 SWAP = "SWAP"
@@ -46,7 +46,7 @@ def parse_dataset(value) -> str:
     return dataset
 
 
-def _raw(dataset: str, store: CurveStore) -> History:
+def _raw(dataset: str, store: HistoricalStore) -> History:
     if dataset == VOL:
         return store.vol_quotes()
     quotes = store.quotes()
@@ -60,12 +60,12 @@ def _raw(dataset: str, store: CurveStore) -> History:
     return raw
 
 
-def load_history(dataset: str = SWAP, store: Optional[CurveStore] = None) -> History:
+def load_history(dataset: str = SWAP, store: Optional[HistoricalStore] = None) -> History:
     """日付(日本の営業日のみ)→ {銘柄(大文字): 値}。"""
-    store = store or CurveStore()
+    store = store or HistoricalStore()
     if not store.exists():
         raise ValueError(
-            f"ヒストリカルDBがありません: {store.db_path}(python -m swap_pricing.curve_batch で作成)"
+            f"ヒストリカルDBがありません: {store.db_path}(python -m swap_pricing.morning_batch で作成)"
         )
     key = (dataset, str(store.db_path), store.db_path.stat().st_mtime_ns)
     if key not in _cache:

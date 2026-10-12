@@ -194,7 +194,7 @@ def bootstrap_curve(
 
 # カーブの引き方(構築方法)の登録表。historical_curve.toml の builder で名前を選ぶ。
 # 引き方を追加するときは「(評価日, {テナー: レート%}) → curve/index/used_tenors/
-# skipped_tenors を持つ結果」の関数をここに登録するだけでよい。保存(curve_store.py)と
+# skipped_tenors を持つ結果」の関数をここに登録するだけでよい。保存(historical_store.py)と
 # 評価(historical_pricer.py)は日次のDFしか扱わないため、引き方に依存しない。
 CURVE_BUILDERS = {
     "convex_monotone": bootstrap_curve,

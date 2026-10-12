@@ -33,7 +33,7 @@ from swap_analysis.pca import (  # noqa: E402
     principal_components,
 )
 from swap_pricing.conventions import CALENDAR  # noqa: E402
-from swap_pricing.curve_store import CurveStore  # noqa: E402
+from swap_pricing.historical_store import HistoricalStore  # noqa: E402
 
 LABELS = ["O/N", "1Y", "2Y", "5Y", "10Y"]
 
@@ -199,7 +199,7 @@ class PrincipalComponentsTest(unittest.TestCase):
 class LoadHistoryTest(unittest.TestCase):
     def test_swap_and_vol_from_db(self):
         with tempfile.TemporaryDirectory() as tmp:
-            store = CurveStore(Path(tmp) / "h.db")
+            store = HistoricalStore(Path(tmp) / "h.db")
             holiday = date(2026, 1, 12)  # 成人の日
             store.save_quotes({date(2026, 1, 9): {"12M": 0.8, "m1": 0.5}, holiday: {"12M": 0.9}})
             store.save_fixings({date(2026, 1, 9): 0.48})

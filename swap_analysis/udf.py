@@ -24,7 +24,7 @@ import xlwings as xw
 
 from swap_analysis import pca
 from swap_analysis.history import UNIT_BP, load_history, normalize_label, parse_dataset
-from swap_pricing.curve_store import CurveStore
+from swap_pricing.historical_store import HistoricalStore
 from swap_pricing.udf import _is_blank, _to_date, _today
 
 
@@ -43,7 +43,7 @@ def _window(value) -> int:
 
 
 def _db_key() -> Optional[int]:
-    store = CurveStore()
+    store = HistoricalStore()
     return store.db_path.stat().st_mtime_ns if store.exists() else None
 
 

@@ -1,12 +1,12 @@
 """
-日次カーブDBを作るバッチ(swap_pricing/curve_batch.py)のリグレッションテスト。
+日次カーブDBを作るバッチ(swap_pricing/morning_batch.py)のリグレッションテスト。
 
 LSEGのデータはPublicリポジトリに置けないため、historical_data.xlsx と同じ構成
 (Mid: A列「日付」の見出し行+RIC行+日付×テナー / Fixing: 日付・TONA)の合成ブックを
 一時フォルダに作って確認する。
 
 実行方法:
-    python -m unittest tests.test_curve_batch -v
+    python -m unittest tests.test_morning_batch -v
 """
 
 import sys
@@ -20,9 +20,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import openpyxl  # noqa: E402
 
-from swap_pricing import curve_batch  # noqa: E402
+from swap_pricing import morning_batch  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
-from swap_pricing.curve_store import CurveStore  # noqa: E402
+from swap_pricing.historical_store import HistoricalStore  # noqa: E402
 from swap_pricing.historical_pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
 from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
@@ -98,12 +98,12 @@ class CurveBatchTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, **kwargs):
-        return curve_batch.run(self.xlsx, self.config, self.db, log=lambda *_: None, **kwargs)
+        return morning_batch.run(self.xlsx, self.config, self.db, log=lambda *_: None, **kwargs)
 
     def test_builds_curve_equal_to_direct_bootstrap_with_tona_as_on(self):
         summary = self._run()
         self.assertEqual(summary.built, DAYS)
-        store = CurveStore(self.db)
+        store = HistoricalStore(self.db)
         as_of = date(2026, 9, 25)
         quotes = {"O/N": FIXINGS[as_of], **SPOT_RATES}  # O/Nはその日のTONA実績
         boot = bootstrap_curve(as_of, quotes)
@@ -128,7 +128,7 @@ class CurveBatchTest(unittest.TestCase):
         as_of = date(2026, 9, 25)
         quotes = {"O/N": FIXINGS[as_of], **{t: r for t, r in SPOT_RATES.items() if t not in ("7Y", "15Y")}}
         boot = bootstrap_curve(as_of, quotes)
-        stored = CurveStore(self.db).load(as_of)
+        stored = HistoricalStore(self.db).load(as_of)
         self.assertAlmostEqual(
             _par5y(stored.curve, stored.index, as_of, boot.spot_date),
             _par5y(boot.curve, boot.index, as_of, boot.spot_date),
@@ -154,12 +154,12 @@ class CurveBatchTest(unittest.TestCase):
         # 9/28は元々O/N抜き(TONA未公表)で作っていたので入力が変わらず、作り直さない
         self.assertEqual(summary.built, DAYS[:2])
         self.assertEqual(summary.unchanged, 1)
-        self.assertEqual(CurveStore(self.db).dates(), DAYS)
+        self.assertEqual(HistoricalStore(self.db).dates(), DAYS)
 
     def test_historical_series_from_db(self):
         """DBのカーブとTONA実績で、過去起算のFIXED系列が計算できる。"""
         self._run()
-        store = CurveStore(self.db)
+        store = HistoricalStore(self.db)
         series = historical_swap_rate_series(
             SwapSpec(CONV, start=date(2026, 7, 1), tenor="2Y"), FIXED, fixings=store.fixings(), curves=store,
         )
@@ -171,7 +171,7 @@ class CurveBatchTest(unittest.TestCase):
         _write_workbook(self.xlsx, mid_days=DAYS + [holiday])
         summary = self._run()
         self.assertEqual(summary.holidays, [holiday])
-        self.assertNotIn(holiday, CurveStore(self.db).dates())
+        self.assertNotIn(holiday, HistoricalStore(self.db).dates())
 
     def test_udf_historical_rates_aligns_legs(self):
         """UDF HistoricalRates: 空の行は空欄の列、各脚は1本ずつ計算した値と一致する。"""
@@ -180,7 +180,7 @@ class CurveBatchTest(unittest.TestCase):
         from swap_pricing import udf
 
         self._run()
-        store = CurveStore(self.db)
+        store = HistoricalStore(self.db)
         conv = list(CONV_ARGS)
         table = [["", "5y", ""] + conv, ["", "", ""] + ["", "", "", ""], ["", "10Y", ""] + conv]
         with mock.patch.object(udf, "_historical_store", lambda: store):
@@ -197,16 +197,16 @@ class CurveBatchTest(unittest.TestCase):
         from swap_pricing import udf
 
         self._run()
-        with mock.patch.object(udf, "_historical_store", lambda: CurveStore(self.db)):
+        with mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db)):
             rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED")
         self.assertEqual(rows[1:], [[d, "", "", ""] for d in DAYS])
 
     def test_vol_sheet_is_imported(self):
         # Volシートがあれば vol_quotes に取り込む(エラー値は欠損)。無い雛形でもバッチは動く
-        self.assertEqual(CurveStore(self.db).vol_quotes() if self.db.exists() else {}, {})
+        self.assertEqual(HistoricalStore(self.db).vol_quotes() if self.db.exists() else {}, {})
         _add_vol_sheet(self.xlsx)
         self._run()
-        self.assertEqual(CurveStore(self.db).vol_quotes(), {
+        self.assertEqual(HistoricalStore(self.db).vol_quotes(), {
             date(2026, 9, 25): {"1Mx1Y": 44.09},
             date(2026, 9, 24): {"1Mx1Y": 42.42, "1Yx10Y": 72.5},
         })
@@ -215,6 +215,43 @@ class CurveBatchTest(unittest.TestCase):
         _write_workbook(self.xlsx, mid_days=[])
         with self.assertRaisesRegex(ValueError, "Midシートにデータがありません"):
             self._run()
+
+    def test_asw_quotes_are_synced_from_neon(self):
+        from unittest import mock
+
+        from swap_pricing.historical_store import AswQuoteRow
+
+        rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
+        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows) as fetch:
+            summary = self._run()
+        fetch.assert_called_once_with(since=None)  # 初回は差分の基準が無い=全件
+        self.assertEqual(summary.built, DAYS)  # ASW取り込みはカーブ構築に影響しない
+        self.assertEqual(
+            HistoricalStore(self.db).asw_quotes(),
+            {date(2026, 10, 9): {"000190054": (0.448, 0.4804)}},
+        )
+
+    def test_second_run_passes_watermark_as_since(self):
+        from unittest import mock
+
+        from swap_pricing.historical_store import AswQuoteRow
+
+        rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
+        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows):
+            self._run()
+        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]) as fetch:
+            self._run()
+        fetch.assert_called_once_with(since=datetime(2026, 10, 9, 12, 30, 6))
+
+    def test_neon_failure_does_not_abort_the_batch(self):
+        from unittest import mock
+
+        with mock.patch.object(
+            morning_batch.neon_source, "fetch_asw_quotes", side_effect=RuntimeError("接続できません"),
+        ):
+            summary = self._run()  # 例外を外に投げず、カーブ構築は通常通り完了する
+        self.assertEqual(summary.built, DAYS)
+        self.assertEqual(HistoricalStore(self.db).asw_quotes(), {})
 
 
 if __name__ == "__main__":
