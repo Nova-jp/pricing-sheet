@@ -90,6 +90,11 @@ class HistoricalStoreTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.load(date(2025, 4, 1))
 
+    def test_used_tenors_by_date(self):
+        """構築に使ったテナーを日付ごとに返す(12M→1Yなど normalize_tenor の表記のまま)。"""
+        self.assertEqual(self.store.used_tenors(), {AS_OF: set(self.boot.used_tenors)})
+        self.assertIn("1y", self.store.used_tenors()[AS_OF])
+
 
 class GridDatesTest(unittest.TestCase):
     """日付の並びの使い回し(切り出し・範囲外での作り直し)で、連続した暦日がずれないこと。"""

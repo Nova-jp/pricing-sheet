@@ -44,7 +44,7 @@ from array import array
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, NamedTuple, Optional
+from typing import Dict, Iterable, List, NamedTuple, Optional, Set
 
 import QuantLib as ql
 
@@ -310,6 +310,12 @@ class HistoricalStore:
         with self._connect() as conn:
             rows = conn.execute("SELECT as_of_date, input_hash FROM curves").fetchall()
         return {date.fromisoformat(d): h for d, h in rows}
+
+    def used_tenors(self) -> Dict[date, Set[str]]:
+        """日付ごとにカーブの構築に使ったテナー(curve.normalize_tenor の表記)。"""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT as_of_date, used_tenors FROM curves").fetchall()
+        return {date.fromisoformat(d): set(json.loads(t)) for d, t in rows}
 
     def dates(self) -> List[date]:
         """カーブが保存されている日付(昇順)。"""

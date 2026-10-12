@@ -9,7 +9,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   (詳細はdocs/architecture.md)。実体はシート(機能)ごとに分かれている:
     - pricing/udf.py   : Main/RealTime/pricingシート(FairRate, SwapPV, SwapDelta,
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
-    - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates)
+    - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates, HedgeHistoricalRates)
     - boj/udf.py       : BOJシート(BojImpliedRates)
     - asw/udf.py       : ASWシート(AswHistoricalRate, AswHistoricalRates)
   Excel境界の型変換・評価日解決・カーブ一式(`_market`)はこれらが共有する

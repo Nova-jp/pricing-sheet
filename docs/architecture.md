@@ -28,7 +28,7 @@
         ▼  日中はDBを読むだけ(ブートストラップしない)
 [Excel: PricingSheet.xlsm]
   RealTimeシート(LSEGアドインが手動更新するTicker/Value) ─▶ FairRate等のUDF(その場でカーブ構築)
-  HistoricalRate / HistoricalRates ───────────────────────▶ DBのカーブで評価
+  HistoricalRate / HistoricalRates / HedgeHistoricalRates ─▶ DBのカーブで評価
 ```
 
 データの供給元はLSEG Workspace(カーブ・プライシング本体)とNeon(ASWスプレッド、参照データのみ)。
@@ -76,7 +76,8 @@ engine/
 | `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`・`asw/udf.py`) |
 | `pricing/udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
-| `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates` |
+| `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
+| `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約のスポットのスワップ)。その日のカーブに使っていないテナー(クォートが無かった日)は補間値を出さず空欄。O/N・会合スワップは受け付けない |
 | `boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
 | `asw/udf.py` | ASWシートのUDF: `AswHistoricalRate`/`AswHistoricalRates`。カーブを組まず`historical_store.asw_quotes_for`を読むだけ(ROLLING/FIXEDの概念はない。銘柄コード(bond_code)ごとに日付→値が決まっているだけのため) |
@@ -212,6 +213,7 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 任意のコンベンションは`HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq,
 roll_conv, mode, [基準日], [from], [to])`(Date/Rate/Start/Endの4列スピル)。modeは`FIXED`/`ROLLING`。
 基準日には通常`評価日`(Mainシート、空欄=今日)を渡す(`TODAY()`はF9のたびに再計算されるため使わない)。
+`HedgeHistoricalRates(テナーの列, モード, 日付の列, 基準日, real_time_range)`(HistChartのヘッジ用)は、日付の列の並びどおりにテナーごとのスポットのパーレート(%)を返す(見出し行なし。カーブの無い日・その日のカーブに使っていないテナーは空欄)。
 `HistoricalRates`(HistChart用、最大3脚)は省略可能な最後の引数`real_time_range`にRealTimeの範囲を渡すと、
 基準日が今日で営業日なら今日をRealTimeのライブのレートで計算した最新日として加える(HistChart参照)。
 ROLLINGは営業日数を固定するので、満期日は「スポット日+tenor」から数日ずれる日があり、
@@ -248,6 +250,21 @@ pricingシートの行を指定して、最大3系列(アウトライト/カー�
 - グラフ`HistChart_Chart`(折れ線・日付軸・3系列固定)の系列は名前`HistChart_Date`/
   `HistChart_S1〜S3`(日付軸のスピル行数に合わせた参照)で、行数が変わっても追随する。
   未使用の系列は凡例に空の項目が残る(VBAなしでは消せない)。
+- **ヘッジ(4本目の系列、破線)**: 系列1(フロー)に、手入力したヘッジのグリッドの仮想金利
+  `V(t) = Σ d_i × r_i(t)` を重ねる(計算の仕組みと理由は[decisions.md](decisions.md)の「ヘッジのヒストリカル」)。
+  - 設定(AD3〜AE6): 表示(○/×)、モード(既定は系列1のモードに連動する数式、ドロップダウンで上書き可)、
+    縮尺(百万円/bp。既定は系列1のpricingのdelta(annuity)=V列: アウトライト=行A、カーブ=行B、
+    フライ=行Bの1/2。上書き可)、スタート日(系列1とヘッジの両方に値がある最も古い日、自動)。
+  - 縦のグリッド(AD8〜AG42): Ticker(`=RealTime!$C$3:$C$35`=1W〜40Yのスポット。O/N・会合スワップは
+    使わない)、フロー(pricingのRiskGrid `pricing!$Y$1#`をXLOOKUP)、ヘッジ入力(AF9:AF41、薄黄色、
+    百万円/bp。**フローと同じ符号=ヘッジで再現するリスク**。実際に執行するヘッジ取引は逆の符号)、
+    残差(フロー−入力)、合計(42行)。
+  - U29: 0以外を入力したテナーだけを`FILTER`して`HedgeHistoricalRates(テナー, モード, HistChart_Date,
+    B3, RealTime!$B$2:$D$45)`(日付×テナーのパーレート%、日付軸と同じ並び)を呼び、`BYROW`で
+    Σ d_i × r_i(百万円×%)を計算する。入力したテナーのどれかに値が無い日は`#N/A`(線を出さない)。
+  - T29(グラフ用、名前`HistChart_H`): `系列1(スタート日) + (V(t) − V(スタート日)) × B7 ÷ 縮尺`。
+    delta(annuity)は符号付き(PAY=+、REC=−)なので、PAY/RECに関係なくフローのレートと同じ向きに動く。
+    T28が凡例名(`ヘッジ(モード)`、入力が無ければ空)。
 
 ### BOJシート
 
