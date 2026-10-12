@@ -11,6 +11,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
     - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates)
     - boj/udf.py       : BOJシート(BojImpliedRates)
+    - asw/udf.py       : ASWシート(AswHistoricalRate, AswHistoricalRates)
   Excel境界の型変換・評価日解決・カーブ一式(`_market`)はこれらが共有する
   `engine/common/udf_common.py`に集約している。
 
@@ -49,6 +50,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
 
 import xlwings as xw
 
+from engine.swap_pricing.asw.udf import *  # noqa: F401,F403
 from engine.swap_pricing.boj.udf import *  # noqa: F401,F403
 from engine.swap_pricing.historical.udf import *  # noqa: F401,F403
 from engine.swap_pricing.pricing.udf import *  # noqa: F401,F403

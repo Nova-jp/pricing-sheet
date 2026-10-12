@@ -34,14 +34,16 @@ HistChartは最新日をRealTimeのライブのレートで計算するためRea
   ため採らない(ユーザー判断、2026-10-11)。
 - パーレートをDBに保存する案はユーザー判断で不要(ブートストラップを省けていれば十分、2026-10-04)。
 
-## 11. ASWヒストリカルチャート機能(2段構成の2段目の残り)
+## 11. ASWヒストリカルチャート機能(Excel側のシート構築が残り)
 
-2段構成のうち、Neonからの取得(`asw_quotes`への保存、1段目)と、ディレクトリ構成の再編
-(`engine/`配下を`common/`・`swap_pricing/`・`pca/`の3並列パッケージにし、`swap_pricing/`の中を
-`pricing/`・`historical/`・`boj/`の機能ごとに分割。2段目の前半)は完了(2026-10-12)。残りは:
-- `asw_quotes`を表示するヒストリカルチャート機能を追加する(BOJシート・HistChartシートのような
-  専用シートになる想定。UI・UDFの形は未定、着手前に相談)。新設する`engine/swap_pricing/asw/`
-  パッケージに`pricer.py`・`udf.py`を置く形(`historical/`・`boj/`と同じ構成)を想定。
+Python/UDF側(`engine/swap_pricing/asw/udf.py`の`AswHistoricalRate`/`AswHistoricalRates`、
+`historical_store.asw_quotes_for`)は実装・テスト済み(2026-10-12)。設計はdocs/architecture.mdの
+「ASWシート」節に記載済み(HistChartと同じ構成、銘柄コード(bond_code)をA/B/C脚に直接入力)。
+残りはExcel側(会社PC、Windows/Excel実機)での実際のシート構築:
+- `PricingSheet.xlsm`に「ASW」シートを追加し、系列表・計算領域・グラフをarchitecture.mdの設計通りに作る。
+- `python -m tools.template`で雛形を作り直してコミット(`templates/PricingSheet.xlsm`の更新)。
+- `UDF_MODULES`(`tools/template.py`)は追加済みなので、配列UDF(`AswHistoricalRates`)の
+  動的配列セル検査もそのまま効く。
 
 ## (参考)既に決着済みで「保留」ではないもの
 

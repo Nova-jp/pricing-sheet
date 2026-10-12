@@ -73,14 +73,13 @@ engine/
 
 | ファイル | 役割 |
 |---|---|
-| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`) |
+| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`・`asw/udf.py`) |
 | `pricing/udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates` |
 | `boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
-
-(将来のASWヒストリカルチャート機能用に`asw/`を追加する想定。現時点では未着手)
+| `asw/udf.py` | ASWシートのUDF: `AswHistoricalRate`/`AswHistoricalRates`。カーブを組まず`historical_store.asw_quotes_for`を読むだけ(ROLLING/FIXEDの概念はない。銘柄コード(bond_code)ごとに日付→値が決まっているだけのため) |
 
 分析ブック(`engine/pca/`)は後述の「分析ブック」節を参照。
 
@@ -96,6 +95,9 @@ LSEGデータの代わりに合成したブックを使う。ASWはNeonへの接
 
 `tests/test_neon_source.py`: ASWスプレッド取得の対象テーブル・差分取得の条件(`updated_at > since`)・
 接続の後始末(成功・失敗どちらでもclose)のリグレッションテスト。psycopg2をモックし、実際のNeonには繋がない。
+
+`tests/test_asw.py`: ASWシートUDF(`AswHistoricalRate`/`AswHistoricalRates`)のリグレッションテスト。
+PA/SAの切り替え、日付範囲の絞り込み、複数銘柄の日付揃え(欠損銘柄はその脚だけ空欄)、脚数の上限。
 
 `tests/test_meeting_curve.py`: 会合スワップのカーブの再現精度(各会合スワップ・O/Nが機械精度で戻る)、
 決定日の夜が決定前のフォワードになること、休日の評価日、日付の重なり・範囲外のエラー、`BojImpliedRates`の範囲の読み方。
@@ -262,6 +264,28 @@ BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のず�
   評価日が今日でなければエラー。値か日付が欠けた会合スワップの行以降は使わない。
   最後の会合期間より先のテナーはその行だけエラーの文字列。
 - ずれはミッド同士(売値・買値の幅は考慮しない)。差・変化はExcelの数式。
+
+### ASWシート(設計。UDFは実装済み、Excel側のシート構築はまだ)
+
+JGB銘柄別のASWスプレッド(`data/historical.db`の`asw_quotes`、朝バッチがNeonから取得)の
+ヒストリカルを表示する専用シート。HistChartと同じ「行A/B/C→1本=アウトライト、2本=カーブ、
+3本=フライ」の構成だが、「行」の代わりに銘柄コード(bond_code)を直接指定する点が異なる
+(ASWはpricingシートのような取引条件の行を持たないため)。ROLLING/FIXEDの区別もない
+(銘柄コードごとに日付→値が決まっているだけで、基準日からの平行移動という概念がない)。
+
+- 共通設定: コンベンション(PA/SA、シート全体で1つ。カーブ・フライの計算で2つの脚が
+  異なるコンベンションを混在させないため)、計算期間(任意、HistChartのB4/B5と同じ)、倍率
+  (bp表示なら100。カーブ・フライはExcel側の四則演算)。
+- 系列表: 表示(○/×)・銘柄A・銘柄B・銘柄C(bond_code文字列を直接入力)・系列名(任意)。
+  種類は銘柄コードの数で自動判定(HistChartと同じ)。
+- 計算領域: 系列ごとに`AswHistoricalRates(銘柄3行×1列, コンベンション, from, to)`
+  (Date/A/B/Cの4列スピル)。日付は複数銘柄の和集合で揃い、ある銘柄にその日の値が無ければ
+  その脚だけ空欄になる(HistChartと同じ、Excel側の引き算で自然に`#VALUE!`になり線が出ない)。
+  1銘柄だけの確認には`AswHistoricalRate(銘柄, コンベンション, from, to)`(Date/Rateの2列)も使える。
+  カーブ(B−A)・フライ(2B−A−C)の引き算はExcel側の数式(HistChartと同じ符号)。
+- リアルタイムの概念は無い(ASWはNeonからの朝バッチ取り込みのみ。当日分はまだ入っていない
+  ことがある)。HistChartの「今日はRealTimeのライブレートを使う」という特例はASWには無い。
+- グラフはHistChartと同じ構成(折れ線・日付軸・最大3系列)を想定。
 
 ## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`)
 

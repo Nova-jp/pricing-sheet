@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS asw_quotes (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (as_of_date, bond_code)
 );
+CREATE INDEX IF NOT EXISTS idx_asw_quotes_bond_code ON asw_quotes(bond_code);
 """
 
 
@@ -259,6 +260,24 @@ class HistoricalStore:
         for d, bond_code, pa, sa in rows:
             result.setdefault(date.fromisoformat(d), {})[bond_code] = AswRate(pa, sa)
         return result
+
+    def asw_quotes_for(
+        self, bond_code: str, from_date: Optional[date] = None, to_date: Optional[date] = None,
+    ) -> Dict[date, "AswRate"]:
+        """1銘柄分の{日付: AswRate(pa, sa)}。from_date/to_dateで絞れる(省略時はその方向は無制限)。
+        asw_quotes()(全銘柄・全期間)よりこちらを使う(ASWヒストリカルチャートUDF用、
+        全件を毎回メモリに展開しない)。"""
+        query = "SELECT as_of_date, asw_pa, asw_sa FROM asw_quotes WHERE bond_code = ?"
+        params: list = [bond_code]
+        if from_date is not None:
+            query += " AND as_of_date >= ?"
+            params.append(_iso(from_date))
+        if to_date is not None:
+            query += " AND as_of_date <= ?"
+            params.append(_iso(to_date))
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return {date.fromisoformat(d): AswRate(pa, sa) for d, pa, sa in rows}
 
     def quotes(self) -> Dict[date, Dict[str, float]]:
         result: Dict[date, Dict[str, float]] = {}
