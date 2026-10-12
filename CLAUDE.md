@@ -1,7 +1,8 @@
 # pricing_sheet
 
 JPY OIS(TONA)スワップのプライシングシート。Excel(UDF専用、VBAなし) +
-Python/QuantLib + LSEG Workspace(データ供給元はLSEGのみ。クラウドは使わない)。
+Python/QuantLib + LSEG Workspace(カーブ・プライシング本体の供給元)。ASWスプレッドのみ
+Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.md`)。
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
@@ -13,31 +14,40 @@ Python/QuantLib + LSEG Workspace(データ供給元はLSEGのみ。クラウド�
 
 ## 触ってよい範囲
 
-- `swap_pricing/`, `PricingSheet.py`, `PricingSheet.xlsm`, `historical_data.xlsx`,
-  `historical_curve.toml`, `tests/`, `docs/`, `tools/`, `templates/` が本プロジェクト。分析ブック
-  `SwapAnalysis.xlsm`・`SwapAnalysis.py`・`swap_analysis/`(PCA等、pricingとは別ブック)も含む。
+- `engine/`(`common/`・`swap_pricing/`・`pca/`の3つの並列パッケージ)、`PricingSheet.py`、
+  `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`tests/`、`docs/`、
+  `tools/`、`templates/`が本プロジェクト。分析ブック`SwapAnalysis.xlsm`・`SwapAnalysis.py`
+  (`engine/pca/`、PCA等、pricingとは別ブック)も含む。
+  - `engine/common/` — pricing/historical/boj/pcaのどこからも使う共有エンジン・データ層
+    (conventions/curve/swap_pricer/terms/market/market_data/risk/paths、historical_store/
+    morning_batch/neon_source、udf_common)
+  - `engine/swap_pricing/` — PricingSheet.xlsm固有のUDF(機能ごとに`pricing/`・`historical/`・
+    `boj/`に分割、薄い再エクスポート層`udf.py`)
+  - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析(history/pca/udf)
 
 ## 設計方針(必ず守る)
 
 - **UDF専用、VBAなし**。QuantLibが必要な計算(パーレート/PV/デルタ/
-  リスクの合算(RiskGrid)/ヒストリカル)だけを`swap_pricing/udf.py`のUDFにする。
+  リスクの合算(RiskGrid)/ヒストリカル)だけをUDFにする(機能ごとに`pricing/udf.py`・
+  `historical/udf.py`・`boj/udf.py`に分かれ、共有部分は`udf_common.py`)。
   カーブのスプレッド・フライ・合計のような四則演算はExcel自身の数式に
   任せる。「高度な計算が必要そうなら、勝手にUDF化・複雑化せず先に相談する」。
-- `PricingSheet.py`は`swap_pricing/udf.py`の再エクスポート専用
-  (`from swap_pricing.udf import *`)。ワークブックと同名の.pyファイルに
-  UDF実体が必要というxlwings(Windows)の制約のため。VBAのRunPython/
-  マクロボタンでUDFセルを静的値で上書きするような実装は絶対に作らない
+- `PricingSheet.py`は`engine/swap_pricing/udf.py`の再エクスポート専用
+  (`from engine.swap_pricing.udf import *`)。ワークブックと同名の.pyファイルに
+  UDF実体が必要というxlwings(Windows)の制約のため(`udf.py`自体は薄い再エクスポート層)。
+  VBAのRunPython/マクロボタンでUDFセルを静的値で上書きするような実装は絶対に作らない
   (過去に実際に事故が起きた設計)。
 - 配列を返すUDFに`@xw.ret(expand="table")`を使わない(旧式配列数式に書き換わり
   動的配列のスピルと衝突する)。配列をそのまま返しExcelのスピルに任せる。
 - 価格計算の値はQuantLibを正とし、手計算の再実装による検証ロジックは作らない。
 - 評価日はMainシートの`評価日`セル(空欄=今日)に集約し、UDFの引数に`TODAY()`を使わない
-  (volatileでF9のたびに全UDFが再計算される)。カーブは`swap_pricing/market.py`で全UDFが共有し、
+  (volatileでF9のたびに全UDFが再計算される)。カーブは`engine/common/market.py`で全UDFが共有し、
   UDFごと・行ごとにブートストラップしない。
-- データの供給元はLSEG Workspaceだけ(RealTimeシートと`historical_data.xlsx`)。
-  ヒストリカルは手動実行のバッチ(`python -m swap_pricing.curve_batch`)が日次カーブを
-  `data/historical.db`に保存し、日中のUDFはそれを読むだけ。カーブの引き方は
-  `curve.CURVE_BUILDERS`に閉じ込め、保存・評価側は日付→DFしか扱わない(引き方に依存させない)。
+- データの供給元はLSEG Workspace(RealTimeシートと`historical_data.xlsx`)と、ASWスプレッドだけは
+  Neon(`engine/common/neon_source.py`、読み取り専用)。ヒストリカルは手動実行のバッチ
+  (`python -m engine.common.morning_batch`)が日次カーブ(とASW)を`data/historical.db`に保存し、
+  日中のUDFはそれを読むだけ。カーブの引き方は`curve.CURVE_BUILDERS`に閉じ込め、保存・評価側は
+  日付→DFしか扱わない(引き方に依存させない)。
 - `historical_data.xlsx`(LSEG生データ、過去起算のTONAフィキシング供給元)は
   LSEG Workspaceの`RDP.HistoricalPricing`と
   Excel標準関数だけで構成する。

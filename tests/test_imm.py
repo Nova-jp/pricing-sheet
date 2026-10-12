@@ -15,11 +15,11 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import QuantLib as ql  # noqa: E402
 
-from swap_pricing.conventions import forward_start_date, imm_code_to_date, is_imm_code, is_tenor  # noqa: E402
-from swap_pricing.curve import bootstrap_curve  # noqa: E402
-from swap_pricing.market_data import Market  # noqa: E402
-from swap_pricing.swap_pricer import _build_swap, price_swap  # noqa: E402
-from swap_pricing.terms import SwapConvention, SwapTerms  # noqa: E402
+from engine.common.conventions import forward_start_date, imm_code_to_date, is_imm_code, is_tenor  # noqa: E402
+from engine.common.curve import bootstrap_curve  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
+from engine.common.swap_pricer import _build_swap, price_swap  # noqa: E402
+from engine.common.terms import SwapConvention, SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 VALUATION = date(2026, 9, 25)

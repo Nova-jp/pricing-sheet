@@ -19,18 +19,18 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import QuantLib as ql  # noqa: E402
 
-from swap_pricing.conventions import CALENDAR, forward_start_date, imm_code_to_date  # noqa: E402
-from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
-from swap_pricing.historical_pricer import (  # noqa: E402
+from engine.common.conventions import CALENDAR, forward_start_date, imm_code_to_date  # noqa: E402
+from engine.common.curve import bootstrap_curve, spot_date_for  # noqa: E402
+from engine.swap_pricing.historical.pricer import (  # noqa: E402
     FIXED,
     ROLLING,
     SwapSpec,
     historical_multi_rate_series,
     historical_swap_rate_series,
 )
-from swap_pricing.market_data import Market  # noqa: E402
-from swap_pricing.swap_pricer import SwapExpiredError, price_swap  # noqa: E402
-from swap_pricing.terms import SwapTerms  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
+from engine.common.swap_pricer import SwapExpiredError, price_swap  # noqa: E402
+from engine.common.terms import SwapTerms  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, _synthetic_fixings  # noqa: E402
 

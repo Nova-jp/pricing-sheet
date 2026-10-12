@@ -21,14 +21,14 @@
   Excelの列からも削除)。
 
 日付に決まる前の入力(start="10y"・end="M27"等)は、ヒストリカルの雛形
-historical_pricer.SwapSpec が持ち、日付ごとに SwapTerms に直す。
+historical.pricer.SwapSpec が持ち、日付ごとに SwapTerms に直す。
 """
 
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
-from swap_pricing.conventions import (
+from engine.common.conventions import (
     ACT_365_FIXED, FREQ_TO_QL_FREQUENCY, ROLL_STD, SUPPORTED_DCF, SUPPORTED_ROLL,
 )
 

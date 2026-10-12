@@ -7,7 +7,8 @@ JPY OIS(TONA)スワップのプライシングシート。Excelブック(`Pricin
 - ヒストリカルなレート推移(アウトライト・カーブ・フライ)
 
 を計算・表示する。計算はPython/QuantLibをxlwingsのUDFとして呼び出す(VBAなし)。
-データの供給元はLSEG Workspaceだけで、クラウドやDBサーバは使わない。
+データの供給元はLSEG Workspace(カーブ・プライシング本体)。ASWスプレッドだけは
+Neon(Postgres)から読み取り専用で取得する(詳細はdocs/decisions.md)。
 
 ## 構成
 
@@ -15,7 +16,7 @@ JPY OIS(TONA)スワップのプライシングシート。Excelブック(`Pricin
 LSEG Workspace
   ├─ PricingSheet.xlsm の RealTimeシート ──────▶ UDF(その場でカーブ構築)
   └─ historical_data.xlsx(Mid / Fixing)
-        │  朝に手動実行: python -m swap_pricing.morning_batch
+        │  朝に手動実行: python -m engine.common.morning_batch
         ▼
      data/historical.db(ローカルのSQLite)──▶ ヒストリカル系UDF(読むだけ)
 ```
@@ -24,8 +25,10 @@ LSEG Workspace
 |---|---|
 | `templates/` | Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う |
 | `PricingSheet.xlsm` | 本体のExcelブック(計算はUDFのみ。作業用で`.gitignore`済み) |
-| `PricingSheet.py` | xlwingsの制約のため`swap_pricing/udf.py`を再エクスポートするだけのファイル |
-| `swap_pricing/` | 計算エンジン(QuantLibベース)とUDF定義 |
+| `PricingSheet.py` | xlwingsの制約のため`engine/swap_pricing/udf.py`を再エクスポートするだけのファイル |
+| `engine/common/` | 計算エンジン・データ層(QuantLibベース。pricing/historical/boj/pcaの共有部分) |
+| `engine/swap_pricing/` | PricingSheet.xlsm固有のUDF定義(pricing/historical/bojの3機能) |
+| `engine/pca/` | SwapAnalysis.xlsm固有のPCA分析 |
 | `historical_data.xlsx` | LSEGのヒストリカル生データを取得するブック(作業用で`.gitignore`済み) |
 | `tools/template.py` | 作業用のブックから雛形を作る・検査する(`python -m tools.template`) |
 | `historical_curve.toml` | ヒストリカル日次カーブの設定(カーブの引き方・使うテナー) |
@@ -70,7 +73,7 @@ Neonに繋がらない場合もバッチ自体は止まらず、ASWの取り込�
 
    ```
    .venv\Scripts\activate
-   python -m swap_pricing.morning_batch
+   python -m engine.common.morning_batch
    ```
 
    2回目以降は入力が変わった日だけ作り直す。全日付を作り直すときは`--rebuild`を付ける。

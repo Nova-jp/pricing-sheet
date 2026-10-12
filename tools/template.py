@@ -71,7 +71,13 @@ REMOVED_PARTS = {"xl/volatileDependencies.xml"}  # RTD(RtGet等)の受信値の�
 PATH_CHECK_EXEMPT = {"xl/vbaProject.bin"}
 LOCAL_PATH_PATTERNS = (re.compile(rb"[a-z]:\\users\\", re.I), re.compile(rb"file:///", re.I))
 
-UDF_MODULES = (ROOT / "swap_pricing" / "udf.py", ROOT / "swap_analysis" / "udf.py")
+UDF_MODULES = (
+    ROOT / "engine" / "swap_pricing" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "pricing" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "historical" / "udf.py",
+    ROOT / "engine" / "swap_pricing" / "boj" / "udf.py",
+    ROOT / "engine" / "pca" / "udf.py",
+)
 
 _CELL = re.compile(r'<c r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)', re.S)
 _REF = re.compile(r"([A-Z]+)(\d+)")

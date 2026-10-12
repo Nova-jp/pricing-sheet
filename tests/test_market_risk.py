@@ -1,5 +1,5 @@
 """
-カーブ一式の共有(swap_pricing/market.py)、デルタ計算(risk.py)、pricingシート用UDFの
+カーブ一式の共有(engine/common/market.py)、デルタ計算(risk.py)、pricingシート用UDFの
 評価日の扱い・RiskGrid のリグレッションテスト。
 
 - 共有カーブで計算したデルタが、以前の「毎回ブートストラップし直す」計算と一致すること
@@ -22,15 +22,16 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from swap_pricing import morning_batch, market, udf  # noqa: E402
-from swap_pricing.conventions import forward_start_date  # noqa: E402
-from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
-from swap_pricing.historical_store import HistoricalStore  # noqa: E402
-from swap_pricing.market import curve_set, realtime_snapshot  # noqa: E402
-from swap_pricing.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
-from swap_pricing.market_data import Market  # noqa: E402
-from swap_pricing.swap_pricer import price_swap  # noqa: E402
-from swap_pricing.terms import SwapParams, SwapTerms  # noqa: E402
+from engine.common import morning_batch, market, udf_common  # noqa: E402
+from engine.swap_pricing import udf  # noqa: E402
+from engine.common.conventions import forward_start_date  # noqa: E402
+from engine.common.curve import bootstrap_curve, spot_date_for  # noqa: E402
+from engine.common.historical_store import HistoricalStore  # noqa: E402
+from engine.common.market import curve_set, realtime_snapshot  # noqa: E402
+from engine.common.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
+from engine.common.market_data import Market  # noqa: E402
+from engine.common.swap_pricer import price_swap  # noqa: E402
+from engine.common.terms import SwapParams, SwapTerms  # noqa: E402
 from tests.test_morning_batch import DAYS, FIXINGS, _write_config, _write_workbook  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, CONV_ARGS  # noqa: E402
@@ -124,7 +125,7 @@ class RiskGridTest(unittest.TestCase):
         self.assertEqual(by_ticker["40Y"], "")  # フラグ0
         self.assertEqual(by_ticker["M1"], "")  # カーブに使っていない
 
-        curves = udf._market(self.rt, None)
+        curves = udf_common._market(self.rt, None)
         expected = {}
         for row in (self.table[1], self.table[3]):
             params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor=row[7]), row[3], row[18]))
@@ -148,7 +149,7 @@ class RiskGridTest(unittest.TestCase):
         row = self.table[1]
         delta = udf.SwapDelta(row[6], row[7], None, *[row[i] for i in (10, 11, 13, 14)],
                               row[3], "PAY", "", self.rt)
-        curves = udf._market(self.rt, None)
+        curves = udf_common._market(self.rt, None)
         params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor="5y"), NOTIONAL, "PAY"))
         self.assertAlmostEqual(delta, parallel_delta(curves, params) / 1_000_000.0, delta=1e-12)
 
@@ -164,7 +165,7 @@ class ValuationDateTest(unittest.TestCase):
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
         morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
-        self.patch = mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db))
+        self.patch = mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db))
         self.patch.start()
 
     def tearDown(self):
@@ -195,24 +196,24 @@ class ValuationDateTest(unittest.TestCase):
         """評価日=今日でも、過去起算のTONA実績はDBから読む(Excelの範囲は受け取らない)。"""
         today, start = date(2026, 9, 28), date(2026, 7, 1)  # DBの実績は9/25まで
         rt = _rt_range()
-        with mock.patch.object(udf, "_today", lambda: today):
+        with mock.patch.object(udf_common, "_today", lambda: today):
             par = udf.FairRate(start, "1y", None, *CONV_ARGS, rt)
-            curves = udf._market(rt, None)
+            curves = udf_common._market(rt, None)
         market = Market(today, curves.base.curve, curves.base.index, FIXINGS)
         expected = price_swap(market, SwapTerms(start, CONV, tenor="1y"), notional=1.0, pay_rec="PAY")
         self.assertEqual(par, expected.target_fixrate)
 
     def test_without_db_spot_start_works_and_past_start_asks_for_batch(self):
         today = date(2026, 9, 28)
-        no_db = mock.patch.object(udf, "_historical_store", side_effect=ValueError("DBなし"))
-        with mock.patch.object(udf, "_today", lambda: today), no_db:
+        no_db = mock.patch.object(udf_common, "_historical_store", side_effect=ValueError("DBなし"))
+        with mock.patch.object(udf_common, "_today", lambda: today), no_db:
             udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, _rt_range())
             with self.assertRaisesRegex(ValueError, "morning_batch"):
                 udf.FairRate(date(2026, 7, 1), "1y", None, *CONV_ARGS, _rt_range())
 
     def test_fixings_come_from_db_before_valuation_date(self):
         """TONA実績はDBから読み、評価日より前の日だけが市場データに入る(当日以降は使わない)。"""
-        curves = udf._market(_rt_range(), DAYS[1])
+        curves = udf_common._market(_rt_range(), DAYS[1])
         self.assertEqual(dict(curves.base.fixings), {d: v for d, v in FIXINGS.items() if d < DAYS[1]})
 
 
@@ -224,7 +225,7 @@ class TenorStartUdfTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.rt = _rt_range()
-        self.spot = udf._market(self.rt, None).spot_date
+        self.spot = udf_common._market(self.rt, None).spot_date
         self.fwd = forward_start_date(self.spot, "10y")
 
     def test_pricing_udfs(self):
@@ -257,7 +258,7 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
         morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
-        self.patches = [mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db))]
+        self.patches = [mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db))]
         for p in self.patches:
             p.start()
         # DB(SPOT_RATES)と区別できるよう、RealTimeは全テナー+10bp
@@ -270,11 +271,11 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
 
     def _rates(self, today, base_date=None, real_time_range="rt", conventions=None):
         rt = self.rt if real_time_range == "rt" else real_time_range
-        with mock.patch.object(udf, "_today", lambda: today):
+        with mock.patch.object(udf_common, "_today", lambda: today):
             return udf.HistoricalRates(conventions or [self.CONV_ROW], "ROLLING", base_date, None, None, rt)
 
     def _fair_rate(self, today):
-        with mock.patch.object(udf, "_today", lambda: today):
+        with mock.patch.object(udf_common, "_today", lambda: today):
             return udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, self.rt, None)
 
     def test_today_not_in_db_is_added_from_realtime(self):

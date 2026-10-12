@@ -8,7 +8,7 @@ QuantLibが受け取れる形に変換する対応表と、日本の営業日カ
 ここに自前の日付計算ロジックは置かない。Python date ⇄ ql.Date の変換も
 ql.Date.from_date()/to_date() を呼び出し側で直接使う。
 
-(Excelの日付シリアル値など、Excelとの境界の型変換は swap_pricing/udf.py に置く)
+(Excelの日付シリアル値など、Excelとの境界の型変換は engine/swap_pricing/udf.py に置く)
 
 ■ カレンダー
   ql.Japan()。jpholiday(祝日法ベース)と異なり、1/2・1/3等の金融機関特有の

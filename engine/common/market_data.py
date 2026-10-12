@@ -14,7 +14,7 @@
   同じ規則なので、呼び出し側では絞り込まない。
 
 ■ 実績の取得元はヒストリカルDBだけ(2026-10-12)
-  朝のバッチ(python -m swap_pricing.morning_batch)がhistorical_data.xlsxのFixingシートから
+  朝のバッチ(python -m engine.common.morning_batch)がhistorical_data.xlsxのFixingシートから
   DBに取り込んだものを使う(カーブと同じ流れ)。DBを読むのは呼び出し側(udf・market)で、
   このモジュールはQuantLib以外に依存しない。
 """

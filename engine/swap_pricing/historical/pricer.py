@@ -46,13 +46,13 @@ from typing import Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, 
 
 import QuantLib as ql
 
-from swap_pricing.conventions import (
+from engine.common.conventions import (
     CALENDAR, ROLL_IMM, forward_start_date, imm_code_to_date, is_imm_code, is_tenor,
 )
-from swap_pricing.curve import spot_date_for
-from swap_pricing.market_data import Market
-from swap_pricing.swap_pricer import SwapExpiredError, par_rate, swap_dates
-from swap_pricing.terms import SwapConvention, SwapTerms
+from engine.common.curve import spot_date_for
+from engine.common.market_data import Market
+from engine.common.swap_pricer import SwapExpiredError, par_rate, swap_dates
+from engine.common.terms import SwapConvention, SwapTerms
 
 FIXED = "FIXED"
 ROLLING = "ROLLING"

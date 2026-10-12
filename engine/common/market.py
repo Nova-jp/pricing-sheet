@@ -30,9 +30,9 @@ from collections import OrderedDict
 from datetime import date
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from swap_pricing.curve import BootstrapResult, bootstrap_curve, normalize_tenor
-from swap_pricing.historical_store import HistoricalStore
-from swap_pricing.market_data import Market
+from engine.common.curve import BootstrapResult, bootstrap_curve, normalize_tenor
+from engine.common.historical_store import HistoricalStore
+from engine.common.market_data import Market
 
 BUMP_BP = 1.0
 ON_LABEL = "o/n"

@@ -1,5 +1,5 @@
 """
-取引条件の型(swap_pricing/terms.py)のテスト。規約の値・tenor/endの指定・PAY/RECを、
+取引条件の型(engine/common/terms.py)のテスト。規約の値・tenor/endの指定・PAY/RECを、
 型を作る時点で確かめること(計算の深いところでエラーにしない)。
 
 実行方法:
@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from swap_pricing.terms import STANDARD, SwapConvention, SwapParams, SwapTerms  # noqa: E402
+from engine.common.terms import STANDARD, SwapConvention, SwapParams, SwapTerms  # noqa: E402
 
 START = date(2026, 9, 29)
 

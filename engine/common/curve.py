@@ -3,7 +3,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 
 ■ 使用データ
   RealTimeシートのスポットテナー(O/N〜40Y)のみ。会合スワップ(RD・M1〜M9)は使わない
-  (BOJシートの比較用に swap_pricing/meeting_curve.py が別のカーブを引く)。
+  (BOJシートの比較用に engine/swap_pricing/boj/meeting_curve.py が別のカーブを引く)。
 
 ■ O/Nの扱い
   O/Nのみ settlementDays=0, tenor=1日 のOISヘルパーとして評価日(T)起点で
@@ -20,7 +20,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 ■ どのテナーを使うか
   入力辞書(spot_rates)に入っているキーがそのまま使われる。「このレートを
   使う/使わない」の取捨選択は呼び出し側(Excelなら RealTime B列のフラグを
-  読む swap_pricing.udf._rates_from_range)の責務で、この関数では行わない。
+  読む engine.swap_pricing.udf._rates_from_range)の責務で、この関数では行わない。
   ここでは O/N・週物・会合スワップ 以外のキーを ql.PeriodParser で期間化して
   OISRateHelper にするだけ。15M/18M/21M も特別扱いせず普通のテナーとして扱う。
   期間として解釈できないキーは skipped_tenors に記録する(無言で捨てない)。
@@ -40,7 +40,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
   経緯は docs/decisions.md 参照)。
 
 ■ 未対応(スコープ外)
-  - RD・M1〜M12: BOJ会合スワップ(meeting_curve.py で扱う)
+  - RD・M1〜M12: BOJ会合スワップ(boj/meeting_curve.py で扱う)
 """
 
 from datetime import date
@@ -48,7 +48,7 @@ from typing import Dict, List, NamedTuple
 
 import QuantLib as ql
 
-from swap_pricing.conventions import CALENDAR, TENOR_ALIASES
+from engine.common.conventions import CALENDAR, TENOR_ALIASES
 
 WEEK_TENORS = ["1w", "2w", "3w"]
 EXCLUDED_MEETING_TENORS = {"rd"} | {f"m{i}" for i in range(1, 13)}
@@ -195,7 +195,7 @@ def bootstrap_curve(
 # カーブの引き方(構築方法)の登録表。historical_curve.toml の builder で名前を選ぶ。
 # 引き方を追加するときは「(評価日, {テナー: レート%}) → curve/index/used_tenors/
 # skipped_tenors を持つ結果」の関数をここに登録するだけでよい。保存(historical_store.py)と
-# 評価(historical_pricer.py)は日次のDFしか扱わないため、引き方に依存しない。
+# 評価(historical/pricer.py)は日次のDFしか扱わないため、引き方に依存しない。
 CURVE_BUILDERS = {
     "convex_monotone": bootstrap_curve,
 }

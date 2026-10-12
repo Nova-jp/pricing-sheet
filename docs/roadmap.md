@@ -34,18 +34,14 @@ HistChartは最新日をRealTimeのライブのレートで計算するためRea
   ため採らない(ユーザー判断、2026-10-11)。
 - パーレートをDBに保存する案はユーザー判断で不要(ブートストラップを省けていれば十分、2026-10-04)。
 
-## 11. ASWヒストリカルチャート機能 + 機能ごとのディレクトリ分割(2段構成の2段目、2026-10-12合意)
+## 11. ASWヒストリカルチャート機能(2段構成の2段目の残り)
 
-Neonからの取得(`asw_quotes`への保存、1段目)は完了。2段目として:
-- `udf.py`・`historical_pricer.py`・`meeting_curve.py`を機能ごとのディレクトリ
-  (`historical/`・`boj/`・新規`asw/`)に分割する。共有エンジン
-  (`conventions.py`/`curve.py`/`swap_pricer.py`/`terms.py`/`market.py`/`market_data.py`/
-  `risk.py`/`paths.py`)と、朝バッチ・DB層(`historical_store.py`/`morning_batch.py`/
-  `neon_source.py`)は分割しない(どの機能からも使う共通基盤のため)。
-- その後(または並行して)、`asw_quotes`を表示するヒストリカルチャート機能を追加する
-  (BOJシート・HistChartシートのような専用シートになる想定。UI・UDFの形は未定、着手前に相談)。
-- ユーザー判断: ディレクトリ分割はASWチャート機能に着手する直前にやるのが自然
-  (先にやると新しいディレクトリが空箱のまま残るため)。
+2段構成のうち、Neonからの取得(`asw_quotes`への保存、1段目)と、ディレクトリ構成の再編
+(`engine/`配下を`common/`・`swap_pricing/`・`pca/`の3並列パッケージにし、`swap_pricing/`の中を
+`pricing/`・`historical/`・`boj/`の機能ごとに分割。2段目の前半)は完了(2026-10-12)。残りは:
+- `asw_quotes`を表示するヒストリカルチャート機能を追加する(BOJシート・HistChartシートのような
+  専用シートになる想定。UI・UDFの形は未定、着手前に相談)。新設する`engine/swap_pricing/asw/`
+  パッケージに`pricer.py`・`udf.py`を置く形(`historical/`・`boj/`と同じ構成)を想定。
 
 ## (参考)既に決着済みで「保留」ではないもの
 
