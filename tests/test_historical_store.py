@@ -149,6 +149,26 @@ class AswQuotesTest(unittest.TestCase):
             ])
             self.assertEqual(store.asw_quotes_max_updated_at(), datetime(2026, 10, 10, 9, 0, 0))
 
+    def test_asw_quotes_for_filters_by_bond_code_and_date_range(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = self._store(tmp)
+            day2 = AS_OF + timedelta(days=1)
+            day3 = AS_OF + timedelta(days=2)
+            store.save_asw_quotes([
+                AswQuoteRow(AS_OF, "AAA", 0.1, 0.2, datetime(2026, 10, 9)),
+                AswQuoteRow(day2, "AAA", 0.3, 0.4, datetime(2026, 10, 9)),
+                AswQuoteRow(day3, "AAA", 0.5, 0.6, datetime(2026, 10, 9)),
+                AswQuoteRow(AS_OF, "BBB", 9.9, 9.9, datetime(2026, 10, 9)),  # 別銘柄は含まれない
+            ])
+            self.assertEqual(store.asw_quotes_for("AAA"), {
+                AS_OF: AswRate(0.1, 0.2), day2: AswRate(0.3, 0.4), day3: AswRate(0.5, 0.6),
+            })
+            self.assertEqual(
+                store.asw_quotes_for("AAA", from_date=day2), {day2: AswRate(0.3, 0.4), day3: AswRate(0.5, 0.6)},
+            )
+            self.assertEqual(store.asw_quotes_for("AAA", to_date=day2), {AS_OF: AswRate(0.1, 0.2), day2: AswRate(0.3, 0.4)})
+            self.assertEqual(store.asw_quotes_for("CCC"), {})  # 無い銘柄は空
+
 
 if __name__ == "__main__":
     unittest.main()

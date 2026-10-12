@@ -34,14 +34,35 @@ HistChartは最新日をRealTimeのライブのレートで計算するためRea
   ため採らない(ユーザー判断、2026-10-11)。
 - パーレートをDBに保存する案はユーザー判断で不要(ブートストラップを省けていれば十分、2026-10-04)。
 
-## 11. ASWヒストリカルチャート機能(2段構成の2段目の残り)
+## 11. ASWヒストリカルチャート機能(Excel側のシート構築が残り、会社PC/Windows実機で行う)
 
-2段構成のうち、Neonからの取得(`asw_quotes`への保存、1段目)と、ディレクトリ構成の再編
-(`engine/`配下を`common/`・`swap_pricing/`・`pca/`の3並列パッケージにし、`swap_pricing/`の中を
-`pricing/`・`historical/`・`boj/`の機能ごとに分割。2段目の前半)は完了(2026-10-12)。残りは:
-- `asw_quotes`を表示するヒストリカルチャート機能を追加する(BOJシート・HistChartシートのような
-  専用シートになる想定。UI・UDFの形は未定、着手前に相談)。新設する`engine/swap_pricing/asw/`
-  パッケージに`pricer.py`・`udf.py`を置く形(`historical/`・`boj/`と同じ構成)を想定。
+Python/UDF側(`engine/swap_pricing/asw/udf.py`の`AswHistoricalRate`/`AswHistoricalRates`、
+`historical_store.asw_quotes_for`)は実装・テスト済み(2026-10-12、PR #7)。設計はdocs/architecture.mdの
+「ASWシート」節に記載済み(HistChartと同じ構成、銘柄コード(bond_code)をA/B/C脚に直接入力)。
+Claude Code(Mac環境)ではExcel実機・xlwingsのCOM操作ができないため、残りは全て会社PC
+(Windows + Excel実機)での作業になる。手順(チェックリスト):
+
+1. `git pull`してから`PricingSheet.xlsm`を開き、xlwingsリボンの「Restart UDF Server」→
+   「Import Functions」を実行する(`AswHistoricalRate`/`AswHistoricalRates`が新たに登録される。
+   `docs/setup_windows.md`のUDF一覧にもこの2つを追記する)。
+2. 「ASW」シートを新規追加し、architecture.mdの「ASWシート」節の設計通りに作る:
+   - コンベンション(PA/SA)選択セル・計算期間(from/to、任意)セルをHistChartのB3〜B5相当で用意。
+   - 系列表(表示○/×・銘柄A・銘柄B・銘柄C(bond_code直接入力)・系列名)をHistChartの9〜11行相当で作る。
+   - 計算領域: `AswHistoricalRates(銘柄3行×1列, コンベンション, from, to)`をHistChartの28行〜と
+     同じ`LET`+`SORTBY`パターンで呼ぶ(新しい日付が上になるよう降順ソート)。
+   - カーブ(B−A)・フライ(2B−A−C)はExcel側の数式(HistChartと同じ符号)。
+   - グラフ(折れ線・日付軸・最大3系列)をHistChart_Chartと同じ構成で作る。
+3. 配列を返すUDF(`AswHistoricalRates`)のセルが動的配列(`cm`属性)になっていることを確認する
+   (`.Formula`で入れると旧式配列化し、先頭1セルしか表示されない。`.Formula2`または
+   Excel上で直接入力する。他のシートで実際に起きた事故、CLAUDE.md参照)。
+4. Excelで保存して閉じてから`python -m tools.template`を実行し、`templates/PricingSheet.xlsm`を
+   作り直す(`python -m tools.template --check`も通ることを確認)。
+5. `templates/`の差分をコミットする(`git add templates && git commit`)。
+
+その後(ユーザー言及、詳細は未着手・着手前に相談):
+- Fut ASW(先物ASW?)の作成。
+- ASWのリアルタイムデータの確認(現状はNeonの朝バッチ取り込みのみでリアルタイムの概念がない。
+  LSEG等での取得が必要かもしれないが、要件は未確認)。
 
 ## (参考)既に決着済みで「保留」ではないもの
 
