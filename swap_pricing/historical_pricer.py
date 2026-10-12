@@ -2,7 +2,7 @@
 保存済みの日次カーブから、任意のコンベンションのヒストリカル・パーレート推移を
 計算するモジュール。
 
-各過去日付Dについて、カーブの供給元(通常は curve_store.CurveStore=朝バッチが
+各過去日付Dについて、カーブの供給元(通常は historical_store.HistoricalStore=朝バッチが
 作った日次カーブDB)からDのカーブを受け取り、par_rate()でパーレートを求める。
 ここではブートストラップをしない(カーブの引き方を知らない)ため、引き方を
 変えてもこのモジュールは影響を受けない。
@@ -66,7 +66,7 @@ _HORIZON_MARGIN = timedelta(days=40)
 
 
 class CurveSource(Protocol):
-    """日次カーブの供給元(curve_store.CurveStore 等)。"""
+    """日次カーブの供給元(historical_store.HistoricalStore 等)。"""
 
     def dates(self) -> List[date]:
         """カーブのある日付(昇順)。"""

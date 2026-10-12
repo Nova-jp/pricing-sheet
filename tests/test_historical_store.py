@@ -6,13 +6,13 @@
 (機械精度〜0.1bp未満)を満たせなくなるため、固定ロール/IMM/EOM・フォワード起点まで確認する。
 
 実行方法:
-    python -m unittest tests.test_curve_store -v
+    python -m unittest tests.test_historical_store -v
 """
 
 import sys
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -21,7 +21,9 @@ sys.path.insert(0, str(REPO_ROOT))
 import QuantLib as ql  # noqa: E402
 
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
-from swap_pricing.curve_store import GRID_DAYS, CurveStore, _grid_dates, discount_grid  # noqa: E402
+from swap_pricing.historical_store import (  # noqa: E402
+    GRID_DAYS, AswQuoteRow, AswRate, HistoricalStore, _grid_dates, discount_grid,
+)
 from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapConvention, SwapTerms  # noqa: E402
@@ -36,11 +38,11 @@ def _par(curve, index, start, tenor, roll="STD"):
     return price_swap(Market(AS_OF, curve, index), terms, notional=1.0, pay_rec="PAY").target_fixrate
 
 
-class CurveStoreTest(unittest.TestCase):
+class HistoricalStoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
-        cls.store = CurveStore(Path(cls.tmp.name) / "historical.db")
+        cls.store = HistoricalStore(Path(cls.tmp.name) / "historical.db")
         cls.boot = bootstrap_curve(AS_OF, SPOT_RATES)
         cls.store.save_curve(
             AS_OF, "convex_monotone", "hash", cls.boot.used_tenors, [],
@@ -108,10 +110,44 @@ class GridDatesTest(unittest.TestCase):
 class QuotesTest(unittest.TestCase):
     def test_quotes_are_replaced_per_date(self):
         with tempfile.TemporaryDirectory() as tmp:
-            store = CurveStore(Path(tmp) / "historical.db")
+            store = HistoricalStore(Path(tmp) / "historical.db")
             store.save_quotes({AS_OF: {"1M": 1.0, "5Y": 2.0}, date(2025, 4, 1): {"1M": 1.1}})
             store.save_quotes({AS_OF: {"5Y": 2.5}})
             self.assertEqual(store.quotes(), {AS_OF: {"5Y": 2.5}, date(2025, 4, 1): {"1M": 1.1}})
+
+
+class AswQuotesTest(unittest.TestCase):
+    def _store(self, tmp):
+        return HistoricalStore(Path(tmp) / "historical.db")
+
+    def test_upsert_by_date_and_bond_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = self._store(tmp)
+            store.save_asw_quotes([
+                AswQuoteRow(AS_OF, "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6)),
+                AswQuoteRow(AS_OF, "000180054", 0.4488, 0.4813, datetime(2026, 10, 9, 12, 30, 6)),
+            ])
+            # 同じ(日付, 銘柄)を更新 → 上書き(行は増えない)
+            store.save_asw_quotes([
+                AswQuoteRow(AS_OF, "000190054", 0.45, 0.482, datetime(2026, 10, 10, 9, 0, 0)),
+            ])
+            quotes = store.asw_quotes()
+            self.assertEqual(quotes, {
+                AS_OF: {
+                    "000190054": AswRate(0.45, 0.482),
+                    "000180054": AswRate(0.4488, 0.4813),
+                },
+            })
+
+    def test_max_updated_at_is_the_watermark(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = self._store(tmp)
+            self.assertIsNone(store.asw_quotes_max_updated_at())  # 保存前はNone(全件取得の指示)
+            store.save_asw_quotes([
+                AswQuoteRow(AS_OF, "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6)),
+                AswQuoteRow(AS_OF, "000180054", 0.4488, 0.4813, datetime(2026, 10, 10, 9, 0, 0)),
+            ])
+            self.assertEqual(store.asw_quotes_max_updated_at(), datetime(2026, 10, 10, 9, 0, 0))
 
 
 if __name__ == "__main__":

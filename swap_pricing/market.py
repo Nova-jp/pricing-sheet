@@ -31,7 +31,7 @@ from datetime import date
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from swap_pricing.curve import BootstrapResult, bootstrap_curve, normalize_tenor
-from swap_pricing.curve_store import CurveStore
+from swap_pricing.historical_store import HistoricalStore
 from swap_pricing.market_data import Market
 
 BUMP_BP = 1.0
@@ -53,7 +53,7 @@ def _before(fixings: Dict[date, float], valuation_date: date) -> Tuple[Tuple[dat
 _db_fixings_cache: Dict[tuple, Dict[date, float]] = {}
 
 
-def db_fixings(store: CurveStore) -> Dict[date, float]:
+def db_fixings(store: HistoricalStore) -> Dict[date, float]:
     """DBのTONA実績(全期間)。DBファイルが変わるまで使い回す(全UDFが呼ぶため)。DBが無ければ空。"""
     if not store.exists():
         return {}
@@ -75,7 +75,7 @@ def realtime_snapshot(
     )
 
 
-def db_snapshot(valuation_date: date, labels: Sequence[str], store: CurveStore) -> MarketSnapshot:
+def db_snapshot(valuation_date: date, labels: Sequence[str], store: HistoricalStore) -> MarketSnapshot:
     """過去の評価日: DBのその日のレートのうち labels(RealTimeのフラグで選んだテナー)だけ。
     O/Nはその日のTONA実績。DBに値が無いテナーは外す(あるテナーだけでカーブを引く)。"""
     day_quotes = {k.strip().lower(): v for k, v in store.quotes_on(valuation_date).items()}

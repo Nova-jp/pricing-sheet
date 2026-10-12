@@ -51,12 +51,12 @@
     読む側で同じ補間を再現する必要があり引き方に依存する(Convex MonotoneはQuantLibの
     Python APIでノードから再現できない)。OISの評価は日付上のDFしか使わないため、
     全暦日のDFを持てば元のカーブと同じパーレートになる(1M〜40Y×スポット/フォワード
-    起点×STD/IMM/EOMで差0bpを確認、`tests/test_curve_store.py`)。営業日でなく暦日なのは
+    起点×STD/IMM/EOMで差0bpを確認、`tests/test_historical_store.py`)。営業日でなく暦日なのは
     祝日カレンダーの差でノードが欠けないようにするため。50年を超える日付は外挿せずエラー。
     サイズは1日146KB(500日で約70MB)。
   - **カーブの引き方に依存しない構成**(ユーザー指示: 将来ステップアップ等に変える可能性)。
     引き方は`curve.CURVE_BUILDERS`に名前で登録し、`historical_curve.toml`で選ぶ。
-    保存(`curve_store`)と評価(`historical_pricer`)は日付→DFしか扱わない。生レートも
+    保存(`historical_store`)と評価(`historical_pricer`)は日付→DFしか扱わない。生レートも
     DBに残すので、引き方やテナー選択を変えればxlsxの取得期間外の日も作り直せる。
   - **バッチは手動実行のPythonコード**(ユーザー選択)。`RDP.HistoricalPricing`はExcel上で
     しか動かないため、Excelで更新・保存した`historical_data.xlsx`の値をopenpyxlで読む
@@ -382,8 +382,32 @@
 
 ## データ供給元
 
-- **データの供給元はLSEG Workspaceだけ(2026-09-27、ユーザー指示)**。以前のクラウド経由の
+- **カーブ・プライシングの供給元はLSEG Workspaceだけ(2026-09-27、ユーザー指示)**。以前のクラウド経由の
   データ配布は廃止し、関連コード・ドキュメントを削除した。
+- **ASWスプレッドだけはNeon(Postgres)から取得する(2026-10-12、ユーザー指示で方針変更)**。
+  理由: ASWは分析用の参照データで、算出(ボンドのキャッシュフロー・JGBカーブとの照合)自体が
+  別の既存プロジェクト(BOJ会合インプライド分析ツール)側でNeonに書き込まれており、こちら側で
+  再計算・再実装するより、できあがった値をそのまま読む方が正確で手間もない。カーブの
+  ブートストラップには混ぜない(`vol_quotes`と同じ「参照データのみ」の位置づけ。
+  ユーザー判断、2026-10-12)。
+- **このNeonインスタンスは他プロジェクトのテーブルと同居する共有DB**(`auth`/`storage`/`realtime`
+  スキーマ、`boj_meetings`・`bond_data`・`irs_data`・`swap_data`等)。`swap_pricing/neon_source.py`は
+  `public."ASW_data"`への読み取り専用SELECTしか行わない(他テーブルの読み書きは一切しない)。
+  接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`、gitignore対象)。
+- **差分取得はローカルDBの`asw_quotes.updated_at`の最大値を基準にする**(別の監視用テーブルを
+  増やさない)。理由: Neonの`ASW_data`テーブルに`updated_at`列(行の最終更新時刻)が既にあり、
+  これを使えば「新しい取引日」だけでなく「過去の日付の値が後から修正された」ケースも
+  取り漏らさない(`trade_date`基準の差分取得だと修正を検知できない)。`curves`テーブルが
+  `input_hash`を自分の中に持つのと同じ考え方(curve_store.py→historical_store.pyの既存パターンに揃えた)。
+- **Neonへの接続失敗は朝バッチ全体を止めない**(`morning_batch.sync_asw_quotes`が例外を握って
+  ログだけ出す)。理由: ASWは参照データであり、LSEGのMid/Fixing取り込みとカーブ構築(本体の
+  プライシング機能)がNeonの可用性に引っ張られて止まるのは避けたい。
+- **`curve_store.py`→`historical_store.py`、`curve_batch.py`→`morning_batch.py`にリネームした
+  (2026-10-12)**。理由: 直前の対応(TONA実績を`market_data.py`/`market.py`に切り出した対応)で
+  「market」という言葉が別の意味(評価日時点の市場データ)で使われ始めたため、ASWを追加すると
+  「curve」という名前がますます実態(quotes/fixings/vol_quotes/asw_quotes/curvesを持つ、
+  カーブ専用ではないヒストリカルDB全般の保存層)と合わなくなる。既存の「朝バッチ」「ヒストリカルDB」
+  という呼び方にファイル名を揃えた(ユーザー指摘)。
 
 ## その他の技術的なハマりどころ(再発防止のため記録)
 

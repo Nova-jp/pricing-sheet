@@ -173,7 +173,7 @@ def _check_fixings(
         shown = ", ".join(str(d) for d in missing[:3])
         raise ValueError(
             f"過去起算に必要なTONA実績(フィキシング)が{len(missing)}日分不足しています({shown}...)。"
-            "historical_data.xlsxを更新・保存してから python -m swap_pricing.curve_batch を実行し、"
+            "historical_data.xlsxを更新・保存してから python -m swap_pricing.morning_batch を実行し、"
             "DBに取り込んでください(Fixingの取得期間が起算日をカバーしているかも確認)"
         )
 

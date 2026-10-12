@@ -2,3 +2,5 @@ numpy>=1.23.0
 openpyxl>=3.0.0
 xlwings>=0.36.0
 QuantLib>=1.32
+psycopg2-binary>=2.9
+python-dotenv>=1.0
