@@ -3,7 +3,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 
 ■ 使用データ
   RealTimeシートのスポットテナー(O/N〜40Y)のみ。会合スワップ(RD・M1〜M9)は使わない
-  (BOJシートの比較用に swap_pricing/meeting_curve.py が別のカーブを引く)。
+  (BOJシートの比較用に swap_pricing/boj/meeting_curve.py が別のカーブを引く)。
 
 ■ O/Nの扱い
   O/Nのみ settlementDays=0, tenor=1日 のOISヘルパーとして評価日(T)起点で
@@ -40,7 +40,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
   経緯は docs/decisions.md 参照)。
 
 ■ 未対応(スコープ外)
-  - RD・M1〜M12: BOJ会合スワップ(meeting_curve.py で扱う)
+  - RD・M1〜M12: BOJ会合スワップ(boj/meeting_curve.py で扱う)
 """
 
 from datetime import date
@@ -195,7 +195,7 @@ def bootstrap_curve(
 # カーブの引き方(構築方法)の登録表。historical_curve.toml の builder で名前を選ぶ。
 # 引き方を追加するときは「(評価日, {テナー: レート%}) → curve/index/used_tenors/
 # skipped_tenors を持つ結果」の関数をここに登録するだけでよい。保存(historical_store.py)と
-# 評価(historical_pricer.py)は日次のDFしか扱わないため、引き方に依存しない。
+# 評価(historical/pricer.py)は日次のDFしか扱わないため、引き方に依存しない。
 CURVE_BUILDERS = {
     "convex_monotone": bootstrap_curve,
 }

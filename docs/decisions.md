@@ -21,7 +21,7 @@
   - テナー文字列→期間 → `ql.PeriodParser.parse()`
   - スワップ構築 → `ql.MakeOIS`(固定/変動脚の個別freq・day count・ロール
     規則・EOM・明示start/endを全て`.with*`引数で指定できるQuantLib標準の
-    OISビルダー)。`historical_pricer.py`の「標準コンベンションだけ直接
+    OISビルダー)。`historical/pricer.py`の「標準コンベンションだけ直接
     組み直す」特例分岐も、`price_swap`自体がMakeOIS化されたことで不要になり削除
   - スポット日(T+2) → 自前公式ではなく、ダミーの`ql.MakeOIS`の開始日を
     読むことで`OISRateHelper`と同じ設定日ロジックを保証する
@@ -247,6 +247,23 @@
   シートの「UDF Modules」設定だけでは不十分だった(実際にWindows実機で
   F9が効かず、旧`main()`ベースの`PricingSheet.py`にはUDF定義が
   存在しなかったことが根本原因と判明)。
+- **UDFの実体をシート(機能)ごとのディレクトリに分割した(`pricing_udf.py`・`historical/`・
+  `boj/`、2026-10-12、ユーザー指摘)**。理由: `swap_pricing/udf.py`1ファイルに
+  pricing/historical/BOJの全UDFが集約されていたが、ASW追加を機にさらに肥大化する前に
+  機能ごとへ分けた方が自然と判断。`swap_pricing/udf.py`自体はxlwingsの制約を満たすための
+  薄い再エクスポート層として残す(`Ping`以外の実体は持たない)。共有エンジン
+  (`conventions.py`/`curve.py`/`swap_pricer.py`/`terms.py`/`market.py`/`market_data.py`/
+  `risk.py`/`paths.py`)と朝バッチ・DB層(`historical_store.py`/`morning_batch.py`/
+  `neon_source.py`)は、どの機能からも使う共通基盤のため分割していない。
+  - **Excel境界の型変換・評価日解決・`_market`は`udf_common.py`に集約し、各feature udf
+    モジュールは`udf_common.xxx(...)`の形(モジュール越しの属性参照)で呼ぶ**。
+    `from swap_pricing.udf_common import xxx`のように名前をコピーすると、コピー先の
+    モジュールでは別の束縛になり、既存テストの`mock.patch.object(udf, "_historical_store", ...)`
+    のような1か所のパッチが他のfeatureモジュールの呼び出しには反映されない
+    (パッチが効くのは呼び出し側が実際に名前を参照するモジュールの属性であり、コピー元の
+    モジュールの属性を直しても無関係なため)。属性参照の形にしておけば、テストは
+    `mock.patch.object(udf_common, "xxx", ...)`の1か所だけ差し替えればどのfeatureのUDFからの
+    呼び出しにも効く。既存テストの該当箇所もこの形に合わせて更新した。
 - **カーブ(スプレッド)・フライ・合計はExcelの数式に任せ、UDF化しない**。
   理由: ユーザー方針「平易な数式で足りるものは平易な数式、高度な計算
   だけUDF化。勝手に複雑にせず相談する」。スピル参照演算子(`#`)を使うことで

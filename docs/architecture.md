@@ -47,18 +47,29 @@ roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変
 |---|---|
 | `conventions.py` | 業務上の表記→QuantLibの対応表を集約: `ql.Japan()`カレンダー、dcf文字列→DayCounter、freq、roll conv→生成ルール、IMMコード(M27)→日付、テナー表記の読み替え(12M→1Y)。自前の日付計算ロジックは持たず、呼び出し側がQuantLibのAPIを直接使う |
 | `curve.py` | スポットレート辞書→`ql.PiecewiseConvexMonotoneForward`によるカーブ構築。O/Nは`DepositRateHelper`、それ以外は`OISRateHelper`(`rule=ql.DateGeneration.Forward`・`endOfMonth=False`で構築) |
-| `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは`udf.py`の入口だけ |
+| `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは各feature udfモジュール(`pricing_udf.py`等)の入口だけ |
 | `market_data.py` | 評価日時点の市場データ一式の型`Market`(評価日・カーブ・TONA指標・TONA実績)。実績は作るときに「評価日より前」だけに切る(先読みの排除はここだけ)。QuantLib以外に依存しない |
 | `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。取引条件(`SwapTerms`)と市場データ(`Market`)を受け取る。評価の前提(評価日・実績の登録・満期済み判定・実績の確認)は`_prepare_swap`に集約し、`price_swap`(パーレート・アニュイティ・PV)と`par_rate`(パーレートだけ、ヒストリカル用)が共通で通る。過去起算のスワップは、取引条件から必要な日を判断して`Market`の実績を登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブ、全テナー+1bp、テナー別+1bp。必要になったときに1回だけ作り、バンプはカーブに使っているテナーだけ)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使い、ここではブートストラップしない)、notional逆算 |
-| `historical_pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存 |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
-| `meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
-| `udf.py` | **Excelから直接呼べるUDF定義。ここが計算エンジンとExcelの唯一の接点** |
+| `udf_common.py` | pricing/historical/BOJのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
+| `pricing_udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
+| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing_udf.py`・`historical/udf.py`・`boj/udf.py`) |
+
+機能ごとのサブパッケージ(シート単位):
+
+| ファイル | 役割 |
+|---|---|
+| `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
+| `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates` |
+| `boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
+| `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
+
+(将来のASWヒストリカルチャート機能用に`asw/`を追加する想定。現時点では未着手)
 
 `tests/test_past_start.py`: 過去起算スワップ(合成フィキシング)と評価日の扱いの
 リグレッションテスト(`python -m unittest tests.test_past_start -v`)。
@@ -94,8 +105,11 @@ LSEGのデータには依存しない。
 
 - `PricingSheet.py`(ワークブックと同名)は`from swap_pricing.udf import *`のみ。
   xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
-  **ワークブックと同名の.pyファイル**からUDFを探すため、実体を
-  `swap_pricing/udf.py`に置いたうえで、ここに再エクスポートしている。
+  **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要。
+  `swap_pricing/udf.py`自体は薄い再エクスポート層で、実体はシート(機能)ごとに
+  `pricing_udf.py`(Main/RealTime/pricing)・`historical/udf.py`(HistChart)・
+  `boj/udf.py`(BOJ)に分かれている。共有部分(Excel境界の型変換・評価日解決・`_market`)は
+  `udf_common.py`に集約している(2026-10-12、機能ごとのディレクトリに分割。理由は[decisions.md](decisions.md))。
 - ブックの計算方法は「手動」。UDFは非volatileのままでよく、F9(再計算)を
   押すたびに最新のセル値を使って再評価される。VBAマクロ・ボタンは一切不要。
 - UDFにするのは**QuantLibが必要な計算だけ**(パーレート、PV、デルタ、
@@ -230,7 +244,7 @@ BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のず�
   メインのカーブの`FairRate(起算日,"",満期日,"PA","act/365fixed","PA","act/365fixed","STD",…)`を計算。
   G=ずれ(bp)=会合スワップ−スポットからのフォワード、H=会合スワップの前の期間からの変化(bp、RDはO/Nとの差)。
 - **B(21〜33行)会合スワップ→スポット**: C21の`=BojImpliedRates(A21:A33, RealTime!$B$2:$D$45,
-  RealTime!$C$36:$F$45, 評価日)`が、O/N+RD+M1〜M9の階段状のカーブ(`meeting_curve.py`)での
+  RealTime!$C$36:$F$45, 評価日)`が、O/N+RD+M1〜M9の階段状のカーブ(`boj/meeting_curve.py`)での
   スポット起算・標準コンベンションのパーレートを1列でスピル。D=ずれ(bp)=スポット−会合スワップのカーブ。
   評価日が今日でなければエラー。値か日付が欠けた会合スワップの行以降は使わない。
   最後の会合期間より先のテナーはその行だけエラーの文字列。

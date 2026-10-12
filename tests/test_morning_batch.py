@@ -23,7 +23,7 @@ import openpyxl  # noqa: E402
 from swap_pricing import morning_batch  # noqa: E402
 from swap_pricing.curve import bootstrap_curve  # noqa: E402
 from swap_pricing.historical_store import HistoricalStore  # noqa: E402
-from swap_pricing.historical_pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
+from swap_pricing.historical.pricer import FIXED, SwapSpec, historical_swap_rate_series  # noqa: E402
 from swap_pricing.market_data import Market  # noqa: E402
 from swap_pricing.swap_pricer import price_swap  # noqa: E402
 from swap_pricing.terms import SwapTerms  # noqa: E402
@@ -177,13 +177,13 @@ class CurveBatchTest(unittest.TestCase):
         """UDF HistoricalRates: 空の行は空欄の列、各脚は1本ずつ計算した値と一致する。"""
         from unittest import mock
 
-        from swap_pricing import udf
+        from swap_pricing import udf, udf_common
 
         self._run()
         store = HistoricalStore(self.db)
         conv = list(CONV_ARGS)
         table = [["", "5y", ""] + conv, ["", "", ""] + ["", "", "", ""], ["", "10Y", ""] + conv]
-        with mock.patch.object(udf, "_historical_store", lambda: store):
+        with mock.patch.object(udf_common, "_historical_store", lambda: store):
             rows = udf.HistoricalRates(table, "rolling")
             single = udf.HistoricalRate("", "10Y", "", *conv, "ROLLING")
         self.assertEqual(rows[0], ["Date", "A", "B", "C"])
@@ -194,10 +194,10 @@ class CurveBatchTest(unittest.TestCase):
     def test_udf_historical_rates_without_legs_returns_dates(self):
         from unittest import mock
 
-        from swap_pricing import udf
+        from swap_pricing import udf, udf_common
 
         self._run()
-        with mock.patch.object(udf, "_historical_store", lambda: HistoricalStore(self.db)):
+        with mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db)):
             rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED")
         self.assertEqual(rows[1:], [[d, "", "", ""] for d in DAYS])
 

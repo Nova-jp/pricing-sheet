@@ -25,7 +25,7 @@ import xlwings as xw
 from swap_analysis import pca
 from swap_analysis.history import UNIT_BP, load_history, normalize_label, parse_dataset
 from swap_pricing.historical_store import HistoricalStore
-from swap_pricing.udf import _is_blank, _to_date, _today
+from swap_pricing.udf_common import _is_blank, _to_date, _today
 
 
 def _labels(values) -> Tuple[str, ...]:

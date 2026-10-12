@@ -21,7 +21,7 @@
   Excelの列からも削除)。
 
 日付に決まる前の入力(start="10y"・end="M27"等)は、ヒストリカルの雛形
-historical_pricer.SwapSpec が持ち、日付ごとに SwapTerms に直す。
+historical.pricer.SwapSpec が持ち、日付ごとに SwapTerms に直す。
 """
 
 from dataclasses import dataclass

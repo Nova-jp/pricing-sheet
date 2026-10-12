@@ -21,7 +21,7 @@ import QuantLib as ql  # noqa: E402
 
 from swap_pricing.conventions import CALENDAR, forward_start_date, imm_code_to_date  # noqa: E402
 from swap_pricing.curve import bootstrap_curve, spot_date_for  # noqa: E402
-from swap_pricing.historical_pricer import (  # noqa: E402
+from swap_pricing.historical.pricer import (  # noqa: E402
     FIXED,
     ROLLING,
     SwapSpec,
