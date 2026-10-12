@@ -44,7 +44,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 """
 
 from datetime import date
-from typing import Dict, List, NamedTuple
+from typing import Dict, List, NamedTuple, Optional
 
 import QuantLib as ql
 
@@ -63,6 +63,9 @@ class BootstrapResult(NamedTuple):
     spot_date: date
     used_tenors: List[str]
     skipped_tenors: List[str]
+    # カーブに使ったテナー(used_tenorsと同じ表記)→ そのクォート。値を書き換えるとカーブが
+    # 引き直される(QuantLibのObserver)。RiskGridのバケットデルタはこれを一時的に+1bpして測る
+    quotes: Optional[Dict[str, "ql.SimpleQuote"]] = None
 
 
 def _standard_spot_date(index: "ql.OvernightIndex", settlement_days: int = SPOT_SETTLEMENT_DAYS) -> date:
@@ -116,6 +119,7 @@ def bootstrap_curve(
     spot_date = _standard_spot_date(bootstrap_index)
     used_tenors: List[str] = []
     skipped_tenors: List[str] = []
+    quotes: Dict[str, ql.SimpleQuote] = {}
     handled = set()  # O/N・週物・会合スワップ として処理済みのキー
 
     helpers = []
@@ -125,7 +129,8 @@ def bootstrap_curve(
         # 1日物のOISRateHelperはQuantLib内部のスケジュール生成が特定の評価日で
         # 退化する(degenerate single date)ことがあるため、単純な預金型の
         # DepositRateHelperを使う(O/Nは複利計算不要な1日物のため実質等価)。
-        quote = ql.QuoteHandle(ql.SimpleQuote(rates[on_key] / 100.0))
+        quotes[on_key] = ql.SimpleQuote(rates[on_key] / 100.0)
+        quote = ql.QuoteHandle(quotes[on_key])
         helpers.append(
             ql.DepositRateHelper(
                 quote, ql.Period(1, ql.Days), 0, CALENDAR, ql.ModifiedFollowing, False, ql.Actual365Fixed()
@@ -137,7 +142,8 @@ def bootstrap_curve(
     for label in WEEK_TENORS:
         if label not in rates:
             continue
-        quote = ql.QuoteHandle(ql.SimpleQuote(rates[label] / 100.0))
+        quotes[label] = ql.SimpleQuote(rates[label] / 100.0)
+        quote = ql.QuoteHandle(quotes[label])
         helpers.append(
             ql.OISRateHelper(
                 SPOT_SETTLEMENT_DAYS, ql.PeriodParser.parse(label.upper()), quote, bootstrap_index,
@@ -165,7 +171,8 @@ def bootstrap_curve(
             continue
         month_tenors.append((period, label))
     for period, label in sorted(month_tenors, key=lambda t: t[0]):
-        quote = ql.QuoteHandle(ql.SimpleQuote(rates[label] / 100.0))
+        quotes[label] = ql.SimpleQuote(rates[label] / 100.0)
+        quote = ql.QuoteHandle(quotes[label])
         helpers.append(
             ql.OISRateHelper(
                 SPOT_SETTLEMENT_DAYS, period, quote, bootstrap_index,
@@ -189,6 +196,7 @@ def bootstrap_curve(
         spot_date=spot_date,
         used_tenors=used_tenors,
         skipped_tenors=skipped_tenors,
+        quotes=quotes,
     )
 
 

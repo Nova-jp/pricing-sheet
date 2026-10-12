@@ -14,7 +14,7 @@ from engine.common import udf_common
 from engine.common.conventions import forward_start_date, is_tenor
 from engine.common.risk import (
     annuity_delta,
-    bucketed_delta,
+    bucketed_deltas,
     parallel_delta,
     price,
     resolve_params,
@@ -171,21 +171,26 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
     col = {c: header.index(c) for c in _RISK_COLUMNS}
 
     curves = udf_common._market(real_time_range, valuation_date)
-    totals = {label: 0.0 for label in curves.bump_labels}
+    positions = []
     for n, row in enumerate(rows[1:], start=2):
         row = row + [None] * (len(header) - len(row))
         if not _is_flagged(row[col["risk_flag"]]):
             continue
         try:
-            params = _params(
+            params = resolve_params(curves, _params(
                 *(row[col[c]] for c in ("start", "tenor", "end", "fix freq", "fix dcf",
                                         "float freq", "roll conv", "notional",
                                         "pay/rec", "fix rate")),
                 curves.spot_date,
-            )
-            deltas = bucketed_delta(curves, resolve_params(curves, params))
+            ))
+            price(curves.base, params)  # 計算できない行は、ここで行番号つきのエラーにする
         except Exception as e:
             raise ValueError(f"pricing表の{n}行目(risk_flag=1)を計算できません: {e}") from e
+        positions.append(params)
+
+    # テナーごとにクォートを1回だけ動かし、その間に全行を評価する(risk.bucketed_deltas)
+    totals = {label: 0.0 for label in curves.bump_labels}
+    for deltas in bucketed_deltas(curves, positions):
         for label, value in deltas.items():
             totals[label] += value
 

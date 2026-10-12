@@ -25,10 +25,10 @@ sys.path.insert(0, str(REPO_ROOT))
 from engine.common import morning_batch, market, udf_common  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
 from engine.common.conventions import forward_start_date  # noqa: E402
-from engine.common.curve import bootstrap_curve, spot_date_for  # noqa: E402
+from engine.common.curve import bootstrap_curve, normalize_tenor, spot_date_for  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.market import curve_set, realtime_snapshot  # noqa: E402
-from engine.common.risk import bucketed_delta, parallel_delta, resolve_params  # noqa: E402
+from engine.common.risk import bucketed_delta, bucketed_deltas, parallel_delta, price, resolve_params  # noqa: E402
 from engine.common.market_data import Market  # noqa: E402
 from engine.common.swap_pricer import price_swap  # noqa: E402
 from engine.common.terms import SwapParams, SwapTerms  # noqa: E402
@@ -37,6 +37,10 @@ from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_past_start import CONV, CONV_ARGS  # noqa: E402
 
 VAL = date(2026, 9, 25)
+# バケットデルタはクォートを一時的に動かして基準カーブを引き直す。QuantLibの反復ブートストラップは
+# 前回の解を初期値にするので、新しく組んだカーブとはソルバーの収束精度の範囲(想定元本100億円で
+# 0.01円程度、相対1e-12)でずれる。比較はこの許容誤差で行う(円)
+BOOTSTRAP_TOL_YEN = 0.1
 NOTIONAL = 10_000_000_000
 QUOTES = {k.lower(): v for k, v in SPOT_RATES.items()} | {"m1": 0.75}  # m1はカーブに使われない
 
@@ -73,9 +77,10 @@ class CurveSetTest(unittest.TestCase):
         for label in ("5y", "7y", "8y", "12m"):
             with self.subTest(label=label):
                 bumped = dict(QUOTES, **{label: QUOTES[label] + 0.01})
-                self.assertAlmostEqual(deltas[label], _pv(bumped, self.params) - base, delta=1e-6)
+                self.assertAlmostEqual(deltas[label], _pv(bumped, self.params) - base, delta=BOOTSTRAP_TOL_YEN)
 
     def test_bumped_curves_are_built_once_and_shared(self):
+        """パラレルのカーブは1回だけ作って共有し、バケットデルタはカーブを作らない(クォートを動かす)。"""
         with mock.patch.object(market, "bootstrap_curve", wraps=market.bootstrap_curve) as spy:
             again = curve_set(realtime_snapshot(VAL, dict(QUOTES)))
             self.assertIs(again, self.curves)
@@ -83,7 +88,44 @@ class CurveSetTest(unittest.TestCase):
             parallel_delta(again, replace(self.params, terms=replace(self.params.terms, tenor="10Y")))
             bucketed_delta(again, self.params)
             bucketed_delta(again, replace(self.params, terms=replace(self.params.terms, tenor="10Y")))
-        self.assertEqual(spy.call_count, 1 + len(self.curves.bump_labels))  # parallel 1 + バケット
+        self.assertEqual(spy.call_count, 1)  # parallel だけ
+
+    def test_bucketed_delta_restores_base_curve(self):
+        """バケットデルタのあと、基準カーブのクォートは元の値に戻り、パーレートも変わらない。"""
+        before = price(self.curves.base, self.params).target_fixrate
+        bucketed_delta(self.curves, self.params)
+        for label in self.curves.bump_labels:
+            quote = self.curves.base_curve.quotes[normalize_tenor(label)]
+            self.assertEqual(quote.value(), QUOTES[label] / 100.0)
+        self.assertAlmostEqual(price(self.curves.base, self.params).target_fixrate, before, places=10)  # %(1e-8bp)
+
+    def test_bumped_quote_is_restored_on_error(self):
+        quote = self.curves.base_curve.quotes["5y"]
+        with self.assertRaises(RuntimeError):
+            with self.curves.bumped("5y"):
+                self.assertAlmostEqual(quote.value(), (QUOTES["5y"] + 0.01) / 100.0, places=15)
+                raise RuntimeError("途中のエラー")
+        self.assertEqual(quote.value(), QUOTES["5y"] / 100.0)
+
+    def test_unused_tenor_cannot_be_bumped(self):
+        with self.assertRaises(ValueError):
+            with self.curves.bumped("m1"):
+                pass
+
+    def test_bucketed_deltas_equal_one_by_one(self):
+        """複数ポジションをまとめて計算しても、1本ずつ計算したものと同じ。"""
+        other = resolve_params(self.curves, replace(self.params, terms=replace(self.params.terms, tenor="10Y")))
+        together = bucketed_deltas(self.curves, [self.params, other])
+        for params, deltas in zip([self.params, other], together):
+            one = bucketed_delta(self.curves, params)
+            for label in self.curves.bump_labels:
+                self.assertAlmostEqual(deltas[label], one[label], delta=BOOTSTRAP_TOL_YEN)
+
+    def test_only_latest_snapshot_is_cached(self):
+        """生きているカーブを増やさないよう、キャッシュは最新のスナップショット1組だけ。"""
+        other = curve_set(realtime_snapshot(VAL, dict(QUOTES, **{"5y": QUOTES["5y"] + 0.1})))
+        self.assertEqual(list(market._cache.values()), [other])
+        self.assertIsNot(curve_set(realtime_snapshot(VAL, dict(QUOTES))), self.curves)
 
 
 def _rt_range(flags=None):
@@ -243,7 +285,12 @@ class TenorStartUdfTest(unittest.TestCase):
     def test_risk_grid(self):
         by_tenor = udf.RiskGrid([_HEADER, _pricing_row(1, "10y", "20y")], self.rt)
         by_date = udf.RiskGrid([_HEADER, _pricing_row(1, self.fwd, "20y")], self.rt)
-        self.assertEqual(by_tenor, by_date)
+        self.assertEqual([r[0] for r in by_tenor], [r[0] for r in by_date])
+        for a, b in zip(by_tenor[1:], by_date[1:]):
+            if a[1] == "":
+                self.assertEqual(b[1], "")
+            else:
+                self.assertAlmostEqual(a[1], b[1], delta=BOOTSTRAP_TOL_YEN / 1_000_000)  # 百万円
 
 class _HistoricalDbCase(unittest.TestCase):
     """朝バッチで作ったヒストリカルDB(SPOT_RATES)と、全テナー+10bpのRealTimeを用意する。"""
