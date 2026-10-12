@@ -59,7 +59,8 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
      `engine/swap_pricing/udf.py`を再エクスポートしているだけ)からUDF
      (`FairRate`, `SwapPV`, `SwapDelta`, `SwapAnnuityDelta`,
      `NotionalForDelta`, `RiskGrid`, `MarketInfo`,
-     `HistoricalRate`, `HistoricalRates`, `HedgeHistoricalRates`)が
+     `HistoricalRate`, `HistoricalRates`, `HedgeHistoricalRates`,
+     `AswHistoricalRate`, `AswHistoricalRates`, `BojImpliedRates`)が
      Excelに登録される。
    - `_xlwings.conf`シートの「UDF Modules」に`engine.swap_pricing.udf`が
      設定済みだが、Windowsの「Import Functions」はワークブック名と
