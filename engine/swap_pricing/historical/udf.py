@@ -14,7 +14,7 @@ from typing import List, Optional
 import QuantLib as ql
 import xlwings as xw
 
-from engine.common import udf_common
+from engine.common import market, udf_common
 from engine.common.conventions import CALENDAR, is_imm_code, is_tenor
 from engine.swap_pricing.historical.hedge import hedge_rate_rows
 from engine.swap_pricing.historical.pricer import (
@@ -52,6 +52,7 @@ def HistoricalRate(
     from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
     過去起算になる日のTONA実績は、DBに取り込み済みのもの(Fixingシート由来)を使う。
     """
+    market.release_curves()  # 評価日を日付ごとに切り替える前に、反応するカーブを手放す
     with udf_common._historical_store() as store:
         spec = SwapSpec(
             SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
@@ -154,6 +155,8 @@ def HistoricalRates(
     """
     specs = _specs_from_range(conventions)
     active = [s for s in specs if s is not None]
+    if active:  # 日付軸だけの呼び出しは評価日を切り替えないので、pricingのカーブはそのまま
+        market.release_curves()
     today = udf_common._today()
     base = udf_common._to_date(base_date) or today
     with udf_common._historical_store() as store:
@@ -201,6 +204,8 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
         RealTimeのライブのレート)。
     """
     labels = [v for v in _column(tickers) if not udf_common._is_blank(v)]
+    if labels:
+        market.release_curves()  # 評価日を日付ごとに切り替える前に、反応するカーブを手放す
     days = []
     for v in _column(dates):
         try:

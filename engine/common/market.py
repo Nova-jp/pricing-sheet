@@ -15,20 +15,30 @@
   pricingシートの全行・全UDFで、同じスナップショットなら同じカーブを使い回す。
   計算に渡す市場データ(market_data.Market=カーブ+実績)を返す。バンプしても実績は同じ。
   - base: 基準カーブの市場データ
-  - parallel(): カーブに使っている全テナーを+1bpしたもの(SwapDelta用)
-  - bucket(ラベル): そのテナーだけ+1bpしたもの(RiskGrid用)
-  バンプしたカーブは初めて必要になったときに1回だけ作る。バンプするのは実際にカーブに
-  使っているテナーだけ(フラグ0のテナーや会合スワップのような未使用のテナーは作らない)。
-  以前は行ごと・UDFごとにバンプしたカーブを作り直していた(SwapDeltaで1行2回、
-  行ごとのバケットデルタで1行42回のブートストラップ)。
+  - parallel(): カーブに使っている全テナーを+1bpしたもの(SwapDelta用。行ごとのセルが共有する
+    ので、初めて必要になったときに1回だけ作って持っておく)
+  - bumped(ラベル): そのテナーだけ+1bpした状態の基準カーブ(RiskGrid用、with文の中だけ)。
+    テナー別のカーブは作らず、基準カーブのクォート(SimpleQuote)を一時的に+1bpして測り、
+    元の値に戻す(QuantLibの標準のやり方。クォートを書き換えるとカーブが引き直される)。
+  バンプするのは実際にカーブに使っているテナーだけ(フラグ0のテナーや会合スワップのような
+  未使用のテナーは対象外)。以前は行ごと・UDFごとにバンプしたカーブを作り直していた
+  (SwapDeltaで1行2回、行ごとのバケットデルタで1行42回のブートストラップ)。
+
+■ 生きているカーブを増やさない(キャッシュは最新の1組だけ)
+  QuantLibのテナー指定のヘルパーは評価日(グローバル設定)を監視していて、評価日が変わるたびに
+  自分の日付を作り直す。生きているカーブが多いと、評価日を日付ごとに切り替えるヒストリカル計算が
+  その分だけ遅くなる(テナー別のカーブ34本が残っていると、全期間の1系列が約10分かかった)。
+  そのため、テナー別のカーブは持たず、キャッシュも最新のスナップショット1組だけにする。
+  全UDFが同じRealTimeの範囲と評価日を渡すので、古い組が使われることはない。
 
   QuantLibのカーブは評価日(グローバル設定)に連動しており、ヒストリカル計算などで評価日が
   切り替わった後の最初の利用時には再計算される(値は同じ。price_swapが入口で評価日を戻す)。
 """
 
 from collections import OrderedDict
+from contextlib import contextmanager
 from datetime import date
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple
 
 from engine.common.curve import BootstrapResult, bootstrap_curve, normalize_tenor
 from engine.common.historical_store import HistoricalStore
@@ -36,7 +46,7 @@ from engine.common.market_data import Market
 
 BUMP_BP = 1.0
 ON_LABEL = "o/n"
-_CACHE_SIZE = 4  # 今日のRealTime・過去日など、直近のスナップショットだけ保持する
+_CACHE_SIZE = 1  # 最新のスナップショットだけ保持する(モジュールのdocstring参照)
 
 
 class MarketSnapshot(NamedTuple):
@@ -97,7 +107,7 @@ def db_snapshot(valuation_date: date, labels: Sequence[str], store: HistoricalSt
 
 
 class CurveSet:
-    """1つのスナップショットに対する基準カーブと、+1bpしたカーブ(必要になったら作る)。
+    """1つのスナップショットに対する基準カーブと、+1bpしたカーブ(パラレルは必要になったら作る)。
     計算には、カーブにスナップショットのTONA実績を添えた市場データ(Market)を渡す。"""
 
     def __init__(self, snapshot: MarketSnapshot):
@@ -112,7 +122,6 @@ class CurveSet:
         # バンプの対象 = 実際にカーブに使っているテナーだけ(入力のラベルのまま)
         self.bump_labels: List[str] = [k for k in self._quotes if normalize_tenor(k) in used]
         self._parallel: Optional[Market] = None
-        self._bucket: Dict[str, Market] = {}
 
     def _market(self, boot: BootstrapResult) -> Market:
         return Market(self.valuation_date, boot.curve, boot.index, self._fixings)
@@ -128,12 +137,20 @@ class CurveSet:
             self._parallel = self._bumped(self.bump_labels)
         return self._parallel
 
-    def bucket(self, label: str) -> Market:
-        if label not in self._bucket:
-            if label not in self.bump_labels:
-                raise ValueError(f"カーブに使っていないテナーはバンプできません: {label}")
-            self._bucket[label] = self._bumped([label])
-        return self._bucket[label]
+    @contextmanager
+    def bumped(self, label: str) -> Iterator[Market]:
+        """with文の中だけ、そのテナーのクォートを+1bpした基準カーブの市場データ。抜けると(例外でも)
+        元の値に戻す。中で base を使う他の計算をしないこと(同じカーブを書き換えているため)。"""
+        if label not in self.bump_labels:
+            raise ValueError(f"カーブに使っていないテナーはバンプできません: {label}")
+        quote = self.base_curve.quotes[normalize_tenor(label)]
+        original = quote.value()
+        # parallel()(=_bumped)と同じ値の計算: %で+1bpしてから小数に直す
+        quote.setValue((self._quotes[label] + BUMP_BP / 100.0) / 100.0)
+        try:
+            yield self.base
+        finally:
+            quote.setValue(original)
 
 
 _cache: "OrderedDict[MarketSnapshot, CurveSet]" = OrderedDict()
@@ -149,3 +166,13 @@ def curve_set(snapshot: MarketSnapshot) -> CurveSet:
     while len(_cache) > _CACHE_SIZE:
         _cache.popitem(last=False)
     return result
+
+
+def release_curves() -> None:
+    """キャッシュのカーブ一式を手放す。評価日を何度も切り替える計算(ヒストリカル)の前に呼ぶ。
+
+    生きているカーブのヘルパーは評価日の変更のたびに日付を作り直すので、基準カーブ1本が残って
+    いるだけでもヒストリカルの全期間が数倍遅くなる(実DBの5Yで0.5秒→4.5秒)。手放したあと、
+    pricing側は次に必要になったときに組み直す(基準カーブ・パラレルとも0.05秒程度)。
+    """
+    _cache.clear()

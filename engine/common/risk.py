@@ -3,7 +3,8 @@
 全行で共有)から受け取り、ここではブートストラップしない。
 
 - parallel_delta: カーブに使っている全テナーを+1bpしたときのPV差分
-- bucketed_delta: テナーごとに1本ずつ+1bpしたときのPV差分(カーブに使っているテナーだけ)
+- bucketed_deltas / bucketed_delta: テナーごとに1本ずつ+1bpしたときのPV差分(カーブに使っている
+  テナーだけ)。基準カーブのクォートを1本ずつ一時的に+1bpして、全ポジションをまとめて評価する
 - annuity_delta: Notional × アニュイティ × 0.0001 の解析的近似値(参考値)
 - solve_notional_for_target_delta: D列(目標delta)からE列(adj_notional)を逆算する
 
@@ -14,7 +15,7 @@
 """
 
 from dataclasses import replace
-from typing import Dict
+from typing import Dict, List, Sequence
 
 from engine.common.market_data import Market
 from engine.common.swap_pricer import SwapPricingResult, price_swap
@@ -41,13 +42,22 @@ def parallel_delta(curves, params: SwapParams) -> float:
     return price(curves.parallel(), params).pv - base
 
 
+def bucketed_deltas(curves, params_list: Sequence[SwapParams]) -> List[Dict[str, float]]:
+    """ポジションごとの {テナーのラベル: 円}。params.fix_rate は resolve_params で固定済みであること。
+    テナーごとにクォートを1回だけ動かし(カーブの引き直しはテナーの数だけ)、その間に全ポジションを
+    評価する(RiskGridの全行)。"""
+    base = [price(curves.base, p).pv for p in params_list]
+    deltas: List[Dict[str, float]] = [{} for _ in params_list]
+    for label in curves.bump_labels:
+        with curves.bumped(label) as bumped:
+            for n, p in enumerate(params_list):
+                deltas[n][label] = price(bumped, p).pv - base[n]
+    return deltas
+
+
 def bucketed_delta(curves, params: SwapParams) -> Dict[str, float]:
-    """{テナーのラベル: 円}。params.fix_rate は resolve_params で固定済みであること。"""
-    base = price(curves.base, params).pv
-    return {
-        label: price(curves.bucket(label), params).pv - base
-        for label in curves.bump_labels
-    }
+    """{テナーのラベル: 円}。1ポジション版(bucketed_deltas)。"""
+    return bucketed_deltas(curves, [params])[0]
 
 
 def annuity_delta(annuity: float, notional: float, pay_rec: str, bump_bp: float = 1.0) -> float:
