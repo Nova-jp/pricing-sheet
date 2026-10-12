@@ -245,10 +245,8 @@ class TenorStartUdfTest(unittest.TestCase):
         by_date = udf.RiskGrid([_HEADER, _pricing_row(1, self.fwd, "20y")], self.rt)
         self.assertEqual(by_tenor, by_date)
 
-class HistoricalLatestRealTimeTest(unittest.TestCase):
-    """HistoricalRates: 基準日が今日なら、最新日(今日)はDBの引け値ではなくRealTimeのレートで計算する。"""
-
-    CONV_ROW = ["", "10y", "", *CONV_ARGS]
+class _HistoricalDbCase(unittest.TestCase):
+    """朝バッチで作ったヒストリカルDB(SPOT_RATES)と、全テナー+10bpのRealTimeを用意する。"""
 
     def setUp(self):
         market._cache.clear()
@@ -268,6 +266,12 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
         for p in self.patches:
             p.stop()
         self._tmp.cleanup()
+
+
+class HistoricalLatestRealTimeTest(_HistoricalDbCase):
+    """HistoricalRates: 基準日が今日なら、最新日(今日)はDBの引け値ではなくRealTimeのレートで計算する。"""
+
+    CONV_ROW = ["", "10y", "", *CONV_ARGS]
 
     def _rates(self, today, base_date=None, real_time_range="rt", conventions=None):
         rt = self.rt if real_time_range == "rt" else real_time_range
@@ -307,6 +311,48 @@ class HistoricalLatestRealTimeTest(unittest.TestCase):
             rows = self._rates(date(2026, 9, 29), conventions=[[""] * 8] * 3)
         self.assertEqual([r[0] for r in rows[1:]], DAYS + [date(2026, 9, 29)])
         spy.assert_not_called()
+
+
+class HedgeHistoricalRatesUdfTest(_HistoricalDbCase):
+    """HedgeHistoricalRates: HistChartの日付軸(降順)どおりに、テナーごとのスポットのパーレートを返す。
+    値はHistoricalRates(標準の規約のスポットのスワップ)と同じで、今日の行はRealTimeのレート。"""
+
+    TODAY = date(2026, 9, 29)  # 営業日、DBにない
+
+    def _hedge(self, tickers, dates, rt="rt", mode="ROLLING"):
+        rt = self.rt if rt == "rt" else rt
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            return udf.HedgeHistoricalRates([[t] for t in tickers], mode, [[d] for d in dates], None, rt)
+
+    def _outright(self, tenor, mode="ROLLING"):
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            rows = udf.HistoricalRates([["", tenor, "", *CONV_ARGS]], mode, None, None, None, self.rt)
+        return {r[0]: r[1] for r in rows[1:]}
+
+    def test_matches_outright_series_in_given_order(self):
+        dates = [self.TODAY] + DAYS[::-1]  # HistChart_Dateと同じ降順
+        rows = self._hedge(["2Y", "10Y"], dates)
+        for col, tenor in enumerate(["2Y", "10Y"]):
+            expected = self._outright(tenor)
+            self.assertEqual([r[col] for r in rows], [expected[d] for d in dates])
+
+    def test_fixed_mode(self):
+        rows = self._hedge(["5Y"], DAYS, mode="FIXED")
+        expected = self._outright("5Y", mode="FIXED")
+        self.assertEqual([r[0] for r in rows], [expected[d] for d in DAYS])
+
+    def test_tenor_excluded_from_live_curve_is_blank_today(self):
+        """RealTimeのフラグ0(今日のカーブに使っていない)テナーは、今日の行だけ空欄。"""
+        rt = [[0 if t == "5Y" else f, t, v] for f, t, v in self.rt]
+        rows = self._hedge(["5Y"], [self.TODAY, DAYS[-1]], rt=rt)
+        self.assertEqual(rows[0], [""])
+        self.assertIsInstance(rows[1][0], float)
+
+    def test_blank_tickers_and_unknown_dates(self):
+        rows = self._hedge(["", "5Y", None], [DAYS[0], "", date(2026, 1, 3)])
+        self.assertIsInstance(rows[0][0], float)
+        self.assertEqual(rows[1:], [[""], [""]])
+        self.assertEqual(self._hedge([""], DAYS[:2]), [[""], [""]])
 
 if __name__ == "__main__":
     unittest.main()

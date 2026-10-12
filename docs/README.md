@@ -26,8 +26,9 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   x64 Python環境で実行)。価格の値はQuantLibを正とし、自前ロジックだけをテストする
   - `test_curve_repricing.py` — 市場レート逆算精度の要件(機械精度〜0.1bp未満)
   - `test_past_start.py` — 過去起算(フィキシング不足時のエラー等)と評価日の扱い
-  - `test_market_risk.py` — カーブ一式の共有とデルタ(旧手順との一致)、RiskGrid、評価日の切り替え、startのテナー入力、HistChartの最新日(RealTime)
+  - `test_market_risk.py` — カーブ一式の共有とデルタ(旧手順との一致)、RiskGrid、評価日の切り替え、startのテナー入力、HistChartの最新日(RealTime)、HistChartのヘッジ(`HedgeHistoricalRates`)
   - `test_imm.py` — IMMコードの解釈とIMMロールのスケジュール、startのテナー表記の判定
+  - `test_hedge.py` — ヘッジの重ね表示用のテナー別パーレート(日付の並び、カーブに使っていないテナーの空欄、入力の確認)
   - `test_historical.py` — ヒストリカル計算(FIXED/ROLLINGの日付の決め方・営業日数の固定、先読みしないフィキシング、満期後の除外)
   - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
   - `test_neon_source.py` — ASWスプレッド取得の対象テーブル・差分取得・接続の後始末(psycopg2をモック)

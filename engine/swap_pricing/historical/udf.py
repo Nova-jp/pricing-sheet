@@ -1,5 +1,6 @@
 """
-HistChartシート用のUDF(任意コンベンションのヒストリカル・パーレート推移)。
+HistChartシート用のUDF(任意コンベンションのヒストリカル・パーレート推移と、ヘッジの重ね表示用の
+テナー別スポットのパーレート)。
 
 ブートストラップをせず、朝バッチ(engine/common/morning_batch.py)が作った日次カーブDB
 (data/historical.db)を読むだけ。Excel境界の型変換・評価日解決・`_market`は
@@ -15,6 +16,7 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.conventions import CALENDAR, is_imm_code, is_tenor
+from engine.swap_pricing.historical.hedge import hedge_rate_rows
 from engine.swap_pricing.historical.pricer import (
     SwapSpec,
     historical_multi_rate_series,
@@ -111,6 +113,22 @@ class _WithRealTimeLatest:
             return udf_common._market(self._real_time_range, self._today).base
         return self._store.load(as_of_date, until=until)
 
+    def used_tenors(self):
+        used = self._store.used_tenors()
+        live = udf_common._market(self._real_time_range, self._today).base_curve.used_tenors
+        used[self._today] = set(live)
+        return used
+
+
+def _curve_source(store: HistoricalStore, real_time_range, base: datetime.date, today: datetime.date):
+    """基準日が今日で今日が営業日なら、今日をRealTimeのライブのレートで加えた供給元。"""
+    if (
+        real_time_range is not None and base == today
+        and CALENDAR.isBusinessDay(ql.Date.from_date(today))
+    ):
+        return _WithRealTimeLatest(store, real_time_range, today)
+    return store
+
 
 @xw.func
 @xw.arg("conventions", ndim=2)
@@ -139,12 +157,7 @@ def HistoricalRates(
     today = udf_common._today()
     base = udf_common._to_date(base_date) or today
     with udf_common._historical_store() as store:
-        curves = store
-        if (
-            real_time_range is not None and base == today
-            and CALENDAR.isBusinessDay(ql.Date.from_date(today))
-        ):
-            curves = _WithRealTimeLatest(store, real_time_range, today)
+        curves = _curve_source(store, real_time_range, base, today)
         series = historical_multi_rate_series(
             active, mode, base_date=base, from_date=udf_common._to_date(from_date),
             to_date=udf_common._to_date(to_date), fixings=db_fixings(store) if active else None,
@@ -159,3 +172,47 @@ def HistoricalRates(
             row.append(leg.par_rate if leg is not None else "")
         rows.append(row)
     return rows
+
+
+def _column(values) -> list:
+    """1列(または1行)の範囲 → 値のリスト。"""
+    rows = [list(r) if isinstance(r, (list, tuple)) else [r] for r in (values or [])]
+    if len(rows) == 1 and len(rows[0]) > 1:
+        return rows[0]
+    return [r[0] if r else None for r in rows]
+
+
+@xw.func
+@xw.arg("tickers", ndim=2)
+@xw.arg("dates", ndim=2)
+@xw.arg("real_time_range", ndim=2)
+def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=None) -> List[list]:
+    """
+    ヘッジ(HistChartで系列1に重ねる仮想金利)用に、スポットのテナーごとのパーレート(%)を、
+    dates の並びどおりに返す(行=dates、列=tickers。見出し行なし)。Σ d_i × r_i・縮尺・水準合わせは
+    Excelの数式で行う(engine/swap_pricing/historical/hedge.py、docs/decisions.md)。
+
+    tickers: ヘッジに使うテナー(RealTimeのTicker、例 5Y)の1列。空欄は無視する。
+        O/Nと会合スワップ(RD・M1〜)はエラー。
+    mode: "ROLLING"(満期一定のスポット)/ "FIXED"(基準日に取引したスポットのスワップを日付固定)。
+    dates: 日付の1列(通常は HistChart_Date)。カーブの無い日・そのテナーをカーブに使っていない日
+        (クォートが無かった日)は空欄("")。
+    base_date / real_time_range: HistoricalRates と同じ(基準日が今日で営業日なら、今日の行は
+        RealTimeのライブのレート)。
+    """
+    labels = [v for v in _column(tickers) if not udf_common._is_blank(v)]
+    days = []
+    for v in _column(dates):
+        try:
+            days.append(udf_common._to_date(v))
+        except ValueError:
+            days.append(None)
+    today = udf_common._today()
+    base = udf_common._to_date(base_date) or today
+    with udf_common._historical_store() as store:
+        rows = hedge_rate_rows(
+            labels, mode, days, base_date=base, fixings=db_fixings(store),
+            curves=_curve_source(store, real_time_range, base, today),
+        )
+    width = max(len(labels), 1)
+    return [[v if v is not None else "" for v in row] or [""] * width for row in rows]
