@@ -360,6 +360,42 @@ class HistoricalLatestRealTimeTest(_HistoricalDbCase):
         spy.assert_not_called()
 
 
+class ReleaseCurvesTest(_HistoricalDbCase):
+    """ヒストリカル系UDFは、評価日を日付ごとに切り替える前にpricingのカーブを手放す(生きているカーブの
+    ヘルパーが評価日の変更のたびに日付を作り直し、ヒストリカルが遅くなるため)。"""
+
+    TODAY = date(2026, 9, 29)  # 営業日、DBにない
+    CONV_ROW = ["", "5y", "", *CONV_ARGS]
+
+    def _call(self, fn):
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            udf.FairRate(spot_date_for(self.TODAY), "5y", None, *CONV_ARGS, self.rt, None)
+            pricing = list(market._cache.values())
+            self.assertEqual(len(pricing), 1)
+            fn()
+            return pricing[0]
+
+    def test_historical_releases_pricing_curves(self):
+        self._call(lambda: udf.HistoricalRates([self.CONV_ROW], "ROLLING", DAYS[-1], None, None, None))
+        self.assertEqual(len(market._cache), 0)
+        self._call(lambda: udf.HistoricalRate(None, "5y", None, *CONV_ARGS, "ROLLING", DAYS[-1]))
+        self.assertEqual(len(market._cache), 0)
+        self._call(lambda: udf.HedgeHistoricalRates([["5Y"]], "ROLLING", [[DAYS[0]]], DAYS[-1], None))
+        self.assertEqual(len(market._cache), 0)
+
+    def test_date_axis_only_keeps_pricing_curves(self):
+        pricing = self._call(lambda: udf.HistoricalRates([[""] * 7] * 3, "ROLLING", None, None, None, self.rt))
+        self.assertEqual(list(market._cache.values()), [pricing])
+        pricing = self._call(lambda: udf.HedgeHistoricalRates([[""]], "ROLLING", [[DAYS[0]]], None, self.rt))
+        self.assertEqual(list(market._cache.values()), [pricing])
+
+    def test_today_row_leaves_the_same_snapshot_as_pricing(self):
+        """今日の行(RealTime)で組んだカーブは、pricingと同じスナップショットとして残る(値も同じ)。"""
+        pricing = self._call(lambda: udf.HistoricalRates([self.CONV_ROW], "ROLLING", None, None, None, self.rt))
+        (after,) = market._cache.values()
+        self.assertEqual(after.snapshot, pricing.snapshot)
+
+
 class HedgeHistoricalRatesUdfTest(_HistoricalDbCase):
     """HedgeHistoricalRates: HistChartの日付軸(降順)どおりに、テナーごとのスポットのパーレートを返す。
     値はHistoricalRates(標準の規約のスポットのスワップ)と同じで、今日の行はRealTimeのレート。"""

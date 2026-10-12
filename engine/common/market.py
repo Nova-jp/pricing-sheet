@@ -166,3 +166,13 @@ def curve_set(snapshot: MarketSnapshot) -> CurveSet:
     while len(_cache) > _CACHE_SIZE:
         _cache.popitem(last=False)
     return result
+
+
+def release_curves() -> None:
+    """キャッシュのカーブ一式を手放す。評価日を何度も切り替える計算(ヒストリカル)の前に呼ぶ。
+
+    生きているカーブのヘルパーは評価日の変更のたびに日付を作り直すので、基準カーブ1本が残って
+    いるだけでもヒストリカルの全期間が数倍遅くなる(実DBの5Yで0.5秒→4.5秒)。手放したあと、
+    pricing側は次に必要になったときに組み直す(基準カーブ・パラレルとも0.05秒程度)。
+    """
+    _cache.clear()
