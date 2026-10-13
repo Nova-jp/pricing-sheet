@@ -34,6 +34,8 @@ RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
+    # ボラ分析のたたき台(tools/vol_lab)。データシートの3行目以降は python -m tools.vol_lab がDBから書き込む
+    "VolLab.xlsx": {"IV": 3, "dF": 3, "dF2累積": 3, "Fwd": 3, "残存": 3, "追跡": 3},
 }
 
 # 雛形に入ってよい部品(これ以外があれば検査で失敗させ、消す対象か許可する対象かを人が判断する)
