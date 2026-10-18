@@ -38,7 +38,7 @@ def _to_date(value) -> Optional[datetime.date]:
         return imm_code_to_date(value)
     raise ValueError(
         f"日付として解釈できません: {value!r}(IMMコードは月記号H/M/U/Z+2桁の年、例: M27。"
-        "startにはテナー(例: 10y)も入力できる)"
+        "startにはテナー(例: 10y)・営業日数(例: 2bd)も入力できる)"
     )
 
 

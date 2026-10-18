@@ -1,7 +1,7 @@
 """
 業務上のコンベンション表記 → QuantLibの引数・オブジェクトへの変換を一か所にまとめたモジュール。
 
-pricingシート・RealTimeシート等の入力(テナー表記、dcf、freq、roll conv、IMMコード)を
+pricingシート・RealTimeシート等の入力(テナー表記、dcf、freq、roll conv、IMMコード、営業日数(2bd))を
 QuantLibが受け取れる形に変換する対応表と、日本の営業日カレンダーだけを持つ。
 営業日判定・加算・スケジュール生成等の日付アルゴリズムは全てQuantLib純正のAPI
 (CALENDAR.isBusinessDay/adjust/advance、ql.MakeOIS等)を呼び出し側で直接使い、
@@ -139,3 +139,23 @@ def forward_start_date(spot: date, tenor: str) -> date:
     """スポット日+tenor(休日調整前)。ql.MakeOISのフォワードスタート(spotDate + forwardStart)と
     同じ扱いで、休日調整はスケジュール生成(Modified Following)に任せる。"""
     return (ql.Date.from_date(spot) + ql.PeriodParser.parse(tenor.strip().upper())).to_date()
+
+
+# --- start列の営業日数入力(2bd=スポット、10bd=10営業日後スタート) ---
+_BUSINESS_DAYS = re.compile(r"^(\d+)BD$", re.IGNORECASE)
+
+
+def is_business_days(value) -> bool:
+    """'2bd'・'10BD' のような営業日数の表記か(start列に評価日からN営業日後の起算日として入力できる)。"""
+    return isinstance(value, str) and _BUSINESS_DAYS.match(value.strip()) is not None
+
+
+def business_days_start(valuation_date: date, value: str) -> date:
+    """評価日からN営業日後(ql.Japan)。評価日を営業日に調整してから進めるので、スポット日
+    (MakeOISの設定日=調整した評価日+2営業日)と同じ数え方になり、2bdはスポット日と一致する。
+    0bdは評価日(休日なら翌営業日)。"""
+    m = _BUSINESS_DAYS.match(value.strip())
+    if m is None:
+        raise ValueError(f"営業日数は数字+bdで入力してください(例: 2bd): {value!r}")
+    base = CALENDAR.adjust(ql.Date.from_date(valuation_date))
+    return CALENDAR.advance(base, int(m.group(1)), ql.Days).to_date()

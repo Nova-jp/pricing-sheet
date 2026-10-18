@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import morning_batch, market, udf_common  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
-from engine.common.conventions import forward_start_date  # noqa: E402
+from engine.common.conventions import business_days_start, forward_start_date  # noqa: E402
 from engine.common.curve import bootstrap_curve, normalize_tenor, spot_date_for  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.market import curve_set, realtime_snapshot  # noqa: E402
@@ -287,6 +287,36 @@ class TenorStartUdfTest(unittest.TestCase):
         by_date = udf.RiskGrid([_HEADER, _pricing_row(1, self.fwd, "20y")], self.rt)
         self.assertEqual([r[0] for r in by_tenor], [r[0] for r in by_date])
         for a, b in zip(by_tenor[1:], by_date[1:]):
+            if a[1] == "":
+                self.assertEqual(b[1], "")
+            else:
+                self.assertAlmostEqual(a[1], b[1], delta=BOOTSTRAP_TOL_YEN / 1_000_000)  # 百万円
+
+
+class BusinessDaysStartUdfTest(unittest.TestCase):
+    """start列の営業日数(2bd等)は、評価日からN営業日後の日付を入れたのと同じ。2bdはスポット日。"""
+
+    def setUp(self):
+        market._cache.clear()
+        self.rt = _rt_range()
+        self.curves = udf_common._market(self.rt, None)
+
+    def test_pricing_udfs(self):
+        conv = list(CONV_ARGS)
+        self.assertEqual(
+            udf.FairRate("2bd", "5y", None, *conv, self.rt),
+            udf.FairRate(self.curves.spot_date, "5y", None, *conv, self.rt),
+        )
+        start = business_days_start(self.curves.valuation_date, "10bd")
+        args = (NOTIONAL, "PAY", None, self.rt)
+        self.assertEqual(
+            udf.SwapPV("10BD", "5y", None, *conv, *args),
+            udf.SwapPV(start, "5y", None, *conv, *args),
+        )
+        by_days = udf.RiskGrid([_HEADER, _pricing_row(1, "10bd", "5y")], self.rt)
+        by_date = udf.RiskGrid([_HEADER, _pricing_row(1, start, "5y")], self.rt)
+        self.assertEqual([r[0] for r in by_days], [r[0] for r in by_date])
+        for a, b in zip(by_days[1:], by_date[1:]):
             if a[1] == "":
                 self.assertEqual(b[1], "")
             else:
