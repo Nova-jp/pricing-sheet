@@ -43,7 +43,7 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 - 評価日はMainシートの`評価日`セル(空欄=今日)に集約し、UDFの引数に`TODAY()`を使わない
   (volatileでF9のたびに全UDFが再計算される)。カーブは`engine/common/market.py`で全UDFが共有し、
   UDFごと・行ごとにブートストラップしない。
-- データの供給元はLSEG Workspace(RealTimeシートと`historical_data.xlsx`)と、ASWスプレッドだけは
+- データの供給元はLSEG Workspace(`LiveFeed.xlsm`と`historical_data.xlsx`)と、ASWスプレッドだけは
   Neon(`engine/common/neon_source.py`、読み取り専用)。ヒストリカルは手動実行のバッチ
   (`python -m engine.common.morning_batch`)が日次カーブ(とASW)を`data/historical.db`に保存し、
   日中のUDFはそれを読むだけ。カーブの引き方は`curve.CURVE_BUILDERS`に閉じ込め、保存・評価側は

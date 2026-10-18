@@ -1,7 +1,7 @@
 # 会社PC(Windows)でのセットアップ手順
 
 必要なのは (1) このリポジトリのコード一式、(2) xlwingsアドイン、(3) LSEG Workspace
-(`historical_data.xlsx`とRealTimeシートのデータ取得用)だけ。
+(`historical_data.xlsx`と`LiveFeed.xlsm`のデータ取得用)だけ。
 
 ## 1. リポジトリの取得
 
@@ -80,6 +80,31 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
    (Workspace未接続だと`#NAME?`、取得されないときはLSEGリボンの「更新」)。直下のブックは
    `.gitignore`済みなので、データ入りで保存してもコミットされない。
 
+## 4.1 リアルタイムのレート(LiveFeed.xlsm)
+
+PricingSheet・SwapAnalysisはLSEGから直接取らず、各フロントシートが`LiveFeed.xlsm`が
+`data/live.db`に書き出した値を読む(LiveFeedは常に自動計算、プライシングは手動計算のまま。理由は
+[decisions.md](decisions.md))。Excelの計算方法はExcel(プロセス)ごとに1つなので、**別々のExcelで開く**。
+
+1. 1つ目のExcel(LSEG Workspaceにログイン済み)で`LiveFeed.xlsm`(雛形からコピー)を開く。計算方法が
+   「自動」になっていることを確認する。RealTimeシートH2・RealTimeVolシートI2の`PublishLive`のセルに
+   「swap: 時刻 更新 / 44行」のように出ていれば書き出せている。初回とUDFの変更時は「Import Functions」
+   (`LiveFeed.py`から`PublishLive`を登録)。
+2. 2つ目のExcelを**別プロセスで**起動する(Altキーを押したままタスクバーのExcelをクリックし、
+   「新しいインスタンスを開始しますか」で「はい」。または`excel.exe /x`)。そこで`PricingSheet.xlsm`・
+   `SwapAnalysis.xlsm`を開く。計算方法は「手動」。
+3. 各フロントシート(Main・pricing・HistChart・BOJ・PCA・VolPCA)の1行目が取得モードの欄。B1のプルダウンが`Live`なら、
+   そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。
+   `Fixed`にすると、そのシートが最後にLiveで読んだレートのまま止まり、Shift+F9では入力を変えたセル
+   (追加したコンベンションの行など)だけがそのレートで計算される(HistChartの重い再計算も止まる)。
+   Ctrl+Alt+F9・UDFサーバの再起動でも固定の値は変わらない。D1(Updated)は、表示中のレートの値が
+   LiveFeedで最後に変わった時刻。ブックを開いた直後は前回保存した値なので、最初に1回Ctrl+Alt+F9を押す。
+   リアルタイムの列は折りたたんである(列の上の「+」で開く)。
+4. LiveFeedを開いていなければ、読み直すと「リアルタイムのデータがありません」のエラーになる。
+   LiveFeedの行(RIC)を増やしたときは`PublishLive`の範囲も広げる。PricingSheetで使うテナーを足すときは
+   MainシートのA11:B54(Ticker/採否)にも足し、各シートのカーブ用の範囲(`Main!$A$11:$A$54`)を広げる
+   (読む側はTickerで引き当てる)。
+
 ## 5. 毎朝の手順(ヒストリカルの日次カーブDBの更新)
 
 1. `historical_data.xlsx`をExcelで開き、LSEGのデータ更新が終わったら**保存**する
@@ -95,7 +120,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
    `data/historical.db`(LSEG由来のデータ、コミットしない)が作成・更新される。
 3. カーブに使うテナーや引き方は`historical_curve.toml`で変更する(変更後に再実行すると、
    影響する日だけ作り直される)。全日付を作り直すときは`--rebuild`を付ける。
-4. 評価日はMainシートのB3(空欄=今日)。`TODAY()`は使っていないので、日付が変わっても
+4. 評価日はMainシートのB4(空欄=今日)。`TODAY()`は使っていないので、日付が変わっても
    レートや入力が変わらない限り再計算されない(LSEGの更新でレートが変われば再計算される)。
 
 ## 5.1 分析ブック(SwapAnalysis.xlsm)
@@ -106,8 +131,8 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 - 過去分はDB(`data/historical.db`)を読むので、上の毎朝のバッチを先に実行しておく
   (スワップの生ミッドとVolシートのボラを取り込む)。
 - PCA(スワップ)/VolPCA(ボラ)シートの左の設定欄で推定(推定基準日・window・モード・標準化)と
-  比較(比較日・主成分数)を入れてF9。結果は同じシートの右側に出る。比較日が空欄なら
-  RealTime/RealTimeVolシートのライブの値と比べる。
+  比較(比較日・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。比較日が空欄なら
+  そのシートのライブの値(1行目の取得モードがLiveなら読み直す)と比べる。
 
 ## 6. コードを更新したとき(git pull後など)
 
@@ -120,16 +145,19 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 - [ ] `pricing`シートの行にコンベンションを入力し、`target fixrate`列に
       パーレートが表示される
 - [ ] F9で再計算され、値が更新される(自動計算はオフのまま)
-- [ ] `risk_flag`を1にした行があると、pricingシートZ列のRiskGridに、RealTimeの
-      テナー行の並びでテナー別デルタの合計が入る。AD1(合計)がAD2(行ごとのdeltaの
+- [ ] 別のExcelで`LiveFeed.xlsm`を開いた状態で、取得モード(B1)が`Live`のシートでShift+F9を1回押すと、
+      そのシートが最新のレートで計算され、D1の時刻が新しくなる。B1を`Fixed`にするとShift+F9・F9・
+      Ctrl+Alt+F9でもレートが変わらず、Fixedのまま追加した行はそのレートで計算される
+- [ ] `risk_flag`を1にした行があると、pricingシートY列のRiskGridに、Mainの
+      テナー行の並びでテナー別デルタの合計が入る。AC2(合計)がAC3(行ごとのdeltaの
       risk_flag=1の合計)とほぼ一致する
       (先頭の1セルしか出ない場合は、数式の先頭に`@`が付いていないか確認)
-- [ ] `RealTime`シートのスポット行のB列(採否フラグ)を0にしてF9すると、
+- [ ] MainシートのA11:B54(カーブのテナー)のB列(採否フラグ)を0にしてF9すると、
       そのテナーがカーブから外れて`target fixrate`が変化し、RiskGridのその行が
       空欄になる。1に戻すと元に戻る
 - [ ] `Main`シートの評価日に過去日(ヒストリカルDBにある日)を入れてF9すると、
       B4が「DB 日付」になり、pricingシートがその日のレートで計算される。
-      空欄に戻すと今日(RealTime)に戻る
+      空欄に戻すと今日(ライブ)に戻る
 - [ ] `python -m engine.common.morning_batch`の実行後、`Historical`シートの2Y/5Y/10Y
       アウトライトが下方向に広がり、2s10sカーブ・2s5s10sフライも表示される
 - [ ] `HistChart`シートの系列表に行番号を1つ(アウトライト)/2つ(カーブ)/3つ(フライ)

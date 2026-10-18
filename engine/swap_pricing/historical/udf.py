@@ -148,7 +148,7 @@ def HistoricalRates(
     mode: "FIXED" / "ROLLING"(全脚に共通)。base_date/from_date/to_date は HistoricalRate と同じ。
     期間内でカーブのある日付は全て返し、計算できない日(FIXEDで満期後)は空欄("")にする。
     日付ごとにDBからカーブを1回だけ読み、全脚を評価する。
-    real_time_range: RealTime!B2:D45(省略可)。基準日が今日(空欄を含む)で今日が営業日なら、
+    real_time_range: フラグ/Ticker/Value の範囲(TAKE($AO$3#,,3)。省略可)。基準日が今日(空欄を含む)で今日が営業日なら、
         今日を最新日として加え、DBの引け値ではなくRealTimeのライブのレートで計算する
         (pricingシートのFairRateと同じカーブ)。日付の並びを揃えるため、日付軸だけを求める
         呼び出しにも同じ範囲を渡すこと。並び順(昇順)の変更はExcel側で行う。

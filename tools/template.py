@@ -33,6 +33,7 @@ TEMPLATE_DIR = ROOT / "templates"
 RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
+    "LiveFeed.xlsm": {},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
@@ -78,6 +79,7 @@ UDF_MODULES = (
     ROOT / "engine" / "swap_pricing" / "boj" / "udf.py",
     ROOT / "engine" / "swap_pricing" / "asw" / "udf.py",
     ROOT / "engine" / "pca" / "udf.py",
+    ROOT / "engine" / "common" / "live_udf.py",
 )
 
 _CELL = re.compile(r'<c r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)', re.S)
