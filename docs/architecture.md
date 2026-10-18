@@ -231,7 +231,10 @@ target fixrate(Q列)は`IF(flag=1, FairRate(...), "")`で、A列のflagが1の�
 start/end列には日付のほか、IMMコード(月記号H/M/U/Z+2桁年、例: `M27`)も入力できる
 (`engine/common/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
 (例: `10y`)も入力でき、評価日のスポット日+tenor(休日調整前)を起算日にする
-(フォワードスタート。`10y`+tenor`20y`で10y20y。`conventions.forward_start_date`)。roll conv列(P列)は
+(フォワードスタート。`10y`+tenor`20y`で10y20y。`conventions.forward_start_date`)。営業日数
+(例: `2bd`・`10bd`)も入力でき、評価日からN営業日後(ql.Japan)を起算日にする(`2bd`=スポット日。
+`conventions.business_days_start`)。HistChartでは基準日からN営業日後の日付に直し、他の日付と同じく
+FIXED/ROLLINGで扱う。roll conv列(P列)は
 既定で数式になっており、startとendが両方IMMコードなら`IMM`、それ以外は`STD`を返す。
 STD等で計算したい行はドロップダウンで上書きする(UDFはroll convの値にそのまま従う)。
 上書きを元に戻すときは、上下の行からP列の数式をコピーする。

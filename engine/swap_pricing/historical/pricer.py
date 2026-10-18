@@ -12,6 +12,7 @@
   Mainシートの評価日、空欄=今日)の取引の起算日・満期日に直す。
     ・空欄のstart → Bのスポット日
     ・startのテナー(10y等) → Bのスポット日+tenor(フォワードスタート)
+    ・startの営業日数(2bd等) → BからN営業日後(2bd=Bのスポット日)
     ・IMMコード → そのIMM日(第3水曜)
     ・tenor → 起算日+tenor(QuantLibのスケジュールが組む満期日)
   FIXED/ROLLINGのどちらにするかは mode 引数だけで決まり、入力の種類には依存しない。
@@ -47,7 +48,8 @@ from typing import Dict, List, NamedTuple, Optional, Protocol, Sequence, Tuple, 
 import QuantLib as ql
 
 from engine.common.conventions import (
-    CALENDAR, ROLL_IMM, forward_start_date, imm_code_to_date, is_imm_code, is_tenor,
+    CALENDAR, ROLL_IMM, business_days_start, forward_start_date, imm_code_to_date, is_business_days,
+    is_imm_code, is_tenor,
 )
 from engine.common.curve import spot_date_for
 from engine.common.market_data import Market
@@ -89,13 +91,15 @@ def _input_date(value: DateInput) -> Optional[date]:
     return imm_code_to_date(value) if is_imm_code(value) else value
 
 
-def _input_start(value: DateInput, base_spot: date) -> date:
+def _input_start(value: DateInput, base_date: date, base_spot: date) -> date:
     """start の入力 → 基準日の取引の起算日。空欄は基準日のスポット日、テナー(10y等)は
-    基準日のスポット日+tenor(フォワードスタート)。"""
+    基準日のスポット日+tenor(フォワードスタート)、営業日数(2bd等)は基準日からN営業日後。"""
     if value is None:
         return base_spot
     if is_tenor(value):
         return forward_start_date(base_spot, value)
+    if is_business_days(value):
+        return business_days_start(base_date, value)
     return _input_date(value)
 
 
@@ -103,7 +107,7 @@ class SwapSpec(NamedTuple):
     """ヒストリカルを計算する1本のスワップの雛形(pricingシートの1行分)。
 
     規約は確定済み(SwapConvention)、start/end は日付に決まる前の入力のまま持つ
-    (空欄・テナー・IMMコードを含む)。基準日の取引に直すのは _leg_dates、各過去日の
+    (空欄・テナー・営業日数・IMMコードを含む)。基準日の取引に直すのは _leg_dates、各過去日の
     具体的なスワップ(SwapTerms)にするのは _LegDates.on。
     """
 
@@ -129,9 +133,9 @@ class _LegDates(NamedTuple):
         return SwapTerms(start.to_date(), self.base.convention, end=end.to_date())
 
 
-def _leg_dates(spec: SwapSpec, mode: str, base_spot: date) -> _LegDates:
+def _leg_dates(spec: SwapSpec, mode: str, base_date: date, base_spot: date) -> _LegDates:
     base = SwapTerms(
-        _input_start(spec.start, base_spot), spec.convention, tenor=spec.tenor, end=_input_date(spec.end),
+        _input_start(spec.start, base_date, base_spot), spec.convention, tenor=spec.tenor, end=_input_date(spec.end),
     )
     if mode == FIXED:
         return _LegDates(base, 0, 0)
@@ -195,10 +199,11 @@ def historical_multi_rate_series(
     mode = _normalize_mode(mode)
     legs_dates: List[_LegDates] = []
     if specs:
-        base_spot = spot_date_for(base_date or date.today())
+        base_date = base_date or date.today()
+        base_spot = spot_date_for(base_date)
         for n, spec in enumerate(specs, start=1):
             try:
-                legs_dates.append(_leg_dates(spec, mode, base_spot))
+                legs_dates.append(_leg_dates(spec, mode, base_date, base_spot))
             except Exception as e:
                 raise ValueError(f"{n}本目: {e}") from e
 

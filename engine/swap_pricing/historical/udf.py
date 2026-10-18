@@ -15,7 +15,7 @@ import QuantLib as ql
 import xlwings as xw
 
 from engine.common import market, udf_common
-from engine.common.conventions import CALENDAR, is_imm_code, is_tenor
+from engine.common.conventions import CALENDAR, is_business_days, is_imm_code, is_tenor
 from engine.swap_pricing.historical.hedge import hedge_rate_rows
 from engine.swap_pricing.historical.pricer import (
     SwapSpec,
@@ -28,10 +28,10 @@ from engine.common.terms import SwapConvention
 
 
 def _date_or_imm(value):
-    """ヒストリカル用のstart/end列の値 → 日付、IMMコード・テナーの文字列、または None(空欄)。
-    IMMコードとテナー(startのフォワードスタート)は文字列のまま渡し、日付への変換は
-    historical.pricer が基準日のスポット日を決めてから行う。"""
-    if isinstance(value, str) and (is_imm_code(value) or is_tenor(value)):
+    """ヒストリカル用のstart/end列の値 → 日付、IMMコード・テナー・営業日数の文字列、または None(空欄)。
+    IMMコード・テナー(startのフォワードスタート)・営業日数(2bd等)は文字列のまま渡し、日付への変換は
+    historical.pricer が基準日とそのスポット日を決めてから行う。"""
+    if isinstance(value, str) and (is_imm_code(value) or is_tenor(value) or is_business_days(value)):
         return value.strip().upper()
     return udf_common._to_date(value)
 

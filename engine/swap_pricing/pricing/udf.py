@@ -11,7 +11,7 @@ from typing import List
 import xlwings as xw
 
 from engine.common import udf_common
-from engine.common.conventions import forward_start_date, is_tenor
+from engine.common.conventions import business_days_start, forward_start_date, is_business_days, is_tenor
 from engine.common.risk import (
     annuity_delta,
     bucketed_deltas,
@@ -23,22 +23,24 @@ from engine.common.risk import (
 from engine.common.terms import SwapConvention, SwapParams, SwapTerms
 
 
-def _start_date(value, spot):
+def _start_date(value, curves):
     """start列の値 → 起算日。日付・IMMコードに加え、テナー(10y等)ならスポット日+tenor
-    (フォワードスタート)。"""
+    (フォワードスタート)、営業日数(2bd等)なら評価日からN営業日後(2bd=スポット日)。"""
     if is_tenor(value):
-        return forward_start_date(spot, value)
+        return forward_start_date(curves.spot_date, value)
+    if is_business_days(value):
+        return business_days_start(curves.valuation_date, value)
     return udf_common._to_date(value)
 
 
 def _params(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
-    notional, pay_rec, fix_rate, spot,
+    notional, pay_rec, fix_rate, curves,
 ) -> SwapParams:
     """pricingシートの1行分の入力 → ポジションの型。Excelの値を型に直すのはここだけ。
-    spot: 評価日のスポット日(startがテナー入力のときの起点)。"""
+    curves: 評価日のカーブ一式(startがテナー・営業日数の入力のときの起点=スポット日・評価日を使う)。"""
     terms = SwapTerms(
-        _start_date(start, spot), SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
+        _start_date(start, curves), SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
         tenor=None if udf_common._is_blank(tenor) else tenor, end=udf_common._to_date(end_date),
     )
     return SwapParams(
@@ -64,7 +66,7 @@ def FairRate(
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0, "PAY",
-        None, curves.spot_date,
+        None, curves,
     )
     return price(curves.base, params).target_fixrate
 
@@ -79,7 +81,7 @@ def SwapPV(
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, fix_rate, curves.spot_date,
+        pay_rec, fix_rate, curves,
     )
     return price(curves.base, params).pv
 
@@ -95,7 +97,7 @@ def SwapDelta(
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, fix_rate, curves.spot_date,
+        pay_rec, fix_rate, curves,
     )
     return parallel_delta(curves, resolve_params(curves, params)) / 1_000_000.0
 
@@ -110,7 +112,7 @@ def SwapAnnuityDelta(
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
-        pay_rec, None, curves.spot_date,
+        pay_rec, None, curves,
     )
     result = price(curves.base, params)
     return annuity_delta(result.annuity, float(notional), pay_rec) / 1_000_000.0
@@ -126,7 +128,7 @@ def NotionalForDelta(
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0,
-        pay_rec, None, curves.spot_date,
+        pay_rec, None, curves,
     )
     result = price(curves.base, params)
     target_delta_yen = float(target_delta_mm) * 1_000_000.0
@@ -181,7 +183,7 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
                 *(row[col[c]] for c in ("start", "tenor", "end", "fix freq", "fix dcf",
                                         "float freq", "roll conv", "notional",
                                         "pay/rec", "fix rate")),
-                curves.spot_date,
+                curves,
             ))
             price(curves.base, params)  # 計算できない行は、ここで行番号つきのエラーにする
         except Exception as e:

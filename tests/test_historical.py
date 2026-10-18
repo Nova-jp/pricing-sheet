@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import QuantLib as ql  # noqa: E402
 
-from engine.common.conventions import CALENDAR, forward_start_date, imm_code_to_date  # noqa: E402
+from engine.common.conventions import CALENDAR, business_days_start, forward_start_date, imm_code_to_date  # noqa: E402
 from engine.common.curve import bootstrap_curve, spot_date_for  # noqa: E402
 from engine.swap_pricing.historical.pricer import (  # noqa: E402
     FIXED,
@@ -141,6 +141,17 @@ class RollingTest(unittest.TestCase):
         )
         self.assertEqual(by_tenor, by_date)
 
+    def test_business_days_start_is_the_date_from_base_date(self):
+        """startの営業日数(10bd)は基準日からN営業日後の日付を入れたのと同じ。2bdはスポットスタート(空欄)と同じ。"""
+        start = business_days_start(BASE, "10bd")
+        by_days = _series(ROLLING, start="10BD", tenor="5Y", base_date=BASE, curves=_rates())
+        self.assertEqual(by_days, _series(ROLLING, start=start, tenor="5Y", base_date=BASE, curves=_rates()))
+        self._assert_rolled(by_days, start, _direct(BASE, start, tenor="5Y").maturity_date)
+        self.assertEqual(
+            _series(ROLLING, start="2BD", tenor="5Y", base_date=BASE, curves=_rates()),
+            _series(ROLLING, tenor="5Y", base_date=BASE, curves=_rates()),
+        )
+
     def test_imm_roll_conv_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "IMM"):
             _series(
@@ -175,6 +186,12 @@ class FixedTest(unittest.TestCase):
         for p in series:
             with self.subTest(as_of=p.as_of_date):
                 self.assertEqual(p.par_rate, _direct(p.as_of_date, start, tenor="5Y").target_fixrate)
+
+    def test_business_days_start_is_fixed_date(self):
+        start = business_days_start(BASE, "10bd")
+        series = _series(FIXED, start="10BD", tenor="5Y", base_date=BASE, curves=_rates())
+        self.assertEqual({p.start_date for p in series}, {start})
+        self.assertEqual(series, _series(FIXED, start=start, tenor="5Y", base_date=BASE, curves=_rates()))
 
     def test_past_start_uses_only_fixings_before_as_of_date(self):
         """過去日Dの計算にはD当日以降の実績を使わない(先読みしない)。"""
