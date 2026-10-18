@@ -10,3 +10,4 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = REPO_ROOT / "data"
 HISTORICAL_DB_PATH = DATA_DIR / "historical.db"
+LIVE_DB_PATH = DATA_DIR / "live.db"  # LiveFeed.xlsm(自動計算)→手動計算のブックへのリアルタイムの受け渡し

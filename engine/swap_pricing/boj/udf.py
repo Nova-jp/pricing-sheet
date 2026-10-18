@@ -52,7 +52,7 @@ def _meeting_curve(real_time_range, meeting_range, valuation_date) -> BootstrapR
         None,
     )
     if on_rate is None:
-        raise ValueError("RealTimeシートのO/Nの値がありません")
+        raise ValueError("ライブのO/Nの値がありません")
     periods = _meeting_periods(meeting_range)
     key = (valuation_date, on_rate, tuple(periods))
     if key not in _meeting_cache:
@@ -69,8 +69,8 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
     """会合スワップ(RD・M1〜)とO/Nで引いた階段状のカーブから、スポット起算のパーレート(%)を返す
     (tenorsと同じ行数の1列。標準コンベンション PA/act365f/STD = RealTimeのスポットと同じ)。
 
-    tenors: テナーの列(例: BOJ!A21:A33)。real_time_range: RealTime!B2:D45(O/Nを読む)。
-    meeting_range: RealTime!C36:F45(Ticker/Value/起算日/満期日)。valuation_date: Main!評価日。
+    tenors: テナーの列(例: BOJ!A22:A34)。real_time_range: TAKE($P$3#,,3)(フラグ/Ticker/Value。O/Nを読む)。
+    meeting_range: TAKE(DROP($P$3#,34,1),10,4)(会合スワップのTicker/Value/起算日/満期日)。valuation_date: Main!評価日。
     カーブの引き方は engine/swap_pricing/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
     エラーの文字列になる。
     """

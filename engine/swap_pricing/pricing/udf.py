@@ -1,5 +1,5 @@
 """
-Main/RealTime/pricingシート用のUDF(パーレート・PV・デルタ・notional逆算・リスクの合算)。
+Main/pricingシート用のUDF(パーレート・PV・デルタ・notional逆算・リスクの合算)。
 
 Excel境界の型変換と評価日時点のカーブ解決(`_market`等)は`engine.common.udf_common`に
 共有されている。このモジュールからは`udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。
@@ -55,7 +55,7 @@ def FairRate(
 ) -> float:
     """指定コンベンションのパーレート(%)を返す。tenorかend_dateのどちらかは空欄にする。
 
-    real_time_range は RealTime!B2:D45(B列=採否フラグ[1/空欄=使う, 0=使わない],
+    real_time_range は フラグ/Ticker/Value の範囲(各シートの TAKE(カーブ用の範囲#,,3)。1列目=採否フラグ[1/空欄=使う, 0=使わない],
     C列=Ticker, D列=Value)。valuation_date は Main!評価日(空欄=今日)。
 
     引数名は ``end`` だとVBAの予約語(Endステートメント)と衝突し、xlwingsが

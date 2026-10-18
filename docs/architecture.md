@@ -11,7 +11,7 @@
 ```
 [Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]       [Neon(Postgres、他プロジェクトと共用)]
   LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する                      public."ASW_data"(JGB銘柄別ASW、他プロジェクトのテーブルは触れない)
-  - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、RealTimeシートと同じ系列)
+  - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、LiveFeed.xlsmと同じ系列)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
         │                                                                              │
         ▼  朝に手動実行: python -m engine.common.morning_batch                          │ SELECTのみ、updated_atで差分取得
@@ -27,9 +27,59 @@
         │
         ▼  日中はDBを読むだけ(ブートストラップしない)
 [Excel: PricingSheet.xlsm]
-  RealTimeシート(LSEGアドインが手動更新するTicker/Value) ─▶ FairRate等のUDF(その場でカーブ構築)
+  各シートのライブのレート(LiveQuotes)+Mainの採否フラグ ─▶ FairRate等のUDF(その場でカーブ構築)
   HistoricalRate / HistoricalRates / HedgeHistoricalRates ─▶ DBのカーブで評価
 ```
+
+リアルタイムのレートは、自動計算のフィードブック(LSEGのRtGet/TRはここにだけある)から手動計算のブックへ
+ファイルで渡す(2026-10-18〜。理由は[decisions.md](decisions.md)):
+
+```
+[Excel A(自動計算): LiveFeed.xlsm]  RtGetの範囲 ─▶ =PublishLive("swap", 範囲)(ティックのたびに再計算)
+        │  値が変わったときだけ書く
+        ▼
+[data/live.db(ローカルのSQLite。LSEG由来なのでコミットしない)]
+        │  そのシートの取得モード(B1)がLiveなら再計算(Shift+F9)のたびに読む。Fixedなら読まない
+        ▼
+[Excel B(手動計算): PricingSheet.xlsm / SwapAnalysis.xlsm]
+  各フロントシートが自分で =IF($B$1="Fixed", LiveSnapshot("swap"), LiveQuotes("swap")) を持つ
+        ─▶ そのシートのUDF(引数の形は変更なし)
+```
+
+手動計算のブックにRealTime系のシートは無い(2026-10-18に削除)。Shift+F9はそのシートだけを
+再計算し、他のシートの値は計算し直さないので、ライブのレートは使うシートごとに読む。
+
+- **取得モードの欄(各フロントシートの1行目、同じデザイン。セルの文字は英語)**: A1「Rates」、
+  B1(薄黄色)=プルダウン`Live`/`Fixed`、C1「Updated」、D1=`=LiveInfo(データセット,ライブのセル#)`
+  (そのシートが読んだレートの値がLiveFeedで最後に変わった時刻)、E1=説明。
+  - `Live`: `LiveQuotes`(volatile)がShift+F9のたびに最新を読み、読んだ値をそのシートの固定の値として
+    `data/live.db`に保存する。
+  - `Fixed`: `LiveSnapshot`(非volatile)がその固定の値を返す。IFで`LiveQuotes`が呼ばれないとセルの
+    volatileが外れるので、Shift+F9で再計算されるのは入力を変えたセル(追加した行など)だけで、
+    それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
+- **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
+  単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
+  折りたたんである(Main H:Q、pricing AF:AO、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC)。
+- **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
+  INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
+  UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。LiveFeedに無いTickerは`#N/A`。
+
+| シート | ライブのレート | カーブ用の範囲 |
+|---|---|---|
+| Main | H3 | M3 |
+| pricing | AF3 | AK3 |
+| HistChart | AJ3 | AO3 |
+| BOJ | K3 | P3 |
+| PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
+| VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
+
+`LiveFeed.xlsm`のシート: `RealTime`(O/N〜40Y・RD・M1〜M9のRIC。O/NはTradition `JP1DONI=TRDT`の
+BID/ASKミッド(=TONA)。C2:F45=Ticker/Value/起算日/満期日を
+H2の`=PublishLive("swap",$C$2:$F$45)`が書き出す)、`RealTimeVol`(満期・原資産・銘柄・RIC`JPYTO{満期}X{原資産}ATM=R`・
+値`RtGet(…,"MID_IV_NOR")`=ノーマルvol bp。`CF_LAST`/`PRIMACT_1`/`MID_IV`はシフト付きログノーマル%、`CF_BID`/`CF_ASK`は
+両者が混在しているので使わない。C2:E401=
+銘柄/RIC/値をI2の`=PublishLive("vol",$C$2:$E$401)`が書き出す)。読む側はTicker(volはRIC)で引き当てるので、
+行の並びがブックごとに違ってもよい(LiveFeedに無いTickerは`#N/A`)。
 
 データの供給元はLSEG Workspace(カーブ・プライシング本体)とNeon(ASWスプレッド、参照データのみ)。
 Neonはクラウドだが、ASWスプレッド以外には使わない(クラウドの計算・保存基盤には戻さない)。
@@ -66,6 +116,8 @@ engine/
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存。`engine/pca/`も`HistoricalStore`をここから読む |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
+| `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(セルの値をそのままJSON、日付は型を保って)と値が最後に変わった時刻を持つ。値が変わらなければ書かない。WALで、書き込み中も別のExcelから読める |
+| `live_udf.py` | `live_store`のUDF。`PublishLive`(LiveFeed.xlsm専用、範囲を書き出す)、`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
 | `udf_common.py` | pricing/historical/BOJ/PCAのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
 
@@ -74,7 +126,7 @@ engine/
 | ファイル | 役割 |
 |---|---|
 | `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`・`asw/udf.py`) |
-| `pricing/udf.py` | Main/RealTime/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
+| `pricing/udf.py` | Main/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約のスポットのスワップ)。その日のカーブに使っていないテナー(クォートが無かった日)は補間値を出さず空欄。O/N・会合スワップは受け付けない |
@@ -123,7 +175,7 @@ LSEGのデータには依存しない。
   xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要。
   `engine/swap_pricing/udf.py`自体は薄い再エクスポート層で、実体はシート(機能)ごとに
-  `pricing_udf.py`(Main/RealTime/pricing)・`historical/udf.py`(HistChart)・
+  `pricing_udf.py`(Main/pricing)・`historical/udf.py`(HistChart)・
   `boj/udf.py`(BOJ)に分かれている。共有部分(Excel境界の型変換・評価日解決・`_market`)は
   `udf_common.py`に集約している(2026-10-12、機能ごとのディレクトリに分割。理由は[decisions.md](decisions.md))。
 - ブックの計算方法は「手動」。UDFは非volatileのままでよく、F9(再計算)を
@@ -135,29 +187,27 @@ LSEGのデータには依存しない。
 
 ## Excelブック構成(`PricingSheet.xlsm`)
 
-シート: `Main` / `RealTime` / `pricing` / `HistChart` / `ASW` / `BOJ` / `_xlwings.conf`
+シート: `Main` / `pricing` / `HistChart` / `ASW` / `BOJ` / `_xlwings.conf`(RealTimeシートは2026-10-18に削除。
+ASW以外のフロントシートの1行目は取得モードの欄。上の「データフロー」参照)
 
-### RealTimeシート
-
-列構成(2行目以降):
+### カーブのテナー(Mainシート A10:B54)
 
 | 列 | 内容 |
 |---|---|
-| A | 空。ただし行36-45(会合スワップ)は`RD`/1-9(D〜F列の数式が`"JPBOJ"&A&"ONI=TRDT"`でRICを作る) |
-| B | **スポット採否フラグ**。`1`または空欄=カーブ構築に使う、`0`=使わない。行2-35に設定。会合スワップの行36-45は`0` |
-| C | Ticker(テナーラベル。LSEGアドインが参照) |
-| D | Value(LSEG/RTDのライブ数式が更新するミッドレート=(BID+ASK)/2) |
-| E/F | 会合スワップの行だけ: 起算日/満期日(`TR(RIC,"GV1_DATE")`/`"GV2_DATE"`) |
+| A(A11:A54) | Ticker(テナーラベル。LiveFeed.xlsmのRealTimeのC列と同じ表記で引き当てる)。O/N〜40Y、RD、M1〜M9 |
+| B(B11:B54) | **スポット採否フラグ**。`1`または空欄=カーブ構築に使う、`0`=使わない。会合スワップの行(RD・M1〜M9)は`0` |
 
+各シートのカーブ用の範囲がこの並びで値・起算日・満期日を引き当てる(上の「データフロー」)。
 テナー表記は全て大文字。Reutersフィードの都合で **1Y/2Y/3Yは`12M`/`24M`/`36M`表記**
 (`1Y`/`2Y`/`3Y`表記とは`conventions.py`の`TENOR_ALIASES`で吸収)。
-行2のO/Nは`JP1DONI=TRDT`(Traditionの1日物OIS、チェーン`JPONI=TRDT`の先頭)のミッドで、
+O/Nは`JP1DONI=TRDT`(Traditionの1日物OIS、チェーン`JPONI=TRDT`の先頭)のミッドで、
 メインのカーブにも使う(過去の評価日・ヒストリカルのO/Nはその日のTONA実績)。
-行36-45は会合スワップ(TraditionのRD・M1〜M9、チェーン`JPONIBOJ=TRDT`)。RD=スポット日→会合1の
+LSEGのRIC(数式)は`LiveFeed.xlsm`のRealTimeシートにある。
+RD・M1〜M9は会合スワップ(TraditionのRD・M1〜M9、チェーン`JPONIBOJ=TRDT`)。RD=スポット日→会合1の
 決定日、M{n}=会合nの決定日の翌営業日→会合n+1の決定日。メインのカーブには使わず
 (`curve.EXCLUDED_MEETING_TENORS`で`skipped_tenors`計上)、BOJシートだけが使う。
 
-UDFに渡す標準範囲は `RealTime!$B$2:$D$45`(フラグ/Ticker/Value)。
+UDFに渡す範囲は、そのシートのカーブ用の範囲の`TAKE(範囲#,,3)`(フラグ/Ticker/Value。旧`RealTime!$B$2:$D$45`と同じ形)。
 過去起算のスワップのTONA実績は、ヒストリカルDB(朝のバッチが取り込んだもの)から読む。UDFの引数では
 受け取らず、`historical_data.xlsx`を開いておく必要もない(以前の`fixing_range`引数と外部リンクは
 2026-10-12に廃止)。DBが無ければスポット起点の計算だけが動き、過去起算は「実績が不足」のエラーになる。
@@ -176,6 +226,7 @@ delta(bump) / delta(annuity)`。float dcfの列は持たない(TONAの変動脚�
 指標に固定し、入力しても使われないため。2026-10-12に削除)。target fixrate・PV・delta・adj_notionalは
 UDF、spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則演算)。
 target fixrate(Q列)は`IF(flag=1, FairRate(...), "")`で、A列のflagが1の行だけ計算する。
+1行目は取得モードの欄、2行目が見出し、取引は3行目から(2026-10-18に1行挿入。HistChartの行番号もExcelの行番号)。
 
 start/end列には日付のほか、IMMコード(月記号H/M/U/Z+2桁年、例: `M27`)も入力できる
 (`engine/common/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
@@ -187,22 +238,22 @@ STD等で計算したい行はドロップダウンで上書きする(UDFはroll
 
 評価日の引数はすべて名前`評価日`(Mainシート)を参照する(`TODAY()`は使わない)。
 
-列Z以降: リスクの合算。Z1の`=RiskGrid(pricing!$A$1:$T$201, RealTime!$B$2:$D$45, 評価日,
-フィキシング範囲)`が、risk_flag=1の全行のテナー別デルタ(+1bp、百万円)の合計を
-RealTimeのテナー行の並びでTicker/Deltaの2列にスピルする(カーブに使っていないテナーは空欄)。
-AD1が全テナーの合計、AD2が参考として行ごとのdelta(V列、全テナー+1bp)のrisk_flag=1の合計。
-pricing表の列は見出し名で探すので、列を移動しても壊れない(見出し行=1行目から渡すこと)。
+列Y以降: リスクの合算。Y2の`=RiskGrid(pricing!$A$2:$S$202, TAKE($AK$3#,,3), 評価日)`が、
+risk_flag=1の全行のテナー別デルタ(+1bp、百万円)の合計を
+Mainのテナーの並びでTicker/Deltaの2列にスピルする(カーブに使っていないテナーは空欄)。
+AC2が全テナーの合計、AC3が参考として行ごとのdelta(V列、全テナー+1bp)のrisk_flag=1の合計。
+pricing表の列は見出し名で探すので、列を移動しても壊れない(見出し行=2行目から渡すこと)。
 数式の先頭に`@`を付けないこと(付くと先頭の1セルしか表示されない)。
 
 ### Mainシート
 
-- B3: 評価日(名前`評価日`、空欄=今日)。全UDFの評価日はこのセルを参照する。
-  今日ならRealTimeのライブのレート、過去日ならヒストリカルDBのその日のレート
-  (テナーはRealTimeのB列フラグで選ぶ。O/Nはその日のTONA実績)でカーブを組む。
+- B4: 評価日(名前`評価日`、空欄=今日)。全UDFの評価日はこのセルを参照する。
+  今日ならライブのレート、過去日ならヒストリカルDBのその日のレート
+  (テナーはMainのB列の採否フラグで選ぶ。O/Nはその日のTONA実績)でカーブを組む。
   過去起算のTONA実績は評価日より前の日だけを使う。HistChartの基準日もこのセルに連動する。
-- B4: `=MarketInfo(RealTime!$B$2:$D$45, 評価日)`(カーブの元データとテナー数)。
+- B5: `=MarketInfo(TAKE($M$3#,,3), 評価日)`(カーブの元データとテナー数)。A10:B54がカーブのテナー(上記)。
 - `TODAY()`をやめたので、F9だけでは値は変わらない(レート・入力・評価日が変わったセルだけ
-  再計算される)。日付をまたいでもRealTimeのレートが変われば再計算される。
+  再計算される)。取得モードが`Live`なら、再計算のたびにレートを読み直してそれに依存するセルが再計算される。
 
 ### ヒストリカルのUDF
 
@@ -214,8 +265,8 @@ pricing表の列は見出し名で探すので、列を移動しても壊れな�
 roll_conv, mode, [基準日], [from], [to])`(Date/Rate/Start/Endの4列スピル)。modeは`FIXED`/`ROLLING`。
 基準日には通常`評価日`(Mainシート、空欄=今日)を渡す(`TODAY()`はF9のたびに再計算されるため使わない)。
 `HedgeHistoricalRates(テナーの列, モード, 日付の列, 基準日, real_time_range)`(HistChartのヘッジ用)は、日付の列の並びどおりにテナーごとのスポットのパーレート(%)を返す(見出し行なし。カーブの無い日・その日のカーブに使っていないテナーは空欄)。
-`HistoricalRates`(HistChart用、最大3脚)は省略可能な最後の引数`real_time_range`にRealTimeの範囲を渡すと、
-基準日が今日で営業日なら今日をRealTimeのライブのレートで計算した最新日として加える(HistChart参照)。
+`HistoricalRates`(HistChart用、最大3脚)は省略可能な最後の引数`real_time_range`にカーブ用の範囲を渡すと、
+基準日が今日で営業日なら今日をライブのレートで計算した最新日として加える(HistChart参照)。
 ROLLINGは営業日数を固定するので、満期日は「スポット日+tenor」から数日ずれる日があり、
 暦日の長さ(act/365fixed等のdcfで測る期間)も日ごとに変わる(理由と影響は[decisions.md](decisions.md))。
 roll convがIMMの脚をROLLINGで計算するとエラーになる(FIXEDで見るか、STDにする)。
@@ -225,60 +276,60 @@ roll convがIMMの脚をROLLINGで計算するとエラーになる(FIXEDで見�
 pricingシートの行を指定して、最大3系列(アウトライト/カーブ/フライ)のヒストリカルを
 1枚のグラフで比較するシート。
 
-- 共通設定: B3=ROLLINGの基準日(`=IF(評価日="","",評価日)`でMainシートの評価日に連動、
-  空欄=今日)、B4/B5=計算期間(任意、薄黄色)。B6=単位(表示中の系列にカーブ/フライが1本でもあれば
+- 共通設定(1行目は取得モードの欄): B4=ROLLINGの基準日(`=IF(評価日="","",評価日)`でMainシートの評価日に連動、
+  空欄=今日)、B5/B6=計算期間(任意、薄黄色)。B7=単位(表示中の系列にカーブ/フライが1本でもあれば
   全系列bp、アウトライトだけなら%。軸は1本。VBAなしでは系列ごとの第2軸を動的に切り替え
-  られないため)、B7=倍率(bpなら100)。
-- 系列表(9〜11行): 表示(○/×)・行A・行B・行C(pricingのExcel行番号)・モード
+  られないため)、B8=倍率(bpなら100)。
+- 系列表(10〜12行): 表示(○/×)・行A・行B・行C(pricingのExcel行番号。取引は3行目から)・モード
   (ROLLING/FIXED、系列ごと)・系列名(任意)。種類は行番号の数で自動判定
   (1つ=アウトライト、2つ=カーブ `行B−行A`、3つ=フライ `2×行B−行A−行C`。pricingシートの
   spred/flyと同じ符号)。凡例名は自動(系列名を入れればそれを使う)。
-- 脚の確認表(15〜23行): 3系列×3脚のremarks/start/…/roll convを
+- 脚の確認表(16〜24行): 3系列×3脚のremarks/start/…/roll convを
   `LET(v,INDEX(pricing!列,行),IF(v="","",v))`で表示(空セルをINDEXで参照すると0になるため
   空文字に置き換える)。表示×の系列は脚を空にし、UDFは計算しない。
-- 計算領域(28行〜): 系列ごとに
-  `=LET(r,HistoricalRates(脚3行×8列, モード, B3, B4, B5, RealTime!$B$2:$D$45),d,DROP(r,1),
+- 計算領域(29行〜): 系列ごとに
+  `=LET(r,HistoricalRates(脚3行×8列, モード, B4, B5, B6, TAKE($AO$3#,,3)),d,DROP(r,1),
   VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))`(A/F/K列、Date+脚A/B/Cのスピル)。
   **新しい日付(基準日に近い方)が上**になるよう、Excelの`SORTBY`で降順に並べ替えている
   (UDFは昇順で返す)。P列はグラフ用の日付軸(脚なしで呼ぶと日付だけが返る。同じ範囲を渡して
   `SORT`で降順)。Q〜S列が系列値(種類に応じた四則演算×倍率。計算できない日は`#N/A`で
   線を出さない)。3系列とも同じ日付の並びなので、XLOOKUPによる日付の突き合わせは不要。
-- 最新日: 基準日が今日(B3が空欄、または評価日=今日)で今日が営業日なら、今日の行を
-  RealTimeのライブのレートで計算する(pricingシートの`FairRate`と同じカーブ。DBに今日の引け値が
-  あってもライブを優先)。それ以外の日はDBの引け値。RealTimeを参照するので、RealTimeの値が
-  変わるとHistChartの全系列が再計算される(F9で1系列約1.2秒)。
+- 最新日: 基準日が今日(B4が空欄、または評価日=今日)で今日が営業日なら、今日の行を
+  ライブのレートで計算する(pricingシートの`FairRate`と同じカーブ。DBに今日の引け値が
+  あってもライブを優先)。それ以外の日はDBの引け値。ライブのレートを参照するので、取得モード(B1)が
+  `Live`だと再計算のたびにHistChartの全系列が再計算される(1系列約1.2秒)。`Fixed`にしておけば再計算されない。
 - グラフ`HistChart_Chart`(折れ線・日付軸・3系列固定)の系列は名前`HistChart_Date`/
   `HistChart_S1〜S3`(日付軸のスピル行数に合わせた参照)で、行数が変わっても追随する。
   未使用の系列は凡例に空の項目が残る(VBAなしでは消せない)。
 - **ヘッジ(4本目の系列、実線)**: 系列1(フロー)に、手入力したヘッジのグリッドの仮想金利
   `V(t) = Σ d_i × r_i(t)` を重ねる(計算の仕組みと理由は[decisions.md](decisions.md)の「ヘッジのヒストリカル」)。
-  - 設定(AD3〜AE7): 表示(○/×)、モード(既定は系列1のモードに連動する数式、ドロップダウンで上書き可)、
-    縮尺(百万円/bp。既定は系列1の行の取引条件(脚の確認表15〜16行)とpricingのnotional・pay/recから
+  - 設定(AD4〜AE8): 表示(○/×)、モード(既定は系列1のモードに連動する数式、ドロップダウンで上書き可)、
+    縮尺(百万円/bp。既定は系列1の行の取引条件(脚の確認表16〜17行)とpricingのnotional・pay/recから
     `SwapAnnuityDelta`で計算: アウトライト=行A、カーブ=行B、フライ=行Bの1/2。pay/rec空欄はPAYとみなす。
-    上書き可)、スタート日(系列1とヘッジの両方に値がある最も古い日、自動)、状態(AE7: 縮尺が計算できない・
+    上書き可)、スタート日(系列1とヘッジの両方に値がある最も古い日、自動)、状態(AE8: 縮尺が計算できない・
     0のときにメッセージ。notionalが空欄の行は縮尺を手入力する)。
-  - 縦のグリッド(AD8〜AG42): Ticker(`=RealTime!$C$3:$C$35`=1W〜40Yのスポット。O/N・会合スワップは
-    使わない)、フロー(pricingのRiskGrid `pricing!$Y$1#`をXLOOKUP)、ヘッジ入力(AF9:AF41、薄黄色、
+  - 縦のグリッド(AD9〜AG43): Ticker(`=TAKE(DROP($AO$3#,1,1),33,1)`=1W〜40Yのスポット。O/N・会合スワップは
+    使わない)、フロー(pricingのRiskGrid `pricing!$Y$2#`をXLOOKUP)、ヘッジ入力(AF10:AF42、薄黄色、
     百万円/bp。**フローと同じ符号=ヘッジで再現するリスク**。実際に執行するヘッジ取引は逆の符号)、
-    残差(フロー−入力)、合計(42行)。
-  - U29: 0以外を入力したテナーだけを`FILTER`して`HedgeHistoricalRates(テナー, モード, HistChart_Date,
-    B3, RealTime!$B$2:$D$45)`(日付×テナーのパーレート%、日付軸と同じ並び)を呼び、`BYROW`で
+    残差(フロー−入力)、合計(43行)。
+  - U30: 0以外を入力したテナーだけを`FILTER`して`HedgeHistoricalRates(テナー, モード, HistChart_Date,
+    B4, TAKE($AO$3#,,3))`(日付×テナーのパーレート%、日付軸と同じ並び)を呼び、`BYROW`で
     Σ d_i × r_i(百万円×%)を計算する。入力したテナーのどれかに値が無い日は`#N/A`(線を出さない)。
-  - T29(グラフ用、名前`HistChart_H`): `系列1(スタート日) + (V(t) − V(スタート日)) × B7 ÷ 縮尺`。
+  - T30(グラフ用、名前`HistChart_H`): `系列1(スタート日) + (V(t) − V(スタート日)) × B8 ÷ 縮尺`。
     delta(annuity)は符号付き(PAY=+、REC=−)なので、PAY/RECに関係なくフローのレートと同じ向きに動く。
-    T28が凡例名(`ヘッジ(モード)`、入力が無ければ空)。
+    T29が凡例名(`ヘッジ(モード)`、入力が無ければ空)。
 
 ### BOJシート
 
 BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のずれを、2方向で表示する(リアルタイムのみ。
-ヒストリカルは未対応)。行36-45のRealTimeを参照する。
+ヒストリカルは未対応)。カーブ用の範囲(P3#)の会合スワップの行(35〜44行目)を参照する。
 
-- 上部: B2=評価日(空欄なら「今日(RealTime)」)、B3=O/N(RealTime!D2)。
-- **A(7〜16行)スポット→会合期間**: 各会合スワップの起算日・満期日(RealTime E/F)で、pricingと同じ
+- 上部(1行目は取得モードの欄): B3=評価日(空欄なら「今日(ライブ)」)、B4=O/N(`INDEX($P$3#,1,3)`)。
+- **A(8〜17行)スポット→会合期間**: 各会合スワップの起算日・満期日(カーブ用の範囲の4・5列目)で、pricingと同じ
   メインのカーブの`FairRate(起算日,"",満期日,"PA","act/365fixed","PA","act/365fixed","STD",…)`を計算。
   G=ずれ(bp)=会合スワップ−スポットからのフォワード、H=会合スワップの前の期間からの変化(bp、RDはO/Nとの差)。
-- **B(21〜33行)会合スワップ→スポット**: C21の`=BojImpliedRates(A21:A33, RealTime!$B$2:$D$45,
-  RealTime!$C$36:$F$45, 評価日)`が、O/N+RD+M1〜M9の階段状のカーブ(`boj/meeting_curve.py`)での
+- **B(22〜34行)会合スワップ→スポット**: C22の`=BojImpliedRates(A22:A34, TAKE($P$3#,,3),
+  TAKE(DROP($P$3#,34,1),10,4), 評価日)`が、O/N+RD+M1〜M9の階段状のカーブ(`boj/meeting_curve.py`)での
   スポット起算・標準コンベンションのパーレートを1列でスピル。D=ずれ(bp)=スポット−会合スワップのカーブ。
   評価日が今日でなければエラー。値か日付が欠けた会合スワップの行以降は使わない。
   最後の会合期間より先のテナーはその行だけエラーの文字列。
@@ -289,7 +340,7 @@ BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のず�
 JGB銘柄別のASWスプレッド(`data/historical.db`の`asw_quotes`、朝バッチがNeonから取得)の
 ヒストリカルを、最大3系列(アウトライト/カーブ/フライ)で1枚のグラフに比較するシート。
 HistChartと同じ「脚A/B/C→1本=アウトライト、2本=カーブ、3本=フライ」の構成だが、
-pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別やRealTimeの参照はない
+pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別やライブのレートの参照はない(取得モードの欄も無い)
 (銘柄ごとに日付→値が決まっているだけで、ASWはNeonの朝バッチ取り込みのみ。当日分はまだ
 入っていないことがある)。
 
@@ -336,22 +387,22 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
   平均μと、標準化ありなら標準偏差σ(なしはσ=1)を求め、z=(サンプル−μ)/σの共分散行列を
   固有値分解する(標準化なし=分散共分散(bp)、あり=相関行列)。主成分の符号は、銘柄の並び上の
   ルジャンドル多項式P_jとの内積が正になる向き(PC1=全体が正、PC2=後ろ側が正、PC3=両端が正)。
-- 比較: 比較日(空欄=今日でRealTimeのライブの値、日付=DBのその日の引け値)の実績x
+- 比較: 比較日(空欄=今日でそのシートのライブの値、日付=DBのその日の引け値)の実績x
   (日次変化モードは「比較日 − DBの前営業日」。前営業日がなければ直近の日との差で警告)について
   z=(x−μ)/σ、得点=V_kᵀz、復元=μ+σ·V_k·得点、差分=x−復元。推定基準日と独立に選べる。
 
 シートは1機能1枚(スワップ: `PCA`、ボラ: `VolPCA`)。設定・結果・計算を同じシートに置き、
 設定を変えてF9を押せば同じ画面で結果が更新される(理由は[decisions.md](decisions.md))。
 どちらも左から「設定」「結果」「計算領域(右端、列のグループで畳んである)」の順:
-- **設定(A〜D列)**: 「主成分ベクトルの推定」(B3推定基準日・B4 window・B5モード・B6標準化)と
-  「比較」(B9比較日・B10主成分数k)。各項目の説明はセルの入力時メッセージ(選ぶと表示される)。
+- **設定(A〜D列)**: 1行目は取得モードの欄。「主成分ベクトルの推定」(B4推定基準日・B5 window・B6モード・B7標準化)と
+  「比較」(B10比較日・B11主成分数k)。各項目の説明はセルの入力時メッセージ(選ぶと表示される)。
   名前はスワップが`PCA_推定基準日`等、ボラが`VOL_推定基準日`等。その下が銘柄の選択:
-  スワップはテナー表(A14:B55。O/N〜40Y、M1〜M8)の○×で、既定は1Y〜40Yの13本
-  (O/Nは×。RealTimeのO/Nは使えるが既定では外す)。ボラは満期(A:B)・原資産(C:D)の○×で、
+  スワップはテナー表(A15:B56。O/N〜40Y、M1〜M8)の○×で、既定は1Y〜40Yの13本
+  (O/Nは×。ライブのO/Nは使えるが既定では外す)。ボラは満期(A:B)・原資産(C:D)の○×で、
   既定は全16×12=192点。
 - **結果**: 上段に推定windowの情報(`PcaWindow`)と比較日の実績の情報(`PcaActualInfo`。実績の元・
   変化の基準日・警告)をUDFの出力のまま置く。スワップ(`PCA`)はその下にグラフ3枚(実績・平均・
-  復元/差分/主成分ベクトル。系列は名前`PCA_Tenor`等のスピル参照)と、33行目からテナー別の表
+  復元/差分/主成分ベクトル。系列は名前`PCA_Tenor`等のスピル参照)と、34行目からテナー別の表
   (実績・平均・復元・差分(bp)・平均からの乖離(bp))、固有値・寄与率・累積寄与率・比較日の
   スコア、主成分ベクトル(PC1〜PC5)。ボラ(`VolPCA`)は満期×原資産のマトリックス(差分・実績・
   復元・平均・PC1〜PC3。差分とPCは0を白にしたカラースケール)を`XLOOKUP`で並べ、上位10本の
@@ -360,11 +411,9 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
   [Label/Mean/Scale/PC1…]、選択銘柄の並び(スワップは`FILTER`=`PCA_テナー`、ボラは選択満期・
   選択原資産の`FILTER`と格子の全点の`TOCOL`=`VOL_銘柄`(満期ごとに原資産の順))。ボラは
   銘柄ごとの実績・平均・スケール・復元・差分もここで計算する。
-- **RealTime**: PricingSheetのRealTimeと同じRIC(A=BOJ会合#、B=Ticker、C=Value。採否フラグ列は
-  なし)。O/NはTradition `JP1DONI=TRDT`のBID/ASKミッド(=TONA)。
-- **RealTimeVol**: 満期・原資産・銘柄・RIC(`JPYTO{満期}X{原資産}ATM=R`)・値。値は
-  `RtGet(…,"MID_IV_NOR")`(ノーマルvol bp。`CF_LAST`/`PRIMACT_1`/`MID_IV`はシフト付きログノーマル%、
-  `CF_BID`/`CF_ASK`は両者が混在しているので使わない)。
+- **ライブの値**: PCAはCA4の`=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値…。
+  `CHOOSECOLS(…,1,2)`を`PcaActual`に渡す)、VolPCAはLA3の同じ形の`"vol"`(銘柄/RIC/値をそのまま渡す)。RealTime/RealTimeVolシートは
+  2026-10-18に削除(RICはLiveFeed.xlsm側。上の「データフロー」参照)。
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)
 
@@ -378,7 +427,7 @@ Excel標準の関数だけで構成する。
 - **設定**: 終了日(空欄なら今日)/取得営業日数(既定500)/開始日(任意)/
   銘柄グループ/並び順/フィールド(`MID_PRICE`)を入力。RIC一覧とリクエスト文字列は数式で組み立てる。
 - **銘柄**: グループ・表示名・RIC・使用(○/×)。RICは`JP{テナー}ONI=TRDT`と
-  `JPBOJ{n}ONI=TRDT`(RealTimeシートと同じ系列)。
+  `JPBOJ{n}ONI=TRDT`(LiveFeed.xlsmと同じ系列)。
 - **Raw**: `RDP.HistoricalPricing(RIC一覧,"MID_PRICE",リクエスト,,"CH:In;Fd",$A$3)`
   を1本だけ置く。出力は銘柄ごとに`Timestamp / Mid Price Close / Mid Price`の3列ブロックで、
   日付は銘柄ごとに異なる(同じ日付の行に揃っていない)。

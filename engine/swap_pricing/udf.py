@@ -7,11 +7,13 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   単一の窓口。xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要
   (詳細はdocs/architecture.md)。実体はシート(機能)ごとに分かれている:
-    - pricing/udf.py   : Main/RealTime/pricingシート(FairRate, SwapPV, SwapDelta,
+    - pricing/udf.py   : Main/pricingシート(FairRate, SwapPV, SwapDelta,
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
     - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates, HedgeHistoricalRates)
     - boj/udf.py       : BOJシート(BojImpliedRates)
     - asw/udf.py       : ASWシート(AswHistoricalRate, AswHistoricalRates)
+    - common/live_udf.py: 各フロントシート(LiveQuotes, LiveSnapshot, LiveInfo。LiveFeed.xlsmが書いたリアルタイムの
+                          レートを読む。SwapAnalysis.xlsmと共通)
   Excel境界の型変換・評価日解決・カーブ一式(`_market`)はこれらが共有する
   `engine/common/udf_common.py`に集約している。
 
@@ -23,10 +25,10 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
     UDFは非volatileのままでよい。VBAコードは一切不要。
   - 評価日は Mainシートの評価日セル(名前「評価日」)を各UDFに渡す。空欄なら今日。
     TODAY()は使わない(volatileなのでF9のたびに全UDFが再計算されてしまうため)。
-  - 評価日が今日なら RealTimeシートのライブのレート、過去日ならヒストリカルDBのその日の
+  - 評価日が今日なら ライブのレート、過去日ならヒストリカルDBのその日の
     レートでカーブを組む(判定は udf_common._market だけ。詳細はengine/common/market.py)。
-    どちらもRealTimeシートの フラグ/Ticker/Value 範囲(例: RealTime!B2:D45)でテナーを選ぶ。
-    B列の採否フラグ: 1(または空欄)=カーブ構築に使う、0=使わない。
+    どちらも フラグ/Ticker/Value の範囲(各シートのカーブ用の範囲の TAKE(…#,,3)。旧 RealTime!B2:D45)
+    でテナーを選ぶ。採否フラグ(MainシートのB列): 1(または空欄)=カーブ構築に使う、0=使わない。
   - カーブ(基準カーブと+1bpしたカーブ)は market.curve_set で全行・全UDFが共有する。
     同じレート・評価日なら、ブートストラップはその最初の1回だけ。
   - 過去起算スワップ用のTONA実績フィキシングは、ヒストリカルDB(朝のバッチがhistorical_data.xlsxの
@@ -50,6 +52,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
 
 import xlwings as xw
 
+from engine.common.live_udf import LiveInfo, LiveQuotes, LiveSnapshot  # noqa: F401
 from engine.swap_pricing.asw.udf import *  # noqa: F401,F403
 from engine.swap_pricing.boj.udf import *  # noqa: F401,F403
 from engine.swap_pricing.historical.udf import *  # noqa: F401,F403
