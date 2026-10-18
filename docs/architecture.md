@@ -21,6 +21,8 @@
      (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
   ③ engine/common/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
      (Neonに繋がらなくても①②は続行する)
+  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCL)を取得
+     (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
         │
         ▼
 [data/historical.db(ローカルのSQLite。LSEG/Neon由来なのでコミットしない)]
@@ -100,7 +102,10 @@ engine/
   common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
   swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/bojの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
+  bond_option/     # BondOption.xlsm固有の現物オプション(先渡・デュレーション・Black式・ボラの補間)
 ```
+
+現物オプション(`BondOption.xlsm`)の計算規則・ブックの構成は[bond_option.md](bond_option.md)。
 
 ### 共有エンジン・データ層(`engine/common/`)
 
@@ -118,6 +123,8 @@ engine/
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(セルの値をそのままJSON、日付は型を保って)と値が最後に変わった時刻を持つ。値が変わらなければ書かない。WALで、書き込み中も別のExcelから読める |
 | `live_udf.py` | `live_store`のUDF。`PublishLive`(LiveFeed.xlsm専用、範囲を書き出す)、`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
+| `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日。現物オプションが使う([bond_option.md](bond_option.md)) |
+| `jgb_source.py` | LSEG(Python API `lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`)を取得する。朝バッチの④が使う |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
 | `udf_common.py` | pricing/historical/BOJ/PCAのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
 

@@ -11,3 +11,6 @@ __pycache__/
 /*.xlsx
 /*.xlsm
 /*.xls
+
+# 現物オプションの検算用(ユーザーのプライサーの計算結果・取引の実データ・LSEGデータを含む)
+/data/bond_option_*

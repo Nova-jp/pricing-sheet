@@ -24,6 +24,9 @@
   ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
      asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
      Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
+  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL)を取得し、
+     jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。LSEG Workspaceが
+     起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -40,7 +43,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import neon_source
+from engine.common import jgb_source, neon_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
@@ -196,12 +199,26 @@ def sync_asw_quotes(store: HistoricalStore, log=print) -> None:
     log(f"ASW取得: {len(rows)}行({'差分' if since else '全件'})")
 
 
+def sync_jgbs(store: HistoricalStore, log=print) -> None:
+    """LSEGからJGBの銘柄情報と直近の引け値を取得して保存する。失敗してもバッチ全体は止めない。"""
+    try:
+        bonds, closes = jgb_source.fetch_jgbs()
+    except Exception as e:
+        log(f"JGB取得: 失敗のためスキップ ({e})")
+        return
+    store.save_jgb_bonds(bonds)
+    store.save_jgb_closes(closes)
+    dates = sorted({c.as_of_date for c in closes})
+    log(f"JGB取得: 銘柄 {len(bonds)} / 引け値 {len(closes)}({', '.join(str(d) for d in dates)})")
+
+
 def run(
     xlsx_path: Path = DEFAULT_XLSX,
     config_path: Path = DEFAULT_CONFIG,
     db_path: Path = HISTORICAL_DB_PATH,
     rebuild: bool = False,
     log=print,
+    skip_jgb: bool = False,
 ) -> BatchSummary:
     config = load_config(config_path)
     builder = get_curve_builder(config.builder)
@@ -214,6 +231,8 @@ def run(
     store.save_vol_quotes(vols)
     log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分 / Vol {len(vols)}日分")
     sync_asw_quotes(store, log)
+    if not skip_jgb:
+        sync_jgbs(store, log)
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()
@@ -275,8 +294,9 @@ def main(argv=None) -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--db", type=Path, default=HISTORICAL_DB_PATH)
     parser.add_argument("--rebuild", action="store_true", help="入力が同じ日も含めて全日付を作り直す")
+    parser.add_argument("--skip-jgb", action="store_true", help="LSEGからのJGBの銘柄情報・引け値の取得を行わない")
     args = parser.parse_args(argv)
-    summary = run(args.xlsx, args.config, args.db, args.rebuild)
+    summary = run(args.xlsx, args.config, args.db, args.rebuild, skip_jgb=args.skip_jgb)
     return 1 if summary.failed else 0
 
 

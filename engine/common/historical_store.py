@@ -16,6 +16,9 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
               Neon(engine/common/neon_source.py)から朝バッチが取得する参照データ。
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
+  - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
+              engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
+  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はJCL)
 
 ■ asw_quotesの差分取得(updated_atウォッチマーク)
   別のメタデータテーブルを持たず、ローカルのasw_quotesに保存済みのupdated_atの最大値
@@ -89,6 +92,20 @@ CREATE TABLE IF NOT EXISTS asw_quotes (
     PRIMARY KEY (as_of_date, bond_code)
 );
 CREATE INDEX IF NOT EXISTS idx_asw_quotes_bond_code ON asw_quotes(bond_code);
+CREATE TABLE IF NOT EXISTS jgb_bonds (
+    code TEXT PRIMARY KEY,
+    ric TEXT NOT NULL,
+    isin TEXT NOT NULL,
+    coupon REAL NOT NULL,
+    maturity TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS jgb_closes (
+    as_of_date TEXT NOT NULL,
+    code TEXT NOT NULL,
+    simple_yield REAL NOT NULL,
+    PRIMARY KEY (as_of_date, code)
+);
 """
 
 
@@ -110,6 +127,21 @@ class AswQuoteRow(NamedTuple):
 class AswRate(NamedTuple):
     pa: float
     sa: float
+
+
+class JgbBondRow(NamedTuple):
+    """jgb_bonds の1行(jgb_source.JgbRecord と同じ並び)。"""
+
+    code: str
+    ric: str
+    isin: str
+    coupon: float
+    maturity: date
+
+
+class JgbCloseRow(NamedTuple):
+    as_of_date: date
+    simple_yield: float
 
 
 def discount_grid(curve: ql.YieldTermStructureHandle, as_of_date: date) -> array:
@@ -241,7 +273,47 @@ class HistoricalStore:
                 ],
             )
 
+    def save_jgb_bonds(self, rows: Iterable) -> None:
+        """銘柄情報をupsertする(償還済みで一覧から消えた銘柄も残す。過去日の計算に使うため)。"""
+        stamp = datetime.now().isoformat(timespec="seconds")
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO jgb_bonds (code, ric, isin, coupon, maturity, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(code) DO UPDATE SET ric=excluded.ric, "
+                "isin=excluded.isin, coupon=excluded.coupon, maturity=excluded.maturity, "
+                "updated_at=excluded.updated_at",
+                [(r.code, r.ric, r.isin, r.coupon, _iso(r.maturity), stamp) for r in rows],
+            )
+
+    def save_jgb_closes(self, rows: Iterable) -> None:
+        """引け値(as_of_date, code, simple_yield)をupsertする(同じ日・銘柄は上書き)。"""
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO jgb_closes (as_of_date, code, simple_yield) VALUES (?, ?, ?) "
+                "ON CONFLICT(as_of_date, code) DO UPDATE SET simple_yield=excluded.simple_yield",
+                [(_iso(r.as_of_date), r.code, r.simple_yield) for r in rows],
+            )
+
     # --- 読み込み ---
+
+    def jgb_bond(self, code: str) -> Optional[JgbBondRow]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT code, ric, isin, coupon, maturity FROM jgb_bonds WHERE code = ?", (code,),
+            ).fetchone()
+        if row is None:
+            return None
+        return JgbBondRow(row[0], row[1], row[2], row[3], date.fromisoformat(row[4]))
+
+    def jgb_close(self, code: str, on_or_before: date) -> Optional[JgbCloseRow]:
+        """その日以前で直近の引け値。無ければ None。"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT as_of_date, simple_yield FROM jgb_closes WHERE code = ? AND as_of_date <= ? "
+                "ORDER BY as_of_date DESC LIMIT 1",
+                (code, _iso(on_or_before)),
+            ).fetchone()
+        return None if row is None else JgbCloseRow(date.fromisoformat(row[0]), row[1])
 
     def asw_quotes_max_updated_at(self) -> Optional[datetime]:
         """ローカルに保存済みのasw_quotesの最新updated_at。次回のNeon差分取得の基準にする
