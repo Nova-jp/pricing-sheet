@@ -87,9 +87,6 @@ ASWシート(ヒストリカルチャート)は2026-10-12に実装済み(archite
   その銘柄の`JgbClose`は毎回失敗する。→ NaTを欠損として扱う。
 - **#3 テストが実際にLSEGへ接続する**(`tests/test_market_risk.py`の2か所が`morning_batch.run()`を
   `skip_jgb`なしで呼ぶ)。→ `run()`の既定は取得しない(コマンドから実行したときだけ取得する)。
-- **#5 サンプル由来の値がコミットされている**(`tests/test_bond_option.py`の`SWAP_VOLS`、
-  `tests/test_morning_batch.py`のJB380の引け値はJCLの実際の値)。→ swap volはローカルのサンプルのファイルへ、
-  引け値は架空の値へ。**push済みの`7701a08`に含まれている**ので、PR前に直す。
 - **#7 UDFが呼ばれるたびにDBを開き直す**(`engine/bond_option/udf.py`の`_jgb`。1回のF9で約160回、
   毎回DDLも流れる)。→ 銘柄の情報をDBの更新時刻ごとにメモリに覚える。
 - **#9 値の変換(数値・日付か欠損か)が3か所に重複**(`jgb_source`・`morning_batch`・`bond_option/vol`)。
@@ -110,6 +107,9 @@ ASWシート(ヒストリカルチャート)は2026-10-12に実装済み(archite
 - **UDFの名前**: `Jgb*`と`BondForward`・`ForwardDuration`が混在。`JgbForward`・`JgbForwardDuration`に揃えるか。
 
 ### 直さない
+- **#5 サンプル由来の値がテストに含まれている**(`tests/test_bond_option.py`の`SWAP_VOLS`、
+  `tests/test_morning_batch.py`のJB380の引け値)。公開して問題ない(2026-10-19、ユーザー判断。引け値はJSDAも
+  公表している値)。
 - **#2 QuantLibの債券のクーポン額が日数比例**(c/2ちょうどでない)。c/2ちょうどにするとプライサーとの一致が
   悪くなる(MD・価格ボラとも)ので、プライサーも同じ計算をしていると判断した。理由をコメントに残す。
 
