@@ -57,7 +57,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 2. xlwingsリボンの **「Import Functions」** をクリック。
    - これにより、ワークブックと同名の`PricingSheet.py`(実体は
      `engine/swap_pricing/udf.py`を再エクスポートしているだけ)からUDF
-     (`FairRate`, `SwapPV`, `SwapDelta`, `SwapAnnuityDelta`,
+     (`PricingTable`, `FairRate`, `SwapPV`, `SwapDelta`, `SwapAnnuityDelta`,
      `NotionalForDelta`, `RiskGrid`, `MarketInfo`,
      `HistoricalRate`, `HistoricalRates`, `HedgeHistoricalRates`,
      `AswHistoricalRate`, `AswHistoricalRates`, `BojImpliedRates`)が
@@ -174,7 +174,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - [ ] フィードをCtrl+Cで止めると、`Live`のシートのShift+F9でライブのレートのセルが「フィードは停止しています」の
       エラーになり、`Fixed`のシートはそのまま計算できる
 - [ ] `risk_flag`を1にした行があると、pricingシートY列のRiskGridに、Mainの
-      テナー行の並びでテナー別デルタの合計が入る。AC2(合計)がAC3(行ごとのdeltaの
+      テナー行の並びでテナー別デルタの合計が入る。AC3(合計)がAC4(行ごとのdeltaの
       risk_flag=1の合計)とほぼ一致する
       (先頭の1セルしか出ない場合は、数式の先頭に`@`が付いていないか確認)
 - [ ] MainシートのA11:B54(カーブのテナー)のB列(採否フラグ)を0にしてF9すると、
@@ -210,4 +210,16 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - **コードを更新したのに結果が変わらない/新しいUDFが`#NAME?`** → 「Restart UDF Server」
   →「Import Functions」(上記6.)。
 - **pricingシートの再計算が遅い** → UDFのセル1つごとにExcel↔Pythonの往復(個人PCで約170ms)が
-  かかる。計算自体はカーブを共有していて数ms(`docs/decisions.md`)。
+  かかる。行ごとの結果は`PricingTable`(AQ3)が表全体を1回で計算する(100行で約1.3秒)。残りで重いのは
+  RiskGrid(risk_flag=1の行数×テナー数)。詳細は`docs/decisions.md`。
+- **すべてのブックでxlwingsが動かない(セルに「Could not load xlwings64-<版>.dll from either of the
+  following folders」、Import Functionsも失敗)** → Windowsの**スマート アプリ コントロール**が、venvにある
+  署名なしの`xlwings64-<版>.dll`をブロックしていることがある(2026-10-19に個人PCで発生。前日まで同じ設定で
+  動いていた)。Python側の問題ではない。確認方法:
+  - イベント ビューアー → アプリケーションとサービス ログ → Microsoft → Windows → CodeIntegrity →
+    Operational に、EXCEL.EXEが`xlwings64-…dll`を読み込もうとしてブロックされた記録(ID 3033/3077)がある。
+  - またはvenvのPythonで`import ctypes; ctypes.WinDLL(r"<venv>\xlwings64-<版>.dll")`が
+    WinError 4551(アプリケーション制御ポリシーによってブロック)になる。
+  対処はまずPCの再起動を試す(ポリシーと評価のキャッシュが更新される)。直らなければ、Windows セキュリティ →
+  アプリとブラウザー コントロール → スマート アプリ コントロールをオフにする(**一度オフにするとWindowsを
+  再インストールしないとオンに戻せない**ので、PCの持ち主・管理者が判断する)。会社PCでは管理者のポリシーによる。

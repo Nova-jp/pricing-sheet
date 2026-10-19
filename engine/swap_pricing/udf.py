@@ -7,7 +7,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   単一の窓口。xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要
   (詳細はdocs/architecture.md)。実体はシート(機能)ごとに分かれている:
-    - pricing/udf.py   : Main/pricingシート(FairRate, SwapPV, SwapDelta,
+    - pricing/udf.py   : Main/pricingシート(PricingTable, FairRate, SwapPV, SwapDelta,
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
     - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates, HedgeHistoricalRates)
     - boj/udf.py       : BOJシート(BojImpliedRates)
@@ -36,7 +36,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   - ヒストリカル系UDF(HistoricalRate, HistoricalRates)はブートストラップをせず、
     朝バッチ(python -m engine.common.morning_batch)が作った日次カーブDB
     (data/historical.db)を読むだけ。TONA実績もDBに取り込み済みのものを使う。
-  - 配列を返すUDF(RiskGrid, HistoricalRate, HistoricalRates)は、
+  - 配列を返すUDF(PricingTable, RiskGrid, HistoricalRate, HistoricalRates)は、
     Excelの動的配列のスピルにそのまま任せる。xlwingsの @xw.ret(expand="table") は使わない
     (計算後に非同期でセル範囲を旧式の配列数式に書き換えるため、動的配列の
     スピル参照(B1#等)や数式の@付与と衝突する。実際に旧Historicalシートが
