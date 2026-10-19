@@ -58,6 +58,15 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 
 - 作業ごとに最新の`main`(`git pull`済み)からブランチを切る(`feature/…`・`fix/…`・`perf/…`)。
   `main`の上で直接コミットしない。同じファイルを触る開発は並行させず、前のPRのマージ後に始める。
+- 複数のセッションが同時に動くので、**コードの開発はセッションごとに`git worktree`で別のフォルダを作って行う**
+  (例 `git worktree add ../pricing-sheet-<名前> -b feature/<名前> origin/main`)。同じフォルダで`git checkout`すると
+  他のセッションのブランチ・未コミットの変更を巻き込む。マージ後は`git worktree remove`で片付ける。
+  - 直下のブック(`.xlsm`/`.xlsx`)と`data/`のDBはgit管理外なので、worktreeには無い。**ブックやExcelのCOMを触る作業は
+    直下のフォルダで1つずつ順番に行う**(Excelは同名のブックを同時に開けない)。
+  - worktreeを作ったら、直下の`data/historical.db`をworktreeの`data/`にコピーして使う(本物のDBは書き換えない)。
+    バッチを試すときは`--xlsx`で直下の`historical_data.xlsx`を指定して作り直す。ExcelのUDFは常に直下のコードと
+    DBで動くので、worktreeのDBはテスト・検証用(`live.db`はコピーしても更新されない)。
+  - コミットの直前に`git status -sb`で今のブランチを確かめる。
 - 変更後は全テスト(`python -m unittest discover -s tests`)を流す。計算に関わる変更は、
   実DBで変更前後の結果が一致することも確かめる。
 - コミット・push・PRの作成はユーザーの了承を得てから行う。マージ後はリモートと
