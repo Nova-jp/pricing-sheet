@@ -110,7 +110,7 @@ engine/
   common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
   swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/bojの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
-  bond_option/     # BondOption.xlsm固有の現物オプション(先渡・デュレーション・Black式・ボラの補間)
+  bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
 ```
 
 現物オプション(`BondOption.xlsm`)の計算規則・ブックの構成は[bond_option.md](bond_option.md)。

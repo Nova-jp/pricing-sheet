@@ -275,7 +275,10 @@ def check_template(parts: Parts, receive_areas: Dict[str, int], array_udfs: Set[
     for name, xml in ((n, d.decode("utf-8")) for n, d in parts if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)):
         for m in _CELL.finditer(xml):
             f = re.search(r"<f[^>]*>([^<]*)</f>", m.group(4) or "")
-            if f and 'cm="' not in m.group(3) and any(re.search(r"\b%s\(" % u, f.group(1)) for u in array_udfs):
+            # INDEX(配列UDF(…), 行, 列)で1つだけ取り出すセルは、Excel自身が旧式の数式として保存する
+            # (.Formulaにも@が付かず、旧式と動的配列で結果が同じ)ので除く
+            if f and 'cm="' not in m.group(3) and any(
+                    re.search(r"(?<!INDEX\()\b%s\(" % u, f.group(1)) for u in array_udfs):
                 problems.append(f"配列UDFのセルが動的配列ではありません(.Formula2で入れ直す): {name} {m.group(1)}{m.group(2)}")
     return problems
 

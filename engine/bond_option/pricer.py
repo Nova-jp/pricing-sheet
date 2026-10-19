@@ -1,8 +1,11 @@
 """
-国債店頭オプション(ヨーロピアン、現物受渡)の計算。先渡価格・先渡複利・先渡DD/MD・期間・Black式。
+国債店頭オプション(ヨーロピアン、現物受渡)の計算。先渡価格・先渡複利・先渡DD/MD・期間・Black式・
+ITMバイライトのストライク。
 
-式は docs/bond_option.md の F6〜F10。ユーザーのプライサー(正)の4サンプルとプレミアム4桁まで一致。
+式は docs/bond_option.md の F6〜F11。ユーザーのプライサー(正)の4サンプルとプレミアム4桁まで一致。
 利回り・レポ・価格ボラは%、単価は額面100円あたりの円。
+BondOption.xlsmでは、先渡価格(F6)と期間はExcelの式で同じ計算をする(手で値を上書きしても動くように)。
+forward_price・option_term は、サンプルとの照合(テスト)とシートの式の確認に使う。
 
 ■ QuantLibとの分担
   - 先渡複利・デュレーション(BondFunctions.bondYield/duration)、営業日数(ql.Japan())、
@@ -101,3 +104,21 @@ def black_premium(option_type, forward: float, strike: float, price_vol: float, 
         raise ValueError(f"価格ボラは0以上、期間は正の値です: vol={price_vol}, T={term}")
     std_dev = price_vol / 100 * term ** 0.5
     return ql.blackFormula(parse_option_type(option_type), strike, forward, std_dev)
+
+
+def itm_buy_write_strike(forward: float, target: float, price_vol: float, term: float) -> float:
+    """F11: ITMバイライト(債券を target=購入単価で買い、同時にコールを売る)のストライク。
+    ストライク + コールのプレミアム = target になるKを解き、小数3桁で切り捨てる。
+    f(K) = K + C(K) はKについて単調増加(傾き 1 − N(d2) > 0)で、K→0 で先渡価格F、K = target で
+    target + C ≥ target なので、解があるのは target > F(キャリーが正)のときだけ。解は通常 K < F(ITM)。"""
+    if target <= forward:
+        raise ValueError(
+            f"購入単価 {target} が先渡価格 {forward} 以下のため、ストライク+プレミアム=購入単価になる"
+            "ストライクがありません(キャリーが負)"
+        )
+    black_premium(CALL, forward, target, price_vol, term)  # 入力の確認(ボラ・期間)
+
+    def excess(k: float) -> float:
+        return k + black_premium(CALL, forward, k, price_vol, term) - target
+
+    return truncate3(ql.Brent().solve(excess, 1.0e-10, (forward + target) / 2, 0.0, target))
