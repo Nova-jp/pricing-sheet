@@ -62,7 +62,7 @@ ATM単利 = 引け値の単利(JCL)+ ATMのスライド(bp)/100。
 
 ## ボラ
 
-- 供給元: `LiveFeed.xlsm`の`RealTimeVol`(`JPYTO{満期}X{原資産}ATM=R`の`MID_IV_NOR`、ノーマルvol bp/年)。
+- 供給元: フィード(`live_feed.toml`の`"vol"`、`JPYTO{満期}X{原資産}ATM=R`の`MID_IV_NOR`、ノーマルvol bp/年)。
   `LiveQuotes("vol")`で読む(Live/Fixedの切り替えは他のフロントシートと同じ)。格子は満期1M〜20Y × 原資産1Y〜20Y。
 - 補間(`engine/bond_option/vol.py`): 満期 = 取引日→オプション満期、テナー = オプション満期→償還日(行使時点の残存)。
   年数はどちらもD/365。テナー方向はvolで線形、満期方向は分散(σ²t)で線形、格子の外は端の値で平らに延ばす。

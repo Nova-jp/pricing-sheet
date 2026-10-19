@@ -1,12 +1,15 @@
 """
-リアルタイムのレートの受け渡し(engine/common/live_store.py)のUDF。
+リアルタイムのレートの受け渡し(engine/common/live_store.py)のUDF。data/live.db に書くのは
+フィード(python -m engine.common.live_feed、LSEGのストリーミングを購読し続ける常駐プロセス)で、
+UDFは読むだけ。
 
-  - PublishLive : LiveFeed.xlsm(自動計算のExcelで開く)専用。RtGetの範囲を受け取り、data/live.db に書く。
-                  自動計算なので、範囲のどこかが更新される(ティック)たびに呼ばれる
-  - LiveQuotes  : PricingSheet.xlsm・SwapAnalysis.xlsm(手動計算)用。data/live.db の最新の行を返し、
-                  呼び出したシートの固定の値として保存する(volatile)
-  - LiveSnapshot: 同上。そのシートの固定の値(最後にLiveQuotesが読んだ行)を返す(非volatile)
-  - LiveInfo    : 同上。そのシートが読んだ行の値がLiveFeedで最後に変わった時刻を返す
+  - LiveQuotes  : PricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsm(手動計算)用。data/live.db の
+                  最新の行を返し、呼び出したシートの固定の値として保存する(volatile)。フィードが止まって
+                  いる(ハートビートが live_feed.toml の stale_after_sec より古い)か、LSEGとの接続が
+                  正常でなければ、古い値を返さずにエラーにする
+  - LiveSnapshot: 同上。そのシートの固定の値(最後にLiveQuotesが読んだ行)を返す(非volatile)。
+                  フィードが止まっていても使える
+  - LiveInfo    : 同上。そのシートが読んだ行の値がフィードで最後に変わった時刻を返す
 
 ■ 取得モード(手動計算のブック)
   各フロントシートの1行目のB1(プルダウン Live/Fixed)で、シートごとに選ぶ。数式は
@@ -18,8 +21,6 @@
            LiveSnapshotが呼ばれ、保存しておいた値(切り替える前に計算に使ったレート)を返す
   固定の値はブック・シート・データセットごとに data/live.db に保存するので、Ctrl+Alt+F9やUDFサーバの
   再起動でも変わらない(docs/decisions.md)。呼び出したシートはxlwingsの引数 caller(呼び出し元のセル)で知る。
-  PublishLiveだけはデータを書き出すUDF(値を返すだけの他のUDFと違う)。VBAなしで自動計算の
-  ブックからデータを渡すため、LiveFeedブックに限って置く(docs/decisions.md)。
 """
 
 import datetime
@@ -35,22 +36,9 @@ def _live_store() -> LiveStore:
     return LiveStore()
 
 
-@xw.func
-@xw.arg("values", ndim=2)
-def PublishLive(dataset, values) -> str:
-    """LiveFeed.xlsm専用。values(例 RealTime!C2:F45)をデータセット名 dataset で data/live.db に書く。
-    値が前回と同じなら書かない。セルには最後に書いた時刻と行数を表示する。"""
-    rows = [list(r) if r is not None else [] for r in (values or [])]
-    store = _live_store()
-    stamp = store.publish(dataset, rows)
-    if stamp is None:
-        stamp = store.read(dataset).updated_at
-    return f"{str(dataset).strip().lower()}: {stamp:%H:%M:%S} 更新 / {len(rows)}行"
-
-
 @xw.func(volatile=True)
 def LiveQuotes(dataset, caller=None) -> List[list]:
-    """data/live.db のデータセットの最新の行(PublishLiveに渡した範囲と同じ形)。空欄は""。
+    """data/live.db のデータセットの最新の行(live_feed.toml の並び。行の形は live_feed.py)。空欄は""。
     読んだ行を呼び出したシートの固定の値として保存する(LiveSnapshotが返す)。
     volatile: 取得モードがLiveのとき(IFの分岐でこの関数が呼ばれるとき)だけ毎回再計算される。"""
     return _as_table(_live_store().read_live(dataset, *_where(caller)).rows)
@@ -65,7 +53,7 @@ def LiveSnapshot(dataset, caller=None) -> List[list]:
 @xw.func
 @xw.arg("quotes", ndim=2)
 def LiveInfo(dataset, quotes=None, caller=None) -> datetime.datetime:
-    """呼び出したシートが読んだ行(LiveQuotes/LiveSnapshot)の値が、LiveFeedで最後に変わった時刻
+    """呼び出したシートが読んだ行(LiveQuotes/LiveSnapshot)の値が、フィードで最後に変わった時刻
     (セルの書式を日時にして表示する)。
     quotes: そのシートのLiveQuotes/LiveSnapshotのセル(例 $H$3#)。値は使わず、そのセルが
             再計算されたときだけこのセルも再計算されるようにするために渡す。"""

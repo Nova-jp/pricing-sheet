@@ -33,7 +33,6 @@ TEMPLATE_DIR = ROOT / "templates"
 RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
-    "LiveFeed.xlsm": {},
     "BondOption.xlsm": {},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }

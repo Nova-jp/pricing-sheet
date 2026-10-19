@@ -8,7 +8,7 @@
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import live_udf  # noqa: E402
-from engine.common.live_store import LiveStore  # noqa: E402
+from engine.common.live_store import FEED_OK, FEED_STOPPED, FeedStatus, LiveStore  # noqa: E402
 
 ROWS = [
     ["O/N", 0.477],
@@ -26,10 +26,20 @@ ROWS = [
 ]
 
 
+def feed_status(dataset="swap", state=FEED_OK, heartbeat_at=None, message="", pid=1234, stale_after_sec=10):
+    return FeedStatus(dataset, state, message, heartbeat_at or datetime.now(), None, stale_after_sec, pid)
+
+
+def feed_ok(store, *datasets):
+    """フィードが動いている状態にする(LiveQuotes/read_live はハートビートが無いと読まない)。"""
+    store.write_feed_status([feed_status(d) for d in (datasets or ("swap", "vol"))])
+
+
 class LiveStoreTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.store = LiveStore(Path(self._tmp.name) / "live.db")
+        feed_ok(self.store)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -60,7 +70,10 @@ class LiveStoreTest(unittest.TestCase):
         self.assertEqual(self.store.read("vol").rows, [["1Yx10Y", 70.1]])
 
     def test_missing_db_or_dataset_is_an_error(self):
-        with self.assertRaisesRegex(ValueError, "LiveFeed"):
+        missing = LiveStore(Path(self._tmp.name) / "none.db")
+        with self.assertRaisesRegex(ValueError, "live_feed"):
+            missing.read("swap")
+        with self.assertRaisesRegex(ValueError, "live_feed"):
             self.store.read("swap")
         self.store.publish("swap", ROWS)
         with self.assertRaisesRegex(ValueError, "vol"):
@@ -97,6 +110,48 @@ class LiveStoreTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "vol"):
             self.store.read_snapshot("vol", "PricingSheet.xlsm", "Main")
 
+    def test_read_live_needs_a_running_feed(self):
+        self.store.publish("swap", ROWS)
+        self.store.publish("bond", ROWS)
+        now = datetime(2026, 10, 19, 10, 0, 0)
+        # ハートビートが無いデータセット
+        with self.assertRaisesRegex(ValueError, "動いていません"):
+            self.store.read_live("bond", "PricingSheet.xlsm", "Main", now=now)
+        # ハートビートが stale_after_sec 以内なら読める(ちょうど10秒も可)
+        self.store.write_feed_status([feed_status(heartbeat_at=now - timedelta(seconds=10))])
+        self.assertEqual(self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now).rows, ROWS)
+        # それより古ければ停止とみなす(固定の値は変えない)
+        with self.assertRaisesRegex(ValueError, "止まっています.*09:59:50"):
+            self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now + timedelta(seconds=1))
+        # 秒数は書いたフィードの設定(stale_after_sec)に従う
+        self.store.write_feed_status([feed_status(heartbeat_at=now - timedelta(seconds=15), stale_after_sec=20)])
+        self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now)
+
+    def test_read_live_refuses_unhealthy_or_stopped_feed(self):
+        self.store.publish("swap", ROWS)
+        now = datetime(2026, 10, 19, 10, 0, 0)
+        self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now)
+        before = self.store.read_snapshot("swap", "PricingSheet.xlsm", "Main")
+
+        self.store.write_feed_status([feed_status(state="reconnecting", message="StreamDisconnected", heartbeat_at=now)])
+        with self.assertRaisesRegex(ValueError, "reconnecting: StreamDisconnected"):
+            self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now)
+        self.store.write_feed_status([feed_status(state=FEED_STOPPED, heartbeat_at=now)])
+        with self.assertRaisesRegex(ValueError, "停止しています"):
+            self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now)
+        # 止まっていても Fixed(固定の値)は読める。エラーのときは固定の値を上書きしない
+        self.assertEqual(self.store.read_snapshot("swap", "PricingSheet.xlsm", "Main"), before)
+        # データセットごとの状態(vol が止まっていても swap は読める)
+        self.store.write_feed_status([feed_status(heartbeat_at=now), feed_status("vol", state="suspect", heartbeat_at=now)])
+        self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=now)
+
+    def test_feed_statuses_round_trip(self):
+        t = datetime(2026, 10, 19, 10, 0, 0, 500000)
+        status = FeedStatus("Swap", FEED_OK, "", t, t - timedelta(seconds=3), 10.0, 42)
+        self.store.write_feed_status([status])
+        found = {s.dataset: s for s in self.store.feed_statuses()}
+        self.assertEqual(found["swap"], status._replace(dataset="swap"))
+
     def test_nan_is_stored_as_blank(self):
         self.store.publish("swap", [["1W", float("nan")]])
         self.assertEqual(self.store.read("swap").rows, [["1W", None]])
@@ -118,6 +173,8 @@ class LiveUdfTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         store = LiveStore(Path(self._tmp.name) / "live.db")
+        feed_ok(store)
+        self.store = store
         self._patch = mock.patch.object(live_udf, "_live_store", lambda: store)
         self._patch.start()
 
@@ -125,13 +182,8 @@ class LiveUdfTest(unittest.TestCase):
         self._patch.stop()
         self._tmp.cleanup()
 
-    def test_publish_then_read(self):
-        message = live_udf.PublishLive("swap", ROWS)
-        self.assertIn("swap:", message)
-        self.assertIn("4行", message)
-        # 2回目は値が同じなので書かないが、最後に書いた時刻を表示する
-        self.assertEqual(live_udf.PublishLive("swap", ROWS), message)
-
+    def test_quotes_pads_rows_and_blanks(self):
+        self.store.publish("swap", ROWS)
         quotes = live_udf.LiveQuotes("swap", caller=MAIN)
         # 空欄は""、行の長さは一番長い行にそろえる
         self.assertEqual(quotes[0], ["O/N", 0.477, "", ""])
@@ -140,11 +192,11 @@ class LiveUdfTest(unittest.TestCase):
         self.assertIsInstance(live_udf.LiveInfo("swap", quotes, caller=MAIN), datetime)
 
     def test_snapshot_keeps_the_rates_last_read_on_the_sheet(self):
-        live_udf.PublishLive("swap", ROWS)
+        self.store.publish("swap", ROWS)
         before = live_udf.LiveQuotes("swap", caller=MAIN)
         changed = [row[:] for row in ROWS]
         changed[0][1] = 0.478
-        live_udf.PublishLive("swap", changed)
+        self.store.publish("swap", changed)
 
         # Fixedに切り替えると、切り替える前に読んだ値(最新ではない)
         self.assertEqual(live_udf.LiveSnapshot("swap", caller=MAIN), before)
@@ -154,8 +206,16 @@ class LiveUdfTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             live_udf.LiveSnapshot("swap", caller=_Caller("SwapAnalysis.xlsm", "Main"))
 
+    def test_quotes_is_an_error_when_the_feed_stopped(self):
+        self.store.publish("swap", ROWS)
+        before = live_udf.LiveQuotes("swap", caller=MAIN)
+        self.store.write_feed_status([feed_status(heartbeat_at=datetime.now() - timedelta(seconds=60))])
+        with self.assertRaisesRegex(ValueError, "止まっています"):
+            live_udf.LiveQuotes("swap", caller=MAIN)
+        self.assertEqual(live_udf.LiveSnapshot("swap", caller=MAIN), before)
+
     def test_info_needs_the_quotes_and_a_caller(self):
-        live_udf.PublishLive("swap", ROWS)
+        self.store.publish("swap", ROWS)
         quotes = live_udf.LiveQuotes("swap", caller=MAIN)
         with self.assertRaisesRegex(ValueError, "LiveQuotes"):
             live_udf.LiveInfo("swap", [["ValueError: ..."]], caller=MAIN)
@@ -163,10 +223,6 @@ class LiveUdfTest(unittest.TestCase):
             live_udf.LiveQuotes("swap")
         with self.assertRaises(ValueError):
             live_udf.LiveInfo("swap", quotes)
-
-    def test_publish_accepts_blank_rows(self):
-        live_udf.PublishLive("swap", [["O/N", 0.477], None])
-        self.assertEqual(live_udf.LiveQuotes("swap", caller=MAIN), [["O/N", 0.477], ["", ""]])
 
 
 if __name__ == "__main__":

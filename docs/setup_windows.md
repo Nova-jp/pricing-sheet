@@ -1,7 +1,7 @@
 # 会社PC(Windows)でのセットアップ手順
 
 必要なのは (1) このリポジトリのコード一式、(2) xlwingsアドイン、(3) LSEG Workspace
-(`historical_data.xlsx`と`LiveFeed.xlsm`のデータ取得用)だけ。
+(`historical_data.xlsx`のデータ取得と、Python APIのリアルタイムのフィード・JGBの取得用)だけ。
 
 ## 1. リポジトリの取得
 
@@ -80,30 +80,41 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
    (Workspace未接続だと`#NAME?`、取得されないときはLSEGリボンの「更新」)。直下のブックは
    `.gitignore`済みなので、データ入りで保存してもコミットされない。
 
-## 4.1 リアルタイムのレート(LiveFeed.xlsm)
+## 4.1 リアルタイムのレート(フィード)
 
-PricingSheet・SwapAnalysisはLSEGから直接取らず、各フロントシートが`LiveFeed.xlsm`が
-`data/live.db`に書き出した値を読む(LiveFeedは常に自動計算、プライシングは手動計算のまま。理由は
-[decisions.md](decisions.md))。Excelの計算方法はExcel(プロセス)ごとに1つなので、**別々のExcelで開く**。
+PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロントシートが、常駐のフィード
+(`engine/common/live_feed.py`)が`data/live.db`に書いた値を読む(フィードは常に受信し続け、ブックは
+手動計算のまま。理由は[decisions.md](decisions.md))。Excelは1つでよい(以前の自動計算のExcelは不要)。
 
-1. 1つ目のExcel(LSEG Workspaceにログイン済み)で`LiveFeed.xlsm`(雛形からコピー)を開く。計算方法が
-   「自動」になっていることを確認する。RealTimeシートH2・RealTimeVolシートI2の`PublishLive`のセルに
-   「swap: 時刻 更新 / 44行」のように出ていれば書き出せている。初回とUDFの変更時は「Import Functions」
-   (`LiveFeed.py`から`PublishLive`を登録)。
-2. 2つ目のExcelを**別プロセスで**起動する(Altキーを押したままタスクバーのExcelをクリックし、
-   「新しいインスタンスを開始しますか」で「はい」。または`excel.exe /x`)。そこで`PricingSheet.xlsm`・
-   `SwapAnalysis.xlsm`を開く。計算方法は「手動」。
-3. 各フロントシート(Main・pricing・HistChart・BOJ・PCA・VolPCA)の1行目が取得モードの欄。B1のプルダウンが`Live`なら、
-   そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。
+1. LSEG Workspaceを起動・ログインしておく(フィードはWorkspaceのデスクトップセッションで受信する。
+   パスワード等の設定は要らない)。
+2. リポジトリ直下で、x64のvenvのPythonでフィードを起動する(コマンドプロンプトの窓は開いたままにする):
+
+   ```
+   python -m engine.common.live_feed
+   ```
+
+   約20秒で「swap: 44銘柄を購読しました」「vol: 192銘柄を購読しました」「接続の状態: ok」と出れば動いている。
+   止めるときはその窓でCtrl+C(ブックはすぐに「フィードは停止しています」になる)。ログは`data/live_feed.log`。
+   二重に起動すると「別のフィードが動いています」で止まる。
+3. ExcelでPricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsmを開く。計算方法は「手動」。
+4. 各フロントシート(Main・pricing・HistChart・BOJ・PCA・VolPCA・Option)の1行目が取得モードの欄。B1のプルダウンが
+   `Live`なら、そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。
    `Fixed`にすると、そのシートが最後にLiveで読んだレートのまま止まり、Shift+F9では入力を変えたセル
    (追加したコンベンションの行など)だけがそのレートで計算される(HistChartの重い再計算も止まる)。
    Ctrl+Alt+F9・UDFサーバの再起動でも固定の値は変わらない。D1(Updated)は、表示中のレートの値が
-   LiveFeedで最後に変わった時刻。ブックを開いた直後は前回保存した値なので、最初に1回Ctrl+Alt+F9を押す。
+   フィードで最後に変わった時刻(相場が静かなら古いままになる。フィードの停止はエラーで分かる)。
+   ブックを開いた直後は前回保存した値なので、最初に1回Ctrl+Alt+F9を押す。
    リアルタイムの列は折りたたんである(列の上の「+」で開く)。
-4. LiveFeedを開いていなければ、読み直すと「リアルタイムのデータがありません」のエラーになる。
-   LiveFeedの行(RIC)を増やしたときは`PublishLive`の範囲も広げる。PricingSheetで使うテナーを足すときは
+5. `Live`のシートでフィードが止まっている(ハートビートが`stale_after_sec`=10秒より古い)か、LSEGとの接続が
+   正常でないと、ライブのレートのセルがエラー(「フィードが止まっています」「LSEGとの接続が正常では
+   ありません」等)になり、古い値では計算しない。止まっている間に直前のレートで計算するときはB1を`Fixed`にする。
+6. 調整する値(秒数・RIC)は`live_feed.toml`にまとめてある。変えたらフィードを再起動する(Excel側は何もしなくて
+   よい)。RICを増やしたら、PricingSheetで使うテナーは
    MainシートのA11:B54(Ticker/採否)にも足し、各シートのカーブ用の範囲(`Main!$A$11:$A$54`)を広げる
    (読む側はTickerで引き当てる)。
+7. (任意)LSEGのApp Keyを自分で発行して使うときは、環境変数`LSEG_APP_KEY`に入れてからフィードを起動する
+   (無ければライブラリ同梱の既定のキーで接続する)。キーは`OPERATIONS.md`に控え、コードやdocsに書かない。
 
 ## 5. 毎朝の手順(ヒストリカルの日次カーブDBの更新)
 
@@ -142,7 +153,7 @@ PricingSheet・SwapAnalysisはLSEGから直接取らず、各フロントシー�
 - JGBの銘柄情報・引け値(JCL)は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
   LSEG Workspaceを起動・ログインしておく**(`requirements.txt`の`lseg-data`が必要。繋がらないとこの取得だけ
   スキップされ、「JGB取得: 失敗のためスキップ」と表示される)。カーブだけ作り直すときは`--skip-jgb`。
-- ボラはLiveFeed.xlsmのRealTimeVolを読む(4.1と同じく別のExcelでLiveFeedを開いておく)。B1が取得モード(Live/Fixed)。
+- ボラはフィードの`"vol"`を読む(4.1のフィードを起動しておく)。B1が取得モード(Live/Fixed)。
 - 使い方: Optionシートの黄色の列(Bond・Type・Expiry・Settle lag・Repo・ATM/Strikeのスライド等)を入れてF9。
   評価日はB3(空欄=今日)。ATM単利は引け値+ATMのスライド。ボラはbp vol・ノーマルvolのどちらでも上書きできる。
 
@@ -157,9 +168,11 @@ PricingSheet・SwapAnalysisはLSEGから直接取らず、各フロントシー�
 - [ ] `pricing`シートの行にコンベンションを入力し、`target fixrate`列に
       パーレートが表示される
 - [ ] F9で再計算され、値が更新される(自動計算はオフのまま)
-- [ ] 別のExcelで`LiveFeed.xlsm`を開いた状態で、取得モード(B1)が`Live`のシートでShift+F9を1回押すと、
+- [ ] フィード(4.1)を起動した状態で、取得モード(B1)が`Live`のシートでShift+F9を1回押すと、
       そのシートが最新のレートで計算され、D1の時刻が新しくなる。B1を`Fixed`にするとShift+F9・F9・
       Ctrl+Alt+F9でもレートが変わらず、Fixedのまま追加した行はそのレートで計算される
+- [ ] フィードをCtrl+Cで止めると、`Live`のシートのShift+F9でライブのレートのセルが「フィードは停止しています」の
+      エラーになり、`Fixed`のシートはそのまま計算できる
 - [ ] `risk_flag`を1にした行があると、pricingシートY列のRiskGridに、Mainの
       テナー行の並びでテナー別デルタの合計が入る。AC2(合計)がAC3(行ごとのdeltaの
       risk_flag=1の合計)とほぼ一致する
