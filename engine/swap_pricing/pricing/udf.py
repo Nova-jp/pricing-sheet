@@ -11,42 +11,37 @@ from typing import List
 import xlwings as xw
 
 from engine.common import udf_common
-from engine.common.conventions import business_days_start, forward_start_date, is_business_days, is_tenor
-from engine.common.risk import (
-    annuity_delta,
-    bucketed_deltas,
-    parallel_delta,
-    price,
-    resolve_params,
-    solve_notional_for_target_delta,
-)
-from engine.common.terms import SwapConvention, SwapParams, SwapTerms
-
-
-def _start_date(value, curves):
-    """start列の値 → 起算日。日付・IMMコードに加え、テナー(10y等)ならスポット日+tenor
-    (フォワードスタート)、営業日数(2bd等)なら評価日からN営業日後(2bd=スポット日)。"""
-    if is_tenor(value):
-        return forward_start_date(curves.spot_date, value)
-    if is_business_days(value):
-        return business_days_start(curves.valuation_date, value)
-    return udf_common._to_date(value)
+from engine.common.risk import bucketed_deltas, price, resolve_params
+from engine.common.terms import SwapParams
+from engine.swap_pricing.pricing import measures, table
+from engine.swap_pricing.pricing.row import swap_params, swap_terms
+from engine.swap_pricing.pricing.table import is_flagged as _is_flagged
 
 
 def _params(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, fix_rate, curves,
 ) -> SwapParams:
-    """pricingシートの1行分の入力 → ポジションの型。Excelの値を型に直すのはここだけ。
-    curves: 評価日のカーブ一式(startがテナー・営業日数の入力のときの起点=スポット日・評価日を使う)。"""
-    terms = SwapTerms(
-        _start_date(start, curves), SwapConvention(fix_freq, fix_dcf, float_freq, roll_conv),
-        tenor=None if udf_common._is_blank(tenor) else tenor, end=udf_common._to_date(end_date),
-    )
-    return SwapParams(
-        terms, float(notional), pay_rec,
-        fix_rate=None if udf_common._is_blank(fix_rate) else float(fix_rate),
-    )
+    """pricingシートの1行分の入力 → ポジションの型(RiskGrid用。型への変換はrow.py)。"""
+    terms = swap_terms(start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, curves)
+    return swap_params(terms, notional, pay_rec, fix_rate)
+
+
+@xw.func
+@xw.arg("pricing_table", ndim=2)
+@xw.arg("real_time_range", ndim=2)
+def PricingTable(pricing_table, real_time_range, valuation_date=None) -> List[list]:
+    """
+    pricing表の全行のtarget fixrate・PV・delta(bump)・delta(annuity)・adj_notional・messageを1回で返す
+    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はpricing/table.py)。
+
+    pricing_table: 見出し行から最終行まで。出力の列(target fixrate・adj_notional等)を含めると循環参照に
+        なるので、入力の列だけをHSTACKで渡す(例: HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103))。
+        列は見出し名で探す(flag, notional, delta, start, tenor, end, fix rate, fix freq, fix dcf,
+        float freq, roll conv, pay/rec)。
+    """
+    curves = udf_common._market(real_time_range, valuation_date)
+    return table.price_table(pricing_table, curves)
 
 
 @xw.func
@@ -64,11 +59,8 @@ def FairRate(
     生成する ``xlwings_udfs`` モジュールがコンパイルできなくなるため ``end_date``。
     """
     curves = udf_common._market(real_time_range, valuation_date)
-    params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0, "PAY",
-        None, curves,
-    )
-    return price(curves.base, params).target_fixrate
+    terms = swap_terms(start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, curves)
+    return measures.fair_rate(curves, terms)
 
 
 @xw.func
@@ -83,7 +75,7 @@ def SwapPV(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, fix_rate, curves,
     )
-    return price(curves.base, params).pv
+    return measures.pv(curves, params)
 
 
 @xw.func
@@ -99,7 +91,7 @@ def SwapDelta(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, fix_rate, curves,
     )
-    return parallel_delta(curves, resolve_params(curves, params)) / 1_000_000.0
+    return measures.parallel_delta_mm(curves, params)
 
 
 @xw.func
@@ -114,8 +106,7 @@ def SwapAnnuityDelta(
         start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, notional,
         pay_rec, None, curves,
     )
-    result = price(curves.base, params)
-    return annuity_delta(result.annuity, float(notional), pay_rec) / 1_000_000.0
+    return measures.annuity_delta_mm(curves, params)
 
 
 @xw.func
@@ -126,13 +117,8 @@ def NotionalForDelta(
 ) -> float:
     """目標delta(百万円単位)から必要なnotionalを逆算する(アニュイティデルタ基準)。"""
     curves = udf_common._market(real_time_range, valuation_date)
-    params = _params(
-        start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, 1.0,
-        pay_rec, None, curves,
-    )
-    result = price(curves.base, params)
-    target_delta_yen = float(target_delta_mm) * 1_000_000.0
-    return solve_notional_for_target_delta(target_delta_yen, result.annuity, pay_rec)
+    terms = swap_terms(start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv, curves)
+    return measures.notional_for_delta(curves, terms, target_delta_mm, pay_rec)
 
 
 # RiskGrid が pricing表から読む列(見出し名)
@@ -140,13 +126,6 @@ _RISK_COLUMNS = (
     "risk_flag", "notional", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
     "float freq", "roll conv", "pay/rec",
 )
-
-
-def _is_flagged(value) -> bool:
-    try:
-        return float(value) == 1.0
-    except (TypeError, ValueError):
-        return False
 
 
 @xw.func

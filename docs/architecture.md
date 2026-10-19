@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AO、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -73,7 +73,7 @@
 | シート | ライブのレート | カーブ用の範囲 |
 |---|---|---|
 | Main | H3 | M3 |
-| pricing | AF3 | AK3 |
+| pricing | AF4 | AK4 |
 | HistChart | AJ3 | AO3 |
 | BOJ | K3 | P3 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
@@ -142,7 +142,10 @@ engine/
 | ファイル | 役割 |
 |---|---|
 | `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`・`asw/udf.py`) |
-| `pricing/udf.py` | Main/pricingシートのUDF: `FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`/`RiskGrid`/`MarketInfo` |
+| `pricing/udf.py` | Main/pricingシートのUDF: `PricingTable`(pricing表全体)/`FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`(1行用)/`RiskGrid`/`MarketInfo`。どれも下の部品を組み合わせるだけ |
+| `pricing/row.py` | 1行分のセルの値→取引条件の型(`swap_terms`=SwapTerms、`swap_params`=SwapParams)。start列のテナー・営業日数の読み替えもここ |
+| `pricing/measures.py` | 列ごとの計算: `par`(想定元本1・固定金利なしの評価)/`fair_rate`/`pv`/`parallel_delta_mm`/`annuity_delta_mm`/`notional_for_delta`。`par`の結果・PVを渡すと評価をやり直さない(PricingTableは1行3回の評価) |
+| `pricing/table.py` | PricingTableの本体: 見出し名で列を探し、flag=1の行だけ計算し、行ごとのエラーをmessageに閉じ込める |
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約のスポットのスワップ)。その日のカーブに使っていないテナー(クォートが無かった日)は補間値を出さず空欄。O/N・会合スワップは受け付けない |
@@ -239,10 +242,20 @@ UDFに渡す範囲は、そのシートのカーブ用の範囲の`TAKE(範囲#,
 start / tenor / end / fix rate / fix freq / fix dcf / index / float freq /
 roll conv / target fixrate / spred / fly / pay/rec / PV /
 delta(bump) / delta(annuity)`。float dcfの列は持たない(TONAの変動脚の日数計算はQuantLibが
-指標に固定し、入力しても使われないため。2026-10-12に削除)。target fixrate・PV・delta・adj_notionalは
-UDF、spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則演算)。
-target fixrate(Q列)は`IF(flag=1, FairRate(...), "")`で、A列のflagが1の行だけ計算する。
-1行目は取得モードの欄、2行目が見出し、取引は3行目から(2026-10-18に1行挿入。HistChartの行番号もExcelの行番号)。
+指標に固定し、入力しても使われないため。2026-10-12に削除)。W列はmessage(その行を計算できなかった理由)。
+spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則演算)。
+1行目は取得モードの欄、2行目はシート見出し(`Pricing`)、3行目が表の見出し、取引は4〜103行目の100行
+(2026-10-19に見出し行を挿入。HistChartの行番号もExcelの行番号)。意匠は他のフロントシートと同じ
+(シート見出しは太字13pt、表の見出しは太字、入力セル(A〜E・G〜O・S列)は薄黄色)。
+
+target fixrate(P)・adj_notional(F)・PV(T)・delta(bump)(U)・delta(annuity)(V)・message(W)は、
+右の計算用の領域のAQ3`=PricingTable(HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE($AK$4#,,3),評価日)`
+(AQ:AV、見出し行+100行)が表全体を1回で計算し、左の列は`=AQ4`のようにその行のセルを参照するだけ
+(2026-10-19。理由は[decisions.md](decisions.md))。計算するのはflag=1の行だけで、PV・delta系は
+notionalのある行、adj_notionalはdelta(目標delta)のある行だけ。1行の入力の誤りでは表全体を
+エラーにせず、その行の値を空欄にしてmessageに理由を出す。PricingTableには出力の列(F・P等)を
+渡さない(循環参照になる)ので、入力の列だけを`HSTACK`で渡す(列は見出し名で探す)。
+計算用の領域(ライブのレート〜PricingTable、AF:AV)は列のグループで折りたたんである。
 
 start/end列には日付のほか、IMMコード(月記号H/M/U/Z+2桁年、例: `M27`)も入力できる
 (`engine/common/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
@@ -257,11 +270,11 @@ STD等で計算したい行はドロップダウンで上書きする(UDFはroll
 
 評価日の引数はすべて名前`評価日`(Mainシート)を参照する(`TODAY()`は使わない)。
 
-列Y以降: リスクの合算。Y2の`=RiskGrid(pricing!$A$2:$S$202, TAKE($AK$3#,,3), 評価日)`が、
+列Y以降: リスクの合算。Y3の`=RiskGrid(pricing!$A$3:$S$103, TAKE($AK$4#,,3), 評価日)`が、
 risk_flag=1の全行のテナー別デルタ(+1bp、百万円)の合計を
 Mainのテナーの並びでTicker/Deltaの2列にスピルする(カーブに使っていないテナーは空欄)。
-AC2が全テナーの合計、AC3が参考として行ごとのdelta(V列、全テナー+1bp)のrisk_flag=1の合計。
-pricing表の列は見出し名で探すので、列を移動しても壊れない(見出し行=2行目から渡すこと)。
+AC3が全テナーの合計、AC4が参考として行ごとのdelta(U列、全テナー+1bp)のrisk_flag=1の合計。
+pricing表の列は見出し名で探すので、列を移動しても壊れない(見出し行=3行目から渡すこと)。
 数式の先頭に`@`を付けないこと(付くと先頭の1セルしか表示されない)。
 
 ### Mainシート
@@ -299,7 +312,7 @@ pricingシートの行を指定して、最大3系列(アウトライト/カー�
   空欄=今日)、B5/B6=計算期間(任意、薄黄色)。B7=単位(表示中の系列にカーブ/フライが1本でもあれば
   全系列bp、アウトライトだけなら%。軸は1本。VBAなしでは系列ごとの第2軸を動的に切り替え
   られないため)、B8=倍率(bpなら100)。
-- 系列表(10〜12行): 表示(○/×)・行A・行B・行C(pricingのExcel行番号。取引は3行目から)・モード
+- 系列表(10〜12行): 表示(○/×)・行A・行B・行C(pricingのExcel行番号。取引は4行目から)・モード
   (ROLLING/FIXED、系列ごと)・系列名(任意)。種類は行番号の数で自動判定
   (1つ=アウトライト、2つ=カーブ `行B−行A`、3つ=フライ `2×行B−行A−行C`。pricingシートの
   spred/flyと同じ符号)。凡例名は自動(系列名を入れればそれを使う)。
@@ -328,7 +341,7 @@ pricingシートの行を指定して、最大3系列(アウトライト/カー�
     上書き可)、スタート日(系列1とヘッジの両方に値がある最も古い日、自動)、状態(AE8: 縮尺が計算できない・
     0のときにメッセージ。notionalが空欄の行は縮尺を手入力する)。
   - 縦のグリッド(AD9〜AG43): Ticker(`=TAKE(DROP($AO$3#,1,1),33,1)`=1W〜40Yのスポット。O/N・会合スワップは
-    使わない)、フロー(pricingのRiskGrid `pricing!$Y$2#`をXLOOKUP)、ヘッジ入力(AF10:AF42、薄黄色、
+    使わない)、フロー(pricingのRiskGrid `pricing!$Y$3#`をXLOOKUP)、ヘッジ入力(AF10:AF42、薄黄色、
     百万円/bp。**フローと同じ符号=ヘッジで再現するリスク**。実際に執行するヘッジ取引は逆の符号)、
     残差(フロー−入力)、合計(43行)。
   - U30: 0以外を入力したテナーだけを`FILTER`して`HedgeHistoricalRates(テナー, モード, HistChart_Date,
