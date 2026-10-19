@@ -44,6 +44,10 @@ class TruncateTest(unittest.TestCase):
         self.assertEqual(truncate3(0.1 + 0.2 + 91.0), 91.3)  # 91.30000000000001
         self.assertEqual(truncate3(91.30099999999999), 91.301)
 
+    def test_negative_truncates_toward_zero(self):
+        """ExcelのROUNDDOWNと同じく0に近い側(暫定。docs/roadmap.mdの14 #4)。"""
+        self.assertEqual(truncate3(-0.1234), -0.123)
+
 
 class SimpleYieldTest(unittest.TestCase):
     def test_price_and_yield_round_trip_within_truncation(self):
@@ -142,6 +146,27 @@ class OptionTest(unittest.TestCase):
             pricer.black_premium("straddle", 99.5, 99.0, 4.0, 0.25)
 
 
+class ItmBuyWriteTest(unittest.TestCase):
+    F, V, T = 99.95, 3.0, 40 / 252
+
+    def test_strike_plus_premium_is_the_purchase_price(self):
+        target = 100.0
+        k = pricer.itm_buy_write_strike(self.F, target, self.V, self.T)
+        self.assertEqual(k, truncate3(k))
+        self.assertLess(k, self.F)  # イン・ザ・マネーのコール
+        # 切り捨て前の解は k と k+0.001 の間にある(f(K)=K+C(K)は単調増加)
+        f = lambda x: x + pricer.black_premium("Call", self.F, x, self.V, self.T)  # noqa: E731
+        self.assertLessEqual(f(k), target)
+        self.assertGreater(f(k + 0.001), target)
+
+    def test_no_solution_when_carry_is_negative(self):
+        with self.assertRaisesRegex(ValueError, "キャリーが負"):
+            pricer.itm_buy_write_strike(100.05, 100.0, self.V, self.T)
+
+    def test_zero_vol_strike_is_the_purchase_price(self):
+        self.assertEqual(pricer.itm_buy_write_strike(self.F, 100.0, 0.0, self.T), 100.0)
+
+
 class VolTest(unittest.TestCase):
     T0 = date(2026, 10, 16)
     ROWS = [
@@ -206,29 +231,37 @@ class UdfTest(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def test_info_and_close(self):
-        self.assertEqual(bo_udf.JgbInfo("js999"), [[2.0, date(2031, 3, 20)]])
-        self.assertEqual(bo_udf.JgbClose("JS999", date(2026, 10, 19)), [[2.12, date(2026, 10, 16)]])
-        self.assertEqual(bo_udf.JgbClose("JS999", date(2026, 10, 15)), [[2.10, date(2026, 10, 15)]])
+    def test_master(self):
+        self.store.save_jgb_bonds([JgbRecord("JN998", "JP09980042=", "YY", 0.5, date(2028, 3, 1))])
+        self.assertEqual(
+            bo_udf.JgbMaster(date(2026, 10, 19)),
+            [
+                ["JN998", 0.5, date(2028, 3, 1), "", "", "JP09980042=", "YY"],  # 引け値なし → 空欄
+                ["JS999", 2.0, date(2031, 3, 20), 2.12, date(2026, 10, 16), "JP09990045=", "XX"],
+            ],
+        )
+        self.assertEqual(bo_udf.JgbMaster(date(2026, 10, 15))[1][3:5], [2.10, date(2026, 10, 15)])
 
-    def test_unknown_code(self):
-        with self.assertRaisesRegex(ValueError, "DBにありません"):
-            bo_udf.JgbInfo("JB000")
+    def test_holidays(self):
+        self.assertEqual(
+            bo_udf.JapanHolidays(date(2026, 11, 1), date(2026, 11, 30)), [[date(2026, 11, 3)], [date(2026, 11, 23)]],
+        )
+
+    def test_dates_only(self):
+        """満期・償還日の欄にスワップ用のIMMコード等を通さない。"""
+        with self.assertRaisesRegex(ValueError, "日付です"):
+            bo_udf.JgbForwardRisk(2.0, "M31", 100.0, date(2026, 11, 18))
 
     def test_row_chain(self):
-        """1行の組み合わせ(シートと同じ順)が計算できる。"""
-        t0, expiry = date(2026, 10, 16), date(2026, 11, 16)
-        atm = bo_udf.JgbClose("JS999", t0)[0][0] - 0.5 / 100
-        s0, se = bo_udf.JgbSettle(t0, 1), bo_udf.JgbSettle(expiry, 2)
-        spot = bo_udf.JgbPrice("JS999", atm, s0)
-        strike = bo_udf.JgbPrice("JS999", atm + 3 / 100, expiry)
-        clean, dirty = bo_udf.BondForward("JS999", spot, s0, se, 0.5)[0]
-        _, _, md = bo_udf.ForwardDuration("JS999", dirty, se)[0]
-        normal = bo_udf.SwaptionVol([["1Mx1Y", "R", 40.0], ["1Mx10Y", "R", 80.0]], t0, expiry, "JS999")
+        """シートの1行と同じ組み合わせ(UDFの部分)が計算できる。利率・償還日はセルの値で渡す。"""
+        t0, expiry, se = date(2026, 10, 16), date(2026, 11, 16), date(2026, 11, 18)
+        _, _, md = bo_udf.JgbForwardRisk(2.0, date(2031, 3, 20), 100.5, se)[0]
+        normal = bo_udf.SwaptionVol([["1Mx1Y", "R", 40.0], ["1Mx10Y", "R", 80.0]], t0, expiry, date(2031, 3, 20))
         price_vol = normal / math.sqrt(252) * math.sqrt(252) * md / 100
-        premium = bo_udf.BlackPremium("Put", clean, strike, price_vol, bo_udf.OptionTerm(t0, expiry))
+        premium = bo_udf.BlackPremium("Put", 100.0, 99.9, price_vol, 20 / 252)
         self.assertGreater(premium, 0.0)
-        self.assertLess(strike, spot)  # 利回りを上にずらすと単価は下がる
+        k = bo_udf.ItmBuyWriteStrike(99.95, 100.0, price_vol, 20 / 252)
+        self.assertLess(k, 99.95)
 
 
 @unittest.skipUnless(SAMPLES.exists(), "ユーザーのサンプル(data/bond_option_samples.toml)はローカルにだけある")

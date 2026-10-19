@@ -144,6 +144,18 @@ class JgbCloseRow(NamedTuple):
     simple_yield: float
 
 
+class JgbMasterRow(NamedTuple):
+    """銘柄情報と、ある日以前で直近の引け値(無ければ None)。"""
+
+    code: str
+    ric: str
+    isin: str
+    coupon: float
+    maturity: date
+    close_yield: Optional[float]
+    close_date: Optional[date]
+
+
 def discount_grid(curve: ql.YieldTermStructureHandle, as_of_date: date) -> array:
     """カーブ → 評価日から暦日1日刻みのDF(GRID_DAYS点)。どの引き方のカーブでもよい。"""
     # ブートストラップ系のカーブは評価日に連動して再計算されるため、構築時の評価日に戻す
@@ -314,6 +326,24 @@ class HistoricalStore:
                 (code, _iso(on_or_before)),
             ).fetchone()
         return None if row is None else JgbCloseRow(date.fromisoformat(row[0]), row[1])
+
+    def jgb_master(self, on_or_before: date) -> List[JgbMasterRow]:
+        """全銘柄(償還日・銘柄コードの順)と、それぞれのその日以前で直近の引け値。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT b.code, b.ric, b.isin, b.coupon, b.maturity, c.simple_yield, c.as_of_date "
+                "FROM jgb_bonds b LEFT JOIN jgb_closes c ON c.code = b.code AND c.as_of_date = "
+                "(SELECT MAX(as_of_date) FROM jgb_closes WHERE code = b.code AND as_of_date <= ?) "
+                "ORDER BY b.maturity, b.code",
+                (_iso(on_or_before),),
+            ).fetchall()
+        return [
+            JgbMasterRow(
+                r[0], r[1], r[2], r[3], date.fromisoformat(r[4]), r[5],
+                None if r[6] is None else date.fromisoformat(r[6]),
+            )
+            for r in rows
+        ]
 
     def asw_quotes_max_updated_at(self) -> Optional[datetime]:
         """ローカルに保存済みのasw_quotesの最新updated_at。次回のNeon差分取得の基準にする

@@ -78,7 +78,7 @@ ASWシート(ヒストリカルチャート)は2026-10-12に実装済み(archite
 ## 14. 現物オプション(BondOption)のコードレビューの指摘(2026-10-19、feature/bond-option `7701a08`)
 
 `/code-review high`の指摘10件と、UDFの読み直しの指摘。再現の確認はClaudeが行った。プライサー(正)と比べた
-数値はサンプル由来なので、ローカルの`data/bond_option_spec.md`にだけ書く。状態: 未対応(ユーザーの判断待ちを含む)。
+数値はサンプル由来なので、ローカルの`data/bond_option_spec.md`にだけ書く。状態: 一部対応(2026-10-19の構成の見直しで#7・UDFの入力・UDFの名前を解消。残りは未対応、ユーザーの判断待ちを含む)。
 
 ### 直す(再現済み)
 - **#1 LSEGの欠損の日付(NaT)が通る**(`engine/common/jgb_source.py`の`_as_date`)。pandasのTimestampは
@@ -87,24 +87,24 @@ ASWシート(ヒストリカルチャート)は2026-10-12に実装済み(archite
   その銘柄の`JgbClose`は毎回失敗する。→ NaTを欠損として扱う。
 - **#3 テストが実際にLSEGへ接続する**(`tests/test_market_risk.py`の2か所が`morning_batch.run()`を
   `skip_jgb`なしで呼ぶ)。→ `run()`の既定は取得しない(コマンドから実行したときだけ取得する)。
-- **#7 UDFが呼ばれるたびにDBを開き直す**(`engine/bond_option/udf.py`の`_jgb`。1回のF9で約160回、
-  毎回DDLも流れる)。→ 銘柄の情報をDBの更新時刻ごとにメモリに覚える。
+- ~~**#7 UDFが呼ばれるたびにDBを開き直す**~~ → 2026-10-19の構成の見直しで解消(銘柄の一覧を`JgbMaster`で
+  1回だけ読み、行はXLOOKUPで引く。`_jgb`は利率・償還日のセルを受け取るだけになった)。
 - **#9 値の変換(数値・日付か欠損か)が3か所に重複**(`jgb_source`・`morning_batch`・`bond_option/vol`)。
   欠損の扱いがそれぞれ違い、#1はその1つだけの不具合。→ `engine/common`の共通の関数に1本化する。
 - **#10 JGBの取得がカーブの作成より前にある**(`morning_batch.run`)。LSEGが応答しないとカーブが作られない。
   → カーブの作成の後へ移す。
-- **UDFの入力**: `JgbSettle`の日数が整数でなくても黙って切り捨てる(→ エラーにする)。満期等の日付の欄に
-  IMMコード(M27)・テナーが通る(`udf_common._to_date`がスワップ用の表記を受け付けるため。→ 日付だけ受け付ける)。
+- ~~**UDFの入力**~~ → 2026-10-19に解消。`JgbSettle`は廃止(受渡日は`WORKDAY`)。日付の引数は日付だけを受け付ける
+  (`engine/bond_option/udf.py`の`_date`)。
 
 ### ユーザーの判断待ち
-- **#4 負の利回りの切り捨て**: `truncate3`は`math.floor`で、−0.1234 → −0.124(0から遠い側)。
-  0に近い側(−0.123)が市場の慣行か。短い年限がマイナスになると効く。
+- **#4 負の利回りの切り捨て**: 2026-10-19に暫定で0に近い側(−0.1234 → −0.123、ExcelのROUNDDOWN)にした。
+  シートの式(LAMBDA)とPythonを揃えるため。市場の慣行の確認は残る。短い年限がマイナスになると効く。
 - **#6 2/29を含む期間**: 経過利子とレポの日数でうるう日を数えている(他はうるう日除き)。JGBの経過利子は
   うるう日を数えない慣行の可能性。経過利子・レポそれぞれのプライサー側の扱いを確認する
   ([bond_option.md](bond_option.md)の「未確認」と同じ項目)。
 - **#8 過去の評価日でのボラ**: 引け値はその日の値、ボラは今日のライブの値になる。案: 過去日はDBの
   `vol_quotes`(その日の値)を使う、またはエラーにする。
-- **UDFの名前**: `Jgb*`と`BondForward`・`ForwardDuration`が混在。`JgbForward`・`JgbForwardDuration`に揃えるか。
+- ~~**UDFの名前**~~ → 2026-10-19に解消(`BondForward`・`ForwardDuration`は廃止し、`JgbForwardRisk`にした)。
 
 ### 直さない
 - **#5 サンプル由来の値がテストに含まれている**(`tests/test_bond_option.py`の`SWAP_VOLS`、

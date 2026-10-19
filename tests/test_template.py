@@ -186,6 +186,13 @@ class CheckTemplateTest(unittest.TestCase):
         problems = check_template(parts, AREAS, self.UDFS)
         self.assertTrue(any("動的配列ではありません" in p and "B2" in p for p in problems))
 
+    def test_array_udf_inside_index_may_be_legacy(self):
+        # INDEX(配列UDF(…),1,2)で1つだけ取り出すセルは、Excelが cm なしで保存する
+        cell = '<c r="D2" t="str"><f>INDEX(HistoricalRates(A1),1,2)</f></c>'
+        sheet = CALC_SHEET.replace("</row>", cell + "</row>", 1)
+        problems = check_template(make_template(_book(**{"xl/worksheets/sheet1.xml": sheet}), AREAS), AREAS, self.UDFS)
+        self.assertFalse(any("D2" in p for p in problems), problems)
+
 
 class ArrayUdfNamesTest(unittest.TestCase):
     def test_reads_array_returning_udfs_from_udf_modules(self):
