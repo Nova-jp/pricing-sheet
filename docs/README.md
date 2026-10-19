@@ -8,6 +8,7 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
 - [decisions.md](decisions.md) — 主要な設計判断とその理由(なぜそうしたか)
 - [roadmap.md](roadmap.md) — 保留中/次フェーズ以降に回した項目
 - [setup_windows.md](setup_windows.md) — 会社PC(Windows)でのセットアップ手順
+- [bond_option.md](bond_option.md) — 現物オプション・プライサー(BondOption.xlsm)の計算規則とブックの構成
 - `../OPERATIONS.md`(**gitignore対象、リポジトリ直下**) — 環境固有の運用値。このリポジトリは
   **GitHub上でPublic**のため、秘密情報・環境固有の値は絶対にコミットしない。
 
@@ -32,6 +33,8 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   - `test_historical.py` — ヒストリカル計算(FIXED/ROLLINGの日付の決め方・営業日数の固定、先読みしないフィキシング、満期後の除外)
   - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
   - `test_neon_source.py` — ASWスプレッド取得の対象テーブル・差分取得・接続の後始末(psycopg2をモック)
+  - `test_bond_option.py` — 現物オプションの式(端数処理・日数・利払日・先渡・パリティ・ボラの補間・UDFの組み合わせ)。
+    ユーザーのプライサーのサンプル(`data/`、コミットしない)があるときはプレミアムまでの一致も確かめる
 - `historical_curve.toml` — ヒストリカル日次カーブの設定(引き方・使うテナー)。
   `python -m engine.common.morning_batch`が読む
 - `templates/` — Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う。

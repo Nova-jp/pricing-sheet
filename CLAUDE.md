@@ -2,7 +2,8 @@
 
 JPY OIS(TONA)スワップのプライシングシート。Excel(UDF専用、VBAなし) +
 Python/QuantLib + LSEG Workspace(カーブ・プライシング本体の供給元)。ASWスプレッドのみ
-Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.md`)。
+Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.md`)。現物オプションのブック
+`BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)も含む。
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
@@ -24,6 +25,7 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   - `engine/swap_pricing/` — PricingSheet.xlsm固有のUDF(機能ごとに`pricing/`・`historical/`・
     `boj/`に分割、薄い再エクスポート層`udf.py`)
   - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析(history/pca/udf)
+  - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
 
 ## 設計方針(必ず守る)
 
@@ -43,8 +45,8 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 - 評価日はMainシートの`評価日`セル(空欄=今日)に集約し、UDFの引数に`TODAY()`を使わない
   (volatileでF9のたびに全UDFが再計算される)。カーブは`engine/common/market.py`で全UDFが共有し、
   UDFごと・行ごとにブートストラップしない。
-- データの供給元はLSEG Workspace(`LiveFeed.xlsm`と`historical_data.xlsx`)と、ASWスプレッドだけは
-  Neon(`engine/common/neon_source.py`、読み取り専用)。ヒストリカルは手動実行のバッチ
+- データの供給元はLSEG Workspace(`LiveFeed.xlsm`と`historical_data.xlsx`、JGBの銘柄情報・引け値だけは
+  Python APIで`engine/common/jgb_source.py`)と、ASWスプレッドだけはNeon(`engine/common/neon_source.py`、読み取り専用)。ヒストリカルは手動実行のバッチ
   (`python -m engine.common.morning_batch`)が日次カーブ(とASW)を`data/historical.db`に保存し、
   日中のUDFはそれを読むだけ。カーブの引き方は`curve.CURVE_BUILDERS`に閉じ込め、保存・評価側は
   日付→DFしか扱わない(引き方に依存させない)。

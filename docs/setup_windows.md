@@ -134,6 +134,18 @@ PricingSheet・SwapAnalysisはLSEGから直接取らず、各フロントシー�
   比較(比較日・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。比較日が空欄なら
   そのシートのライブの値(1行目の取得モードがLiveなら読み直す)と比べる。
 
+## 5.2 現物オプション(BondOption.xlsm)
+
+- 計算規則とシートの構成は[bond_option.md](bond_option.md)。PricingSheetと同じxlwings・venvで動く
+  (VBAのxlwings参照は雛形に入っている)。初回とUDFの変更時は`BondOption.xlsm`を開いて「Restart UDF Server」→
+  「Import Functions」(`BondOption.py`から`JgbPrice`等を登録)。
+- JGBの銘柄情報・引け値(JCL)は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
+  LSEG Workspaceを起動・ログインしておく**(`requirements.txt`の`lseg-data`が必要。繋がらないとこの取得だけ
+  スキップされ、「JGB取得: 失敗のためスキップ」と表示される)。カーブだけ作り直すときは`--skip-jgb`。
+- ボラはLiveFeed.xlsmのRealTimeVolを読む(4.1と同じく別のExcelでLiveFeedを開いておく)。B1が取得モード(Live/Fixed)。
+- 使い方: Optionシートの黄色の列(Bond・Type・Expiry・Settle lag・Repo・ATM/Strikeのスライド等)を入れてF9。
+  評価日はB3(空欄=今日)。ATM単利は引け値+ATMのスライド。ボラはbp vol・ノーマルvolのどちらでも上書きできる。
+
 ## 6. コードを更新したとき(git pull後など)
 
 - **xlwingsリボンの「Restart UDF Server」を押す**。Excelの裏で動くPython(UDFサーバ)は

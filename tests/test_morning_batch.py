@@ -98,6 +98,7 @@ class CurveBatchTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, **kwargs):
+        kwargs.setdefault("skip_jgb", True)  # LSEGに接続しない(JGBの取得はモックで別に確かめる)
         return morning_batch.run(self.xlsx, self.config, self.db, log=lambda *_: None, **kwargs)
 
     def test_builds_curve_equal_to_direct_bootstrap_with_tona_as_on(self):
@@ -254,6 +255,31 @@ class CurveBatchTest(unittest.TestCase):
             summary = self._run()  # 例外を外に投げず、カーブ構築は通常通り完了する
         self.assertEqual(summary.built, DAYS)
         self.assertEqual(HistoricalStore(self.db).asw_quotes(), {})
+
+    def test_jgbs_are_synced_from_lseg(self):
+        from unittest import mock
+
+        from engine.common.jgb_source import JgbClose, JgbRecord
+
+        bonds = [JgbRecord("JB380", "JP03800067=", "JP1103801RA7", 1.7, date(2035, 9, 20))]
+        closes = [JgbClose(date(2026, 10, 16), "JB380", 2.94)]
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, closes)):
+            summary = self._run(skip_jgb=False)
+        self.assertEqual(summary.built, DAYS)
+        store = HistoricalStore(self.db)
+        self.assertEqual(store.jgb_bond("JB380"), tuple(bonds[0]))
+        self.assertEqual(store.jgb_close("JB380", date(2026, 10, 19)), (date(2026, 10, 16), 2.94))
+        self.assertIsNone(store.jgb_close("JB380", date(2026, 10, 15)))  # その日以前の引け値だけ
+
+    def test_lseg_failure_does_not_abort_the_batch(self):
+        from unittest import mock
+
+        with mock.patch.object(
+            morning_batch.jgb_source, "fetch_jgbs", side_effect=RuntimeError("Workspaceに繋がりません"),
+        ):
+            summary = self._run(skip_jgb=False)
+        self.assertEqual(summary.built, DAYS)
+        self.assertIsNone(HistoricalStore(self.db).jgb_bond("JB380"))
 
 
 if __name__ == "__main__":

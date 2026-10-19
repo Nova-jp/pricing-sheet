@@ -34,6 +34,7 @@ RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
     "LiveFeed.xlsm": {},
+    "BondOption.xlsm": {},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
@@ -79,6 +80,7 @@ UDF_MODULES = (
     ROOT / "engine" / "swap_pricing" / "boj" / "udf.py",
     ROOT / "engine" / "swap_pricing" / "asw" / "udf.py",
     ROOT / "engine" / "pca" / "udf.py",
+    ROOT / "engine" / "bond_option" / "udf.py",
     ROOT / "engine" / "common" / "live_udf.py",
 )
 
