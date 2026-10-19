@@ -11,7 +11,7 @@
 ```
 [Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]       [Neon(Postgres、他プロジェクトと共用)]
   LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する                      public."ASW_data"(JGB銘柄別ASW、他プロジェクトのテーブルは触れない)
-  - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、LiveFeed.xlsmと同じ系列)
+  - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、リアルタイムのフィードと同じ系列)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
         │                                                                              │
         ▼  朝に手動実行: python -m engine.common.morning_batch                          │ SELECTのみ、updated_atで差分取得
@@ -33,17 +33,20 @@
   HistoricalRate / HistoricalRates / HedgeHistoricalRates ─▶ DBのカーブで評価
 ```
 
-リアルタイムのレートは、自動計算のフィードブック(LSEGのRtGet/TRはここにだけある)から手動計算のブックへ
-ファイルで渡す(2026-10-18〜。理由は[decisions.md](decisions.md)):
+リアルタイムのレートは、常駐のフィード(Pythonのプロセス。LSEGのストリーミングを購読し続ける)から
+手動計算のブックへファイルで渡す(2026-10-19〜。それ以前は自動計算のExcelのLiveFeed.xlsm。理由は
+[decisions.md](decisions.md)):
 
 ```
-[Excel A(自動計算): LiveFeed.xlsm]  RtGetの範囲 ─▶ =PublishLive("swap", 範囲)(ティックのたびに再計算)
-        │  値が変わったときだけ書く
+[LSEG Workspace(起動・ログイン中)] ─ localhostのAPI Proxy ─▶ [フィード: python -m engine.common.live_feed]
+        │  live_feed.toml のRICを購読。値が変わったら最大 write_interval_sec(1秒)ごとに書く。
+        │  ティックが無くても heartbeat_sec(2秒)ごとにデータセットごとの状態(ハートビート)を書く
         ▼
 [data/live.db(ローカルのSQLite。LSEG由来なのでコミットしない)]
-        │  そのシートの取得モード(B1)がLiveなら再計算(Shift+F9)のたびに読む。Fixedなら読まない
+        │  そのシートの取得モード(B1)がLiveなら再計算(Shift+F9)のたびに読む。Fixedなら読まない。
+        │  ハートビートが stale_after_sec(10秒)より古いか、LSEGとの接続が正常でなければエラー
         ▼
-[Excel B(手動計算): PricingSheet.xlsm / SwapAnalysis.xlsm]
+[Excel(手動計算): PricingSheet.xlsm / SwapAnalysis.xlsm / BondOption.xlsm]
   各フロントシートが自分で =IF($B$1="Fixed", LiveSnapshot("swap"), LiveQuotes("swap")) を持つ
         ─▶ そのシートのUDF(引数の形は変更なし)
 ```
@@ -53,9 +56,10 @@
 
 - **取得モードの欄(各フロントシートの1行目、同じデザイン。セルの文字は英語)**: A1「Rates」、
   B1(薄黄色)=プルダウン`Live`/`Fixed`、C1「Updated」、D1=`=LiveInfo(データセット,ライブのセル#)`
-  (そのシートが読んだレートの値がLiveFeedで最後に変わった時刻)、E1=説明。
+  (そのシートが読んだレートの値がフィードで最後に変わった時刻)、E1=説明。
   - `Live`: `LiveQuotes`(volatile)がShift+F9のたびに最新を読み、読んだ値をそのシートの固定の値として
-    `data/live.db`に保存する。
+    `data/live.db`に保存する。フィードが止まっている・LSEGとの接続が正常でないときはエラーになる
+    (古い値で黙って計算しない。そのまま計算したいときは`Fixed`にする)。
   - `Fixed`: `LiveSnapshot`(非volatile)がその固定の値を返す。IFで`LiveQuotes`が呼ばれないとセルの
     volatileが外れるので、Shift+F9で再計算されるのは入力を変えたセル(追加した行など)だけで、
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
@@ -64,7 +68,7 @@
   折りたたんである(Main H:Q、pricing AF:AO、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
-  UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。LiveFeedに無いTickerは`#N/A`。
+  UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
 
 | シート | ライブのレート | カーブ用の範囲 |
 |---|---|---|
@@ -75,13 +79,17 @@
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
 
-`LiveFeed.xlsm`のシート: `RealTime`(O/N〜40Y・RD・M1〜M9のRIC。O/NはTradition `JP1DONI=TRDT`の
-BID/ASKミッド(=TONA)。C2:F45=Ticker/Value/起算日/満期日を
-H2の`=PublishLive("swap",$C$2:$F$45)`が書き出す)、`RealTimeVol`(満期・原資産・銘柄・RIC`JPYTO{満期}X{原資産}ATM=R`・
-値`RtGet(…,"MID_IV_NOR")`=ノーマルvol bp。`CF_LAST`/`PRIMACT_1`/`MID_IV`はシフト付きログノーマル%、`CF_BID`/`CF_ASK`は
-両者が混在しているので使わない。C2:E401=
-銘柄/RIC/値をI2の`=PublishLive("vol",$C$2:$E$401)`が書き出す)。読む側はTicker(volはRIC)で引き当てるので、
-行の並びがブックごとに違ってもよい(LiveFeedに無いTickerは`#N/A`)。
+フィードの設定は`live_feed.toml`(リポジトリ直下。調整する値はここにまとめる): 秒数(`[timing]`)と
+データセットごとのRIC。
+- `"swap"`(kind=`ois`): O/N〜40Y・RD・M1〜M9。行=[Ticker, BID/ASKのミッド, 起算日`GV1_DATE`, 満期日`GV2_DATE`]
+  (起算日・満期日は会合スワップだけ)。O/NはTradition `JP1DONI=TRDT`のミッド(=TONA)。
+- `"vol"`(kind=`vol`): 満期×原資産の格子。行=[銘柄`1Mx2Y`, RIC`JPYTO{満期}X{原資産}ATM=R`, `MID_IV_NOR`=ノーマルvol bp]。
+  `CF_LAST`/`PRIMACT_1`/`MID_IV`はシフト付きログノーマル%、`CF_BID`/`CF_ASK`は両者が混在しているので使わない。
+- 銘柄の状態が異常(Suspect・存在しない等)か、BID・ASKのどちらかが無い行は値を空欄にする。
+読む側はTicker(volはRIC)で引き当てるので、行の並びがブックごとに違ってもよい(フィードに無いTickerは`#N/A`)。
+データセットごとの状態(`feed`テーブル): `ok`/`connecting`/`reconnecting`/`suspect`(全銘柄が異常)/`stopped`。
+接続が切れたらまずライブラリの再接続を待ち、`resubscribe_after_sec`(30秒)たっても戻らなければセッションと
+購読を開き直す。ログは`data/live_feed.log`。
 
 データの供給元はLSEG Workspace(カーブ・プライシング本体)とNeon(ASWスプレッド、参照データのみ)。
 Neonはクラウドだが、ASWスプレッド以外には使わない(クラウドの計算・保存基盤には戻さない)。
@@ -121,8 +129,9 @@ engine/
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存。`engine/pca/`も`HistoricalStore`をここから読む |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
-| `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(セルの値をそのままJSON、日付は型を保って)と値が最後に変わった時刻を持つ。値が変わらなければ書かない。WALで、書き込み中も別のExcelから読める |
-| `live_udf.py` | `live_store`のUDF。`PublishLive`(LiveFeed.xlsm専用、範囲を書き出す)、`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
+| `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
+| `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
+| `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日。現物オプションが使う([bond_option.md](bond_option.md)) |
 | `jgb_source.py` | LSEG(Python API `lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`)を取得する。朝バッチの④が使う |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
@@ -201,7 +210,7 @@ ASW以外のフロントシートの1行目は取得モードの欄。上の「�
 
 | 列 | 内容 |
 |---|---|
-| A(A11:A54) | Ticker(テナーラベル。LiveFeed.xlsmのRealTimeのC列と同じ表記で引き当てる)。O/N〜40Y、RD、M1〜M9 |
+| A(A11:A54) | Ticker(テナーラベル。`live_feed.toml`の`"swap"`のTickerと同じ表記で引き当てる)。O/N〜40Y、RD、M1〜M9 |
 | B(B11:B54) | **スポット採否フラグ**。`1`または空欄=カーブ構築に使う、`0`=使わない。会合スワップの行(RD・M1〜M9)は`0` |
 
 各シートのカーブ用の範囲がこの並びで値・起算日・満期日を引き当てる(上の「データフロー」)。
@@ -209,7 +218,7 @@ ASW以外のフロントシートの1行目は取得モードの欄。上の「�
 (`1Y`/`2Y`/`3Y`表記とは`conventions.py`の`TENOR_ALIASES`で吸収)。
 O/Nは`JP1DONI=TRDT`(Traditionの1日物OIS、チェーン`JPONI=TRDT`の先頭)のミッドで、
 メインのカーブにも使う(過去の評価日・ヒストリカルのO/Nはその日のTONA実績)。
-LSEGのRIC(数式)は`LiveFeed.xlsm`のRealTimeシートにある。
+LSEGのRICは`live_feed.toml`にある。
 RD・M1〜M9は会合スワップ(TraditionのRD・M1〜M9、チェーン`JPONIBOJ=TRDT`)。RD=スポット日→会合1の
 決定日、M{n}=会合nの決定日の翌営業日→会合n+1の決定日。メインのカーブには使わず
 (`curve.EXCLUDED_MEETING_TENORS`で`skipped_tenors`計上)、BOJシートだけが使う。
@@ -423,7 +432,7 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
   銘柄ごとの実績・平均・スケール・復元・差分もここで計算する。
 - **ライブの値**: PCAはCA4の`=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値…。
   `CHOOSECOLS(…,1,2)`を`PcaActual`に渡す)、VolPCAはLA3の同じ形の`"vol"`(銘柄/RIC/値をそのまま渡す)。RealTime/RealTimeVolシートは
-  2026-10-18に削除(RICはLiveFeed.xlsm側。上の「データフロー」参照)。
+  2026-10-18に削除(RICは`live_feed.toml`。上の「データフロー」参照)。
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)
 
@@ -437,7 +446,7 @@ Excel標準の関数だけで構成する。
 - **設定**: 終了日(空欄なら今日)/取得営業日数(既定500)/開始日(任意)/
   銘柄グループ/並び順/フィールド(`MID_PRICE`)を入力。RIC一覧とリクエスト文字列は数式で組み立てる。
 - **銘柄**: グループ・表示名・RIC・使用(○/×)。RICは`JP{テナー}ONI=TRDT`と
-  `JPBOJ{n}ONI=TRDT`(LiveFeed.xlsmと同じ系列)。
+  `JPBOJ{n}ONI=TRDT`(リアルタイムのフィードと同じ系列)。
 - **Raw**: `RDP.HistoricalPricing(RIC一覧,"MID_PRICE",リクエスト,,"CH:In;Fd",$A$3)`
   を1本だけ置く。出力は銘柄ごとに`Timestamp / Mid Price Close / Mid Price`の3列ブロックで、
   日付は銘柄ごとに異なる(同じ日付の行に揃っていない)。

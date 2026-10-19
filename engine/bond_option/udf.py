@@ -17,7 +17,7 @@ ATM単利(引け値+スライド)、bp vol(ノーマルvol/√252)、価格ボ�
 
 ■ データ
   銘柄情報・引け値は朝のバッチ(python -m engine.common.morning_batch)がLSEGから data/historical.db に
-  保存したものを読むだけ。ボラはLiveFeed.xlsmのRealTimeVolを LiveQuotes("vol") で読んだ範囲を渡す。
+  保存したものを読むだけ。ボラはフィード(live_feed.toml の "vol")を LiveQuotes("vol") で読んだ範囲を渡す。
   計算方法は「手動」+F9。評価日はシートの評価日セル(空欄=今日)。TODAY()は使わない。
 """
 

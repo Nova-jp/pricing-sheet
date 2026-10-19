@@ -14,3 +14,6 @@ __pycache__/
 
 # 現物オプションの検算用(ユーザーのプライサーの計算結果・取引の実データ・LSEGデータを含む)
 /data/bond_option_*
+
+# リアルタイムのフィードのログ(python -m engine.common.live_feed)
+/data/live_feed.log

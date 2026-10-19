@@ -1,0 +1,80 @@
+# リアルタイムのフィード(python -m engine.common.live_feed)の設定。
+# 変更したらフィードを再起動する(Ctrl+Cで止めて起動し直す)。ブック側(xlwingsのUDFサーバ)の再起動は要らない。
+# フィードはLSEG Workspaceのデスクトップセッションでここに並べたRICを購読し続け、data/live.db に書く。
+# ブックはShift+F9のたびに LiveQuotes("swap") / LiveQuotes("vol") でそれを読むだけ(docs/architecture.md)。
+
+[timing]
+# 値が変わったとき data/live.db に書く間隔(秒)。読む値の遅れは最大でほぼこれだけ
+write_interval_sec = 1
+# ハートビート(フィードが動いていること)を書く間隔(秒)。ティックが無くても書く
+heartbeat_sec = 2
+# ハートビートがこれより古い、またはLSEGとの接続が切れていたら「停止」とみなし、LiveQuotesをエラーにする(秒)。
+# heartbeat_secの2倍以上にする。止まっている間に計算したいときは、そのシートのB1をFixedにする
+stale_after_sec = 10
+# 接続が切れたまま戻らないとき、セッションと購読を開き直すまでの時間(秒)。ライブラリ自身の再接続を先に待つ
+resubscribe_after_sec = 30
+
+# ── データセット(LiveQuotes の第1引数) ─────────────────────────────────────
+# kind = "ois": 行 = [Ticker, BIDとASKのミッド, 起算日(GV1_DATE), 満期日(GV2_DATE)]。
+#   起算日・満期日はある銘柄(RD・M1〜)だけ。読む側はTickerで引き当てる(MainシートA列と同じ表記)
+# kind = "vol": 行 = [銘柄("1Mx2Y"), RIC, 値(MID_IV_NOR、ノーマルvol bp/年)]。満期×原資産の全組み合わせ。
+#   読む側はRICで引き当てる(VolPCA・BondOption)
+# BID・ASKのどちらかが無い、または銘柄の状態が異常(Suspect等)のときは、値を空欄にする(黙って古い値を使わない)
+
+[[datasets]]
+name = "swap"
+kind = "ois"
+# [Ticker, RIC]。O/NはTraditionの1日物(=TONA)、RDは直近の会合まで、M1〜は会合間のOIS
+rows = [
+    ["O/N", "JP1DONI=TRDT"],
+    ["1W", "JP1WONI=TRDT"],
+    ["1M", "JP1MONI=TRDT"],
+    ["2M", "JP2MONI=TRDT"],
+    ["3M", "JP3MONI=TRDT"],
+    ["4M", "JP4MONI=TRDT"],
+    ["5M", "JP5MONI=TRDT"],
+    ["6M", "JP6MONI=TRDT"],
+    ["7M", "JP7MONI=TRDT"],
+    ["8M", "JP8MONI=TRDT"],
+    ["9M", "JP9MONI=TRDT"],
+    ["10M", "JP10MONI=TRDT"],
+    ["11M", "JP11MONI=TRDT"],
+    ["12M", "JP12MONI=TRDT"],
+    ["15M", "JP15MONI=TRDT"],
+    ["18M", "JP18MONI=TRDT"],
+    ["21M", "JP21MONI=TRDT"],
+    ["24M", "JP24MONI=TRDT"],
+    ["36M", "JP36MONI=TRDT"],
+    ["4Y", "JP4YONI=TRDT"],
+    ["5Y", "JP5YONI=TRDT"],
+    ["6Y", "JP6YONI=TRDT"],
+    ["7Y", "JP7YONI=TRDT"],
+    ["8Y", "JP8YONI=TRDT"],
+    ["9Y", "JP9YONI=TRDT"],
+    ["10Y", "JP10YONI=TRDT"],
+    ["11Y", "JP11YONI=TRDT"],
+    ["12Y", "JP12YONI=TRDT"],
+    ["15Y", "JP15YONI=TRDT"],
+    ["20Y", "JP20YONI=TRDT"],
+    ["25Y", "JP25YONI=TRDT"],
+    ["30Y", "JP30YONI=TRDT"],
+    ["35Y", "JP35YONI=TRDT"],
+    ["40Y", "JP40YONI=TRDT"],
+    ["RD", "JPBOJRDONI=TRDT"],
+    ["M1", "JPBOJ1ONI=TRDT"],
+    ["M2", "JPBOJ2ONI=TRDT"],
+    ["M3", "JPBOJ3ONI=TRDT"],
+    ["M4", "JPBOJ4ONI=TRDT"],
+    ["M5", "JPBOJ5ONI=TRDT"],
+    ["M6", "JPBOJ6ONI=TRDT"],
+    ["M7", "JPBOJ7ONI=TRDT"],
+    ["M8", "JPBOJ8ONI=TRDT"],
+    ["M9", "JPBOJ9ONI=TRDT"],
+]
+
+[[datasets]]
+name = "vol"
+kind = "vol"
+# RICは JPYTO{満期}X{原資産}ATM=R。軸の表記はSwapAnalysisのVolPCA設定と同じにする
+expiries = ["1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "9Y", "10Y", "15Y", "20Y"]
+tenors = ["1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y", "15Y", "20Y"]

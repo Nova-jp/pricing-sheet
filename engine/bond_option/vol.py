@@ -1,7 +1,7 @@
 """
 スワップションのATMノーマルvol(満期×原資産の格子)から、債券オプションのボラを補間する。
 
-格子は LiveFeed.xlsm の RealTimeVol(JPYTO{満期}X{原資産}ATM=R の MID_IV_NOR、bp/年)で、
+格子はフィード(live_feed.toml の "vol"、JPYTO{満期}X{原資産}ATM=R の MID_IV_NOR、bp/年)で、
 LiveQuotes("vol") が返す行 [銘柄(例 1Mx10Y), RIC, 値] の銘柄と値を使う。
 
 ■ 補間(ユーザーと決めた方式)
@@ -88,7 +88,7 @@ def interpolate(
     grid: Dict[float, List[Tuple[float, float]]], expiry_years: float, tenor_years: float,
 ) -> float:
     if not grid:
-        raise ValueError("ボラの格子に値がありません(LiveFeedのRealTimeVolを確認してください)")
+        raise ValueError("ボラの格子に値がありません(フィードの \"vol\" と live_feed.toml を確認してください)")
     expiries = sorted(grid)
     vols = []
     for t in expiries:
