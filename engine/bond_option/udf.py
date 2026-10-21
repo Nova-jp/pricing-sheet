@@ -12,6 +12,9 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
   SwaptionVol      : スワップションのノーマルvol(bp/年)を満期×テナーで補間
   BlackPremium     : プレミアム(額面100円あたりの円、割引なし)(F10)
   ItmBuyWriteStrike: ITMバイライトのストライク(ストライク+プレミアム=購入単価、F11)
+  OptionMarketTable / ItmBuyWriteTable / PremiumTable:
+                     上の3つ(先渡リスク+ボラの補間、ITMBW、プレミアム)の表版。シートはこちらを使い、全行を
+                     1回で計算する(1セルごとの往復を減らすため。本体は table.py)。1行用は単独の確認用に残す
 式の詳細とシートの構成は docs/bond_option.md。
 
 ■ データ
@@ -20,37 +23,15 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
   計算方法は「手動」+F9。評価日はシートの評価日セル(空欄=今日)。TODAY()は使わない。
 """
 
-import datetime
 from typing import List
 
 import QuantLib as ql
 import xlwings as xw
 
-from engine.bond_option import pricer, vol
+from engine.bond_option import pricer, table, vol
+from engine.bond_option.table import as_date as _date, as_number as _number
 from engine.common import bond, udf_common
 from engine.common.conventions import CALENDAR
-
-
-def _date(value, name: str) -> datetime.date:
-    """日付だけを受け付ける(スワップ用のIMMコード・テナーの表記は通さない)。"""
-    if isinstance(value, datetime.datetime):
-        return value.date()
-    if isinstance(value, datetime.date):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return udf_common._to_date(value)  # Excelのシリアル値
-    if udf_common._is_blank(value):
-        raise ValueError(f"{name}が空です")
-    raise ValueError(f"{name}は日付です: {value!r}")
-
-
-def _number(value, name: str) -> float:
-    if udf_common._is_blank(value):
-        raise ValueError(f"{name}が空です")
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{name}は数値です: {value!r}")
 
 
 def _jgb(coupon, maturity) -> bond.Jgb:
@@ -130,3 +111,48 @@ def ItmBuyWriteStrike(forward, target, price_vol, term) -> float:
         _number(forward, "先渡価格"), _number(target, "購入単価"), _number(price_vol, "価格ボラ"),
         _number(term, "期間"),
     )
+
+
+# ---- 表UDF(Optionシートの全行を1回で計算する。本体は table.py) ----
+
+@xw.func
+@xw.arg("bonds", ndim=1)
+@xw.arg("coupons", ndim=1)
+@xw.arg("maturities", ndim=1)
+@xw.arg("forward_dirty", ndim=1)
+@xw.arg("forward_settle", ndim=1)
+@xw.arg("expiries", ndim=1)
+@xw.arg("vol_range", ndim=2)
+def OptionMarketTable(
+    bonds, coupons, maturities, forward_dirty, forward_settle, expiries, vol_range, trade_date,
+) -> List[list]:
+    """全行の [先渡複利(%), 先渡DD, 先渡MD, ノーマルvol(bp/年、補間), message](JgbForwardRisk・SwaptionVolの表版)。
+    引数は同じ行数の列の範囲(銘柄・利率・償還日・先渡dirty・行使後の受渡日・満期)と、ボラの範囲・取引日。"""
+    return table.market_table(
+        bonds, coupons, maturities, forward_dirty, forward_settle, expiries, vol_range,
+        udf_common._resolve_valuation_date(trade_date),
+    )
+
+
+@xw.func
+@xw.arg("bases", ndim=1)
+@xw.arg("forwards", ndim=1)
+@xw.arg("targets", ndim=1)
+@xw.arg("price_vols", ndim=1)
+@xw.arg("terms", ndim=1)
+def ItmBuyWriteTable(bases, forwards, targets, price_vols, terms) -> List[list]:
+    """全行の [ITMバイライトのストライク, message](ItmBuyWriteStrikeの表版)。Strike basisが"ITMBW"の行だけ計算する。
+    引数は同じ行数の列の範囲(Strike basis・先渡clean・スポット単価・価格ボラ・T)。"""
+    return table.itm_buy_write_table(bases, forwards, targets, price_vols, terms)
+
+
+@xw.func
+@xw.arg("types", ndim=1)
+@xw.arg("forwards", ndim=1)
+@xw.arg("strikes", ndim=1)
+@xw.arg("price_vols", ndim=1)
+@xw.arg("terms", ndim=1)
+def PremiumTable(types, forwards, strikes, price_vols, terms) -> List[list]:
+    """全行の [プレミアム(額面100円あたりの円、割引なし), message](BlackPremiumの表版)。
+    引数は同じ行数の列の範囲(Call/Put・先渡clean・ストライク・価格ボラ・T)。"""
+    return table.premium_table(types, forwards, strikes, price_vols, terms)

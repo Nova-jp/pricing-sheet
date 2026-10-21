@@ -104,9 +104,15 @@ def interpolate(
 
 def bond_option_vol(rows: Iterable[Sequence], trade_date: date, expiry: date, maturity: date) -> float:
     """取引日・オプション満期・債券の償還日 → 補間したノーマルvol(bp/年)。"""
+    return grid_vol(build_grid(rows, trade_date), trade_date, expiry, maturity)
+
+
+def grid_vol(
+    grid: Dict[float, List[Tuple[float, float]]], trade_date: date, expiry: date, maturity: date,
+) -> float:
+    """作り済みの格子から補間する(表UDFは格子を表全体で1回だけ作る)。"""
     if expiry <= trade_date:
         raise ValueError(f"満期 {expiry} が取引日 {trade_date} 以前です")
     if maturity <= expiry:
         raise ValueError(f"償還日 {maturity} がオプション満期 {expiry} 以前です")
-    grid = build_grid(rows, trade_date)
     return interpolate(grid, _years(trade_date, expiry), _years(expiry, maturity))

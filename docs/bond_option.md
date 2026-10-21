@@ -50,11 +50,11 @@ T = `NETWORKDAYS(t0, te − 1, Holidays)/252`。QuantLibの`businessDaysBetween`
 | F4 スポット単価 | F1(y = ATM単利, 起点 = s0) | `JGB_PRICE` | |
 | F5 ストライク単価 | 「スキームとストライク」の節 | | |
 | F6 先渡価格 | dirty = (P0 + AI(s0)) × (1 + r × 暦日(s0→se)/365) − Σ[s0 < 利払日 ≤ se] c/2 × (1 + r × 暦日(利払日→se)/365)、clean = dirty − AI(se)。丸めない | シートの数式(期中の利払日は`EDATE(償還日, −6k)`で列挙) | `pricer.forward_price` |
-| F7 先渡複利 | 先渡dirtyに一致する半年複利(D/365、起点 se)を⌊ ⌋₃ | UDF `JgbForwardRisk`の1列目 | `pricer.forward_duration`(QuantLibの`bondYield`) |
-| F8 先渡DD・MD | DD = −dP/dy(y = F7の切り捨て後、起点 se)、MD = DD / 先渡dirty × 100(分母はF6のdirty) | `JgbForwardRisk`の2・3列目(QuantLibの`duration`) | 同上 |
+| F7 先渡複利 | 先渡dirtyに一致する半年複利(D/365、起点 se)を⌊ ⌋₃ | 表UDF `OptionMarketTable`の1列目 | `pricer.forward_duration`(QuantLibの`bondYield`) |
+| F8 先渡DD・MD | DD = −dP/dy(y = F7の切り捨て後、起点 se)、MD = DD / 先渡dirty × 100(分母はF6のdirty) | `OptionMarketTable`の2・3列目(QuantLibの`duration`) | 同上 |
 | F9 価格ボラ | σP = σy × √252 × MD / 100 | シートの数式 | |
-| F10 プレミアム | Black式(F = 先渡clean、K = ストライク単価、標準偏差 = σP/100 × √T)。割引なし | UDF `BlackPremium`(`ql.blackFormula`) | `pricer.black_premium` |
-| F11 ITMバイライトのストライク | K + C(K) = スポット単価 を満たすK(Cはコールのプレミアム、F10)を⌊ ⌋₃ | UDF `ItmBuyWriteStrike`(`ql.Brent`) | `pricer.itm_buy_write_strike` |
+| F10 プレミアム | Black式(F = 先渡clean、K = ストライク単価、標準偏差 = σP/100 × √T)。割引なし | 表UDF `PremiumTable`(`ql.blackFormula`) | `pricer.black_premium` |
+| F11 ITMバイライトのストライク | K + C(K) = スポット単価 を満たすK(Cはコールのプレミアム、F10)を⌊ ⌋₃ | 表UDF `ItmBuyWriteTable`(`ql.Brent`) | `pricer.itm_buy_write_strike` |
 
 ATM単利 = 引け値の単利(JCL)+ ATMのスライド(bp)/100。
 
@@ -81,15 +81,16 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 | TB | ターゲットバイイング(プットを売る) | Put |
 | ITMBW | ITMバイライト(ストライク + プレミアム = 購入単価になるストライクで、コールを売る) | Call |
 
-ストライクの指定は4つの入力列に分け、1行につき1つだけ埋める(プルダウンで方式を選ぶと書式がずれるため、ユーザー決定)。
+ストライクの指定は5つの入力列に分け、1行につき1つだけ埋める(プルダウンで方式を選ぶと書式がずれるため、ユーザー決定)。
 2つ以上埋めた行、ITMBWなのにストライクの入力がある行は、メッセージを出しストライクを#N/Aにする。
 
 | 入力 | ストライク単価K |
 |---|---|
-| Strike slide(bp) | F1(y = ATM単利 + スライド/100, 起点 = **te**) |
-| Strike yield(%) | F1(y = 入力, 起点 = te) |
-| Strike fwd price | 入力そのもの(行使後の受渡のclean単価) |
-| Fwd offset(銭) | ⌊先渡clean + 入力/100⌋₃ |
+| Spot +sen(銭) | ⌊スポット単価 + 入力/100⌋₃(2026-10-21に追加) |
+| Fwd +sen(銭) | ⌊先渡clean + 入力/100⌋₃ |
+| Fwd price | 入力そのもの(行使後の受渡のclean単価) |
+| ATM +bp | F1(y = ATM単利 + 入力/100, 起点 = **te**) |
+| Yield(%) | F1(y = 入力, 起点 = te) |
 | (ITMBW、入力なし) | F11(F = 先渡clean、目標 = スポット単価) |
 
 表示のストライク単利は F2(P = K, 起点 = se)。
@@ -119,7 +120,9 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 - bp/日への換算: ノーマルvol / √252(シートの`VolDays`セル。あとで変える可能性がある)。
   T(営業日/252)と価格ボラ(×√252)の252は打ち消し合い、プレミアムには効かない(標準偏差 = σy × MD × √営業日数)。
   効くのはノーマルvol→bp/日の換算だけ。
-- オーバーライド: bp vol(bp/日)> ノーマルvol(bp/年)> 補間値の順に使う。どちらの値も表示する。
+- オーバーライド: Price vol(%)> bp vol(bp/日)> ノーマルvol(bp/年)> 補間値の順に使う(2つ以上入れたら優先の高い方)。
+  3つとも「override列 │ 使う値」の組で、上書きした値から残りの2つを逆算して表示する
+  (bp vol = 価格ボラ × 100 /(√252 × MD)、ノーマルvol = bp vol × √VolDays)。
 
 ## データ(朝のバッチ)
 
@@ -137,10 +140,20 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 | `ValuationDate(評価日)` | 評価日(空欄=今日) |
 | `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄 |
 | `JapanHolidays(開始日, 終了日)` | 日本の祝日(土日を除く)を縦に |
-| `JgbForwardRisk(利率, 償還日, 先渡dirty, 行使後の受渡日)` | [先渡複利, DD, MD](横に) |
-| `SwaptionVol(範囲, 取引日, 満期, 償還日)` | ノーマルvol(bp/年)の補間値 |
-| `BlackPremium(種類, 先渡, K, 価格ボラ, T)` | プレミアム(額面100円あたりの円) |
-| `ItmBuyWriteStrike(先渡clean, 目標単価, 価格ボラ, T)` | F11のK |
+| `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, ノーマルvol(補間), message] |
+| `ItmBuyWriteTable(Strike basis, 先渡clean, スポット単価, 価格ボラ, T)` | 全行の [F11のK, message](Strike basisが"ITMBW"の行だけ) |
+| `PremiumTable(種類, 先渡clean, K, 価格ボラ, T)` | 全行の [プレミアム(額面100円あたりの円), message] |
+| `JgbForwardRisk`・`SwaptionVol`・`BlackPremium`・`ItmBuyWriteStrike` | 上の表UDFの1行用(単独の確認用。シートでは使わない) |
+
+**表UDF(2026-10-21、ユーザー指示)**: 1行ごとにUDFを置くと、再計算の時間がUDFのセルの数で決まる(1セルごとに
+Excelとの往復がかかる。PricingTableと同じ理由、[decisions.md](decisions.md))。行ごとに5〜6個(100行で500超)
+あったUDFを、全行を1回で計算する3つの表UDF(本体は`engine/bond_option/table.py`)にまとめた。四則演算程度の計算は
+Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AV〜BD)に
+スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
+する。表示のセルを手で上書きすれば、下流の式とその先の表UDFはその値で計算される(スピルの中を上書きして
+#SPILL!になることもない)。1行の入力の誤りで表全体をエラーにせず、計算できなかった値は空欄(表示の列は#N/A)、
+理由はmessage列(表示はMessage列にまとめる)。ITMBWのストライクとプレミアムを別の表UDFにしているのは、
+ストライクを手で上書きしてもプレミアムに効くようにするため。
 
 銘柄コードを受けるUDF(`JgbInfo`・`JgbClose`)と、Excelの式に移した計算のUDF(`JgbSettle`・`JgbPrice`・`JgbYield`・
 `BondForward`・`ForwardDuration`・`OptionTerm`)は2026-10-19に廃止した。日付の引数は日付だけを受け付ける
@@ -151,22 +164,27 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 - **Bonds**シート: A3 `=JgbMaster(TradeDate)`(名前`BondList` = `Bonds!$A$3#`)。
 - **Holidays**シート: A3 `=JapanHolidays(DATE(YEAR(TradeDate)−1,1,1), DATE(YEAR(TradeDate)+21,12,31))`
   (名前`Holidays` = `Holidays!$A$3#`)。
-- **Option**シート: B1 取得モード(Live/Fixed)、B3 評価日(空欄=今日)、B4 使う評価日(名前`TradeDate`)、
-  B5 換算の日数(名前`VolDays`、252)。8〜27行目が1行1オプション。BA列(折りたたみ)がライブのボラ(`LiveQuotes("vol")`)。
+- **Option**シート(2026-10-21に組み替え): 上段は B1 取得モード(Live/Fixed)、B3 評価日(空欄=今日)、
+  B4 使う評価日(名前`TradeDate`)、B5 換算の日数(名前`VolDays`、252)、E3・E4 Repo bid・offer(名前`RepoBid`・
+  `RepoOffer`)、G1:I5 スキームの対応表(名前`SchemeTable` = G2:I5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
+  黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
+  入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
+  明細(AE〜AT)と計算用(AV〜BF)は折りたたみ(AUは2つのグループを分ける隙間)。
 
-| 列 | 内容 |
+| ブロック | 列 |
 |---|---|
-| A〜M(黄色、入力) | Bond, Scheme(BW/CC/TB/ITMBW), Expiry, Settle lag(1/2), Notional(億円), Repo(%), ATM slide(bp), Strike slide(bp), Strike yield(%), Strike fwd price, Fwd offset(銭), Normal vol override(bp/年), bp vol override(bp/日) |
-| N〜Q | 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP。スピルさせず1セルずつにして、どのセルも上書きできる) |
-| R〜V | Type(Schemeから)、ATM単利、スポット受渡日・行使後の受渡日(`WORKDAY`)、T(`NETWORKDAYS`) |
-| W〜AB | スポット単価(`JGB_PRICE`)、経過利子(s0・se)、期中の利払(`JGB_CARRY_COUPONS`)、先渡dirty・clean |
-| AC〜AE | 先渡複利・DD・MD(`INDEX(JgbForwardRisk(…), 1, k)`で1セルずつ。MDだけ上書きしても#SPILL!にならない) |
-| AF〜AI | ノーマルvol(`SwaptionVol`)、使うノーマルvol・bp vol、価格ボラ |
-| AJ〜AL | Strike basis(どの入力を使うか、または入力の誤りのメッセージ)、ストライク単価(入れ子のIFで、使う入力の式だけを評価する)、ストライク単利(se起点) |
-| AM〜AO | プレミアム(銭・円)、K + プレミアム(ITMBWの確認) |
+| Trade | A Bond, B Scheme(対応表から選ぶ), C Expiry, D Settle lag(1/2), E Notional(億円) |
+| Market | F Repo override(%), G Repo(使う値。overrideが空ならSchemeの対応表のBid/Offer。未設定ならメッセージ), H ATM slide(bp), I ATM yield, J Spot price(`JGB_PRICE`) |
+| Strike input(1つだけ) | K Spot +sen, L Fwd +sen, M Fwd price, N ATM +bp, O Yield(%) |
+| Forward | P Fwd clean |
+| Strike | Q Strike basis(どの入力を使うか、または入力の誤りのメッセージ), R Strike price, S Strike yield(se起点) |
+| Vol | T・U Normal vol(override │ 使う値), V・W bp vol, X・Y Price vol |
+| Premium | Z Premium(銭), AA 円, AB Strike + premium(ITMBWの確認), AC Quote text(客先に返す文面。中身は後日決める), AD Message |
+| Details(折りたたみ) | AE〜AH 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AI Type(対応表から), AJ〜AL スポット受渡日・行使後の受渡日・T, AM〜AP 経過利子×2・期中の利払・Fwd dirty, AQ〜AT Fwd yield・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
+| Calc(折りたたみ) | AV `OptionMarketTable`, BA `ItmBuyWriteTable`, BC `PremiumTable`(8行目にスピル), BF3 ライブのボラ(`LiveQuotes("vol")`) |
 
-`INDEX(配列UDF(…), 行, 列)`のセルはExcelが旧式の数式(`cm`属性なし)として保存するが、`.Formula`にも`@`が付かず
-結果は同じ。`tools/template.py`の検査はこの形を除いている。
+旧構成(2026-10-19〜21)の`INDEX(配列UDF(…), 行, 列)`のセルはExcelが旧式の数式(`cm`属性なし)として保存していた
+(`tools/template.py`の検査はこの形を除いている。今のシートでは使っていない)。
 
 ## 未確認・未決定
 
