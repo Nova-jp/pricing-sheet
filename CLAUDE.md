@@ -18,13 +18,14 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 - `engine/`(`common/`・`swap_pricing/`・`pca/`の3つの並列パッケージ)、`PricingSheet.py`、
   `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`tests/`、`docs/`、
   `tools/`、`templates/`が本プロジェクト。分析ブック`SwapAnalysis.xlsm`・`SwapAnalysis.py`
-  (`engine/pca/`、PCA等、pricingとは別ブック)も含む。
+  (`engine/pca/`・`engine/vol/`、PCA・IV vs HV等、pricingとは別ブック)も含む。
   - `engine/common/` — pricing/historical/boj/pcaのどこからも使う共有エンジン・データ層
     (conventions/curve/swap_pricer/terms/market/market_data/risk/paths、historical_store/
     morning_batch/neon_source、udf_common)
   - `engine/swap_pricing/` — PricingSheet.xlsm固有のUDF(機能ごとに`pricing/`・`historical/`・
     `boj/`に分割、薄い再エクスポート層`udf.py`)
   - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析(history/pca/udf)
+  - `engine/vol/` — SwapAnalysis.xlsm固有のIV vs HV(hv/udf。FwdのHVはDBのカーブから)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
 
 ## 設計方針(必ず守る)

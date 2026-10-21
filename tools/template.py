@@ -79,6 +79,7 @@ UDF_MODULES = (
     ROOT / "engine" / "swap_pricing" / "boj" / "udf.py",
     ROOT / "engine" / "swap_pricing" / "asw" / "udf.py",
     ROOT / "engine" / "pca" / "udf.py",
+    ROOT / "engine" / "vol" / "udf.py",
     ROOT / "engine" / "bond_option" / "udf.py",
     ROOT / "engine" / "common" / "live_udf.py",
 )
