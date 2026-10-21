@@ -1,6 +1,6 @@
 """
 評価日のマーケット(カーブの元になるレート一式)と、プライシング・デルタ計算で共有する
-カーブ一式(基準カーブと+1bpしたカーブ)を管理するモジュール。
+カーブ一式(基準カーブとバンプしたカーブ)を管理するモジュール。
 
 ■ 評価日によるデータ元の切り替え(udf._market が判定)
   - 評価日が今日: RealTimeシートのライブのレート(B列フラグ≠0のテナー)
@@ -15,10 +15,10 @@
   pricingシートの全行・全UDFで、同じスナップショットなら同じカーブを使い回す。
   計算に渡す市場データ(market_data.Market=カーブ+実績)を返す。バンプしても実績は同じ。
   - base: 基準カーブの市場データ
-  - parallel(): カーブに使っている全テナーを+1bpしたもの(SwapDelta用。行ごとのセルが共有する
+  - parallel(): カーブに使っている全テナーをBUMP_BPだけ動かしたもの(SwapDelta用。行ごとのセルが共有する
     ので、初めて必要になったときに1回だけ作って持っておく)
-  - bumped(ラベル): そのテナーだけ+1bpした状態の基準カーブ(RiskGrid用、with文の中だけ)。
-    テナー別のカーブは作らず、基準カーブのクォート(SimpleQuote)を一時的に+1bpして測り、
+  - bumped(ラベル): そのテナーだけBUMP_BPだけ動かした状態の基準カーブ(RiskGrid用、with文の中だけ)。
+    テナー別のカーブは作らず、基準カーブのクォート(SimpleQuote)を一時的に動かして測り、
     元の値に戻す(QuantLibの標準のやり方。クォートを書き換えるとカーブが引き直される)。
   バンプするのは実際にカーブに使っているテナーだけ(フラグ0のテナーや会合スワップのような
   未使用のテナーは対象外)。以前は行ごと・UDFごとにバンプしたカーブを作り直していた
@@ -44,7 +44,11 @@ from engine.common.curve import BootstrapResult, bootstrap_curve, normalize_teno
 from engine.common.historical_store import HistoricalStore
 from engine.common.market_data import Market
 
-BUMP_BP = 1.0
+# バンプ幅(bp)。デルタは1bpあたりに換算して返す(risk.per_bp)。1bpだと、Convex Monotone補間が
+# 単調性を保つための調整がバンプで効いたり外れたりして、ピラーの間にあるフォワード(IMM・短い
+# フォワード)のバケットデルタが局所的な感応度と大きく違い、合計がパラレルのデルタと合わなかった
+# (docs/decisions.mdの「デルタのバンプ幅」)
+BUMP_BP = 0.1
 ON_LABEL = "o/n"
 _CACHE_SIZE = 1  # 最新のスナップショットだけ保持する(モジュールのdocstring参照)
 
@@ -107,7 +111,7 @@ def db_snapshot(valuation_date: date, labels: Sequence[str], store: HistoricalSt
 
 
 class CurveSet:
-    """1つのスナップショットに対する基準カーブと、+1bpしたカーブ(パラレルは必要になったら作る)。
+    """1つのスナップショットに対する基準カーブと、バンプしたカーブ(パラレルは必要になったら作る)。
     計算には、カーブにスナップショットのTONA実績を添えた市場データ(Market)を渡す。"""
 
     def __init__(self, snapshot: MarketSnapshot):
@@ -139,13 +143,13 @@ class CurveSet:
 
     @contextmanager
     def bumped(self, label: str) -> Iterator[Market]:
-        """with文の中だけ、そのテナーのクォートを+1bpした基準カーブの市場データ。抜けると(例外でも)
+        """with文の中だけ、そのテナーのクォートをBUMP_BPだけ動かした基準カーブの市場データ。抜けると(例外でも)
         元の値に戻す。中で base を使う他の計算をしないこと(同じカーブを書き換えているため)。"""
         if label not in self.bump_labels:
             raise ValueError(f"カーブに使っていないテナーはバンプできません: {label}")
         quote = self.base_curve.quotes[normalize_tenor(label)]
         original = quote.value()
-        # parallel()(=_bumped)と同じ値の計算: %で+1bpしてから小数に直す
+        # parallel()(=_bumped)と同じ値の計算: %でBUMP_BPを足してから小数に直す
         quote.setValue((self._quotes[label] + BUMP_BP / 100.0) / 100.0)
         try:
             yield self.base
