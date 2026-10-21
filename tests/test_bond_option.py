@@ -9,6 +9,7 @@
     python -m unittest tests.test_bond_option -v
 """
 
+import datetime
 import math
 import sys
 import tempfile
@@ -262,6 +263,57 @@ class UdfTest(unittest.TestCase):
         self.assertGreater(premium, 0.0)
         k = bo_udf.ItmBuyWriteStrike(99.95, 100.0, price_vol, 20 / 252)
         self.assertLess(k, 99.95)
+
+
+class TableUdfTest(unittest.TestCase):
+    """表UDFは1行用のUDFと同じ値を返し、1行の誤りで表全体をエラーにしない。"""
+
+    T0 = date(2026, 10, 16)
+    VOLS = [["1Mx1Y", "R", 40.0], ["1Mx10Y", "R", 80.0], ["", "", ""]]
+    MAT = datetime.datetime(2031, 3, 20)  # xlwingsは日付をdatetimeで渡す
+
+    def test_market_table(self):
+        se = datetime.datetime(2026, 11, 18)
+        rows = bo_udf.OptionMarketTable(
+            ["JS999", None, "JS999"], [2.0, None, 2.0], [self.MAT, None, "M31"], [100.5, "", 100.5],
+            [se, None, se], [datetime.datetime(2026, 11, 16), None, datetime.datetime(2026, 11, 16)],
+            self.VOLS, self.T0,
+        )
+        self.assertEqual(len(rows), 3)
+        expected = bo_udf.JgbForwardRisk(2.0, self.MAT, 100.5, se)[0] + [
+            bo_udf.SwaptionVol(self.VOLS, self.T0, date(2026, 11, 16), self.MAT), ""]
+        self.assertEqual(rows[0], expected)
+        self.assertEqual(rows[1], [""] * 5)  # 銘柄が空欄の行
+        self.assertEqual(rows[2][:4], [""] * 4)  # 償還日が日付でない行はその行だけエラー
+        self.assertIn("償還日は日付です", rows[2][4])
+
+    def test_market_table_without_vols_keeps_risk(self):
+        rows = bo_udf.OptionMarketTable(
+            ["JS999"], [2.0], [self.MAT], [100.5], [datetime.datetime(2026, 11, 18)],
+            [datetime.datetime(2026, 11, 16)], [["", "", ""]], self.T0,
+        )
+        self.assertNotEqual(rows[0][2], "")
+        self.assertEqual(rows[0][3], "")
+        self.assertIn("Vol", rows[0][4])
+
+    def test_itm_buy_write_table_only_itmbw_rows(self):
+        rows = bo_udf.ItmBuyWriteTable(
+            ["ITMBW", "Fwd +sen", "ITMBW"], [99.95, 99.95, 100.1], [100.0, 100.0, 100.0], [3.0, 3.0, 3.0],
+            [20 / 252] * 3,
+        )
+        self.assertEqual(rows[0], [bo_udf.ItmBuyWriteStrike(99.95, 100.0, 3.0, 20 / 252), ""])
+        self.assertEqual(rows[1], ["", ""])
+        self.assertEqual(rows[2][0], "")  # キャリーが負 → その行だけエラー
+        self.assertIn("ITMBW", rows[2][1])
+
+    def test_premium_table(self):
+        rows = bo_udf.PremiumTable(
+            ["Put", "", "Call"], [100.0, "", 100.0], [99.9, "", None], [3.0, "", 3.0], [20 / 252, "", 20 / 252],
+        )
+        self.assertEqual(rows[0], [bo_udf.BlackPremium("Put", 100.0, 99.9, 3.0, 20 / 252), ""])
+        self.assertEqual(rows[1], ["", ""])
+        self.assertEqual(rows[2][0], "")
+        self.assertIn("ストライクが空です", rows[2][1])
 
 
 @unittest.skipUnless(SAMPLES.exists(), "ユーザーのサンプル(data/bond_option_samples.toml)はローカルにだけある")
