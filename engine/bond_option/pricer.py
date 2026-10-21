@@ -25,6 +25,7 @@ from typing import NamedTuple
 import QuantLib as ql
 
 from engine.common.bond import NO_LEAP, Jgb, accrued_interest, coupon_dates, ql_bond, truncate3
+from engine.common.bond import compound_yield as bond_compound_yield
 from engine.common.conventions import CALENDAR
 
 TRADING_DAYS = 252
@@ -69,11 +70,7 @@ def forward_duration(bond: Jgb, forward_dirty: float, forward_settle: date) -> F
     その利回りでの −dP/dy を DD、DD/先渡dirty を MD とする(分母はレポで計算した先渡dirty)。"""
     b = ql_bond(bond, "no_leap")
     settle = ql.Date.from_date(forward_settle)
-    y = ql.BondFunctions.bondYield(
-        b, ql.BondPrice(forward_dirty, ql.BondPrice.Dirty), NO_LEAP, ql.Compounded, ql.Semiannual,
-        settle, 1.0e-12, 100, 0.02,
-    )
-    compound_yield = truncate3(y * 100)
+    compound_yield = bond_compound_yield(bond, forward_dirty, forward_settle)
     rate = _rate(compound_yield)
     dirty_at_yield = ql.BondFunctions.cleanPrice(b, rate, settle) + ql.BondFunctions.accruedAmount(b, settle)
     dd = ql.BondFunctions.duration(b, rate, ql.Duration.Modified, settle) * dirty_at_yield / 100
