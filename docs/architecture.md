@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC、VolHV AA:BK(計算領域ごと))。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -78,6 +78,7 @@
 | BOJ | K3 | P3 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
+| VolHV(SwapAnalysis) | BB3(`"vol"`、`IV (Live)`の`XLOOKUP`だけが使う) | なし |
 
 フィードの設定は`live_feed.toml`(リポジトリ直下。調整する値はここにまとめる): 秒数(`[timing]`)と
 データセットごとのRIC。
@@ -110,6 +111,7 @@ engine/
   common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
   swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/bojの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
+  vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)
   bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
 ```
 
@@ -153,7 +155,7 @@ engine/
 | `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
 | `asw/udf.py` | ASWシートのUDF: `AswHistoricalRate`/`AswHistoricalRates`。カーブを組まず`historical_store.asw_quotes_for`を読むだけ(ROLLING/FIXEDの概念はない。銘柄コード(bond_code)ごとに日付→値が決まっているだけのため) |
 
-分析ブック(`engine/pca/`)は後述の「分析ブック」節を参照。
+分析ブック(`engine/pca/`・`engine/vol/`)は後述の「分析ブック」節を参照。
 
 `tests/test_past_start.py`: 過去起算スワップ(合成フィキシング)と評価日の扱いの
 リグレッションテスト(`python -m unittest tests.test_past_start -v`)。
@@ -394,14 +396,14 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
 - グラフ`ASW_Chart`(折れ線・日付軸・3系列固定)の系列は名前`ASW_Date`/`ASW_S1〜S3`
   (P28のスピル行数に合わせた参照)で、行数が変わっても追随する。
 
-## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`)
+## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`)
 
-pricingとは切り分けた分析用のブック。現状はスワップとボラ(スワップションATMノーマルvol)の
-PCA(主成分で復元した値と実績の差分、主成分ベクトル)。将来はボラのリアライズとインプライドの
-軌跡を追加する予定。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
-スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し)はPythonのUDF、
-得点・復元(行列の積)・差分・寄与率などはExcelの数式。`SwapAnalysis.py`は
-`engine/pca/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
+PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
+(`VolHV`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
+スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し・Fwdの計算)はPythonのUDF、
+得点・復元(行列の積)・差分・寄与率・窓の集計などはExcelの数式。`SwapAnalysis.py`は
+`engine/pca/udf.py`・`engine/vol/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
 
 | ファイル | 役割 |
 |---|---|
@@ -446,6 +448,30 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
 - **ライブの値**: PCAはCA4の`=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値…。
   `CHOOSECOLS(…,1,2)`を`PcaActual`に渡す)、VolPCAはLA3の同じ形の`"vol"`(銘柄/RIC/値をそのまま渡す)。RealTime/RealTimeVolシートは
   2026-10-18に削除(RICは`live_feed.toml`。上の「データフロー」参照)。
+
+### IV vs HV(`VolHV`シート、`engine/vol/`)
+
+スワップションのIV(DBの`vol_quotes`)と、同じFwdの日次変化から計算したHVを比べる(理由は
+[decisions.md](decisions.md)の「IV vs HV」)。カーブ・フライはボラの差(重み付きの和)。
+
+| ファイル | 役割 |
+|---|---|
+| `engine/vol/hv.py` | 日次カーブDBから、銘柄(満期x原資産)ごとのFwd(起算日=その日のスポット日+満期)と、その同じ契約の前の日付のカーブからの変化(bp)を計算する。スワップは1回だけ組み、カーブを差し替えて`fairRate`を読む(値は`swap_pricer.par_rate`と一致)。IVは`vol_quotes`から日付で突き合わせる |
+| `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。引数とDBの更新時刻ごとに1回だけ計算する(3銘柄・約460日で約1秒) |
+
+シートの構成(左から設定・結果・計算領域):
+- **設定(A〜D列)**: 1行目は取得モード(他のフロントシートと同じ)。足(B5:B7=満期x原資産、C5:C7=重み。
+  空欄の足は使わない。D列=足ごとの窓)、B9 `Window`(`Match`=満期に合わせる/営業日数)、B10 `Max window`
+  (Matchの上限、既定126)、B11 `Short window`(既定20)、B12 `Days per year`(既定252)、B13 `From`
+  (グラフ・パーセンタイルの開始日、空欄=全期間)。名前`VHV_Days`・`VHV_From`。
+- **結果(F〜J列)**: 足ごと・合成の表(最新のIV(DB)・ライブのIV・HV(窓/短い窓)・IV−HV・
+  パーセンタイル(From以降でIV−HV/IVが最新の値以下の日の割合))。その下にグラフ2枚(合成のIV・HV・
+  短い窓のHV、IV−HV)。系列は名前`VHV_ChDate`等のスピル参照。元データが畳んだ列にあるので、
+  グラフは「非表示の行と列のデータを表示」にしてある。
+- **計算領域(AA:BK、列のグループで畳んである)**: AB3 `VolHistory`(名前`VHV_Data`)、AL4 日付
+  (`VHV_Date`)、AM:AU 足ごとのIV・HV・短い窓のHV(HVは`SCAN`で2乗の累積をとり、N行前との差/N×年の日数の
+  平方根)、AV:AZ 合成(IV・HV・短い窓のHV・IV−HV・IV−短い窓のHV)、BB3 ライブのボラ、BF:BK From以降の
+  グラフ用の列(`FILTER`)。足の列はUDFの見出し(`1Yx10Y IV`等)を`XMATCH`で引くので、足の間に空欄があってもよい。
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)
 
