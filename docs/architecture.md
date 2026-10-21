@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC、VolHV AA:BK(計算領域ごと))。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC、VolHV AA:BK(計算領域ごと))。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -75,6 +75,7 @@
 | Main | H3 | M3 |
 | pricing | AF4 | AK4 |
 | HistChart | AJ3 | AO3 |
+| ASWPricer | AF4 | AK4 |
 | BOJ | K3 | P3 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
@@ -400,6 +401,21 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
   1銘柄だけの確認には`AswHistoricalRate(銘柄, コンベンション, from, to)`(Date/Rateの2列)も使える。
 - グラフ`ASW_Chart`(折れ線・日付軸・3系列固定)の系列は名前`ASW_Date`/`ASW_S1〜S3`
   (P28のスピル行数に合わせた参照)で、行数が変わっても追随する。
+
+### ASWPricerシート
+
+アセットスワップのプライサー(2026-10-21)。pricingシートと同じ「1行=1銘柄」の表で、銘柄を入れると起算日・
+満期日が決まり、ASW = 現物の複利 − MMS を出す(定義はNeonの`ASW_data`と同じ。[decisions.md](decisions.md))。
+1行目の取得モード・ライブのレート(AF4)・カーブ用の範囲(AK4)はpricingシートと同じ。
+
+- 入力(薄黄色、4〜53行): A flag(1=計算)、B bond(`JB380`)、C slide(bp。引け値の単利に足す)、D yield override
+  (単利%を直接入れる。slideより優先)、E delta(百万円/bp、入れるとadj_notional)、F start(空欄=スポット T+2。
+  日付・`2bd`等はpricingと同じ)、G fix freq、H fix dcf、I float freq、J roll conv(既定`BWD`=償還日から遡る)、
+  K pay/rec。G〜Kは既定でSA/act/365fixed/SA/BWD/PAYが入っている。
+- 表示(L〜Z): coupon・maturity・close(評価日以前で直近のJCL)・close date・simple yield・settle(T+1)・price・
+  compound yield・start date・end date・swap rate(MMS)・**W ASW(bp)=(S−V)×100(シートの式)**・
+  par-par asw(bp)・adj_notional・message。W以外はAQ〜BDの出力を参照するだけ。
+- 計算(AF:BD、折りたたみ): AQ3の`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(入力の列だけを渡す)。
 
 ## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`)
 
