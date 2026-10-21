@@ -29,7 +29,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
     レートでカーブを組む(判定は udf_common._market だけ。詳細はengine/common/market.py)。
     どちらも フラグ/Ticker/Value の範囲(各シートのカーブ用の範囲の TAKE(…#,,3)。旧 RealTime!B2:D45)
     でテナーを選ぶ。採否フラグ(MainシートのB列): 1(または空欄)=カーブ構築に使う、0=使わない。
-  - カーブ(基準カーブと+1bpしたカーブ)は market.curve_set で全行・全UDFが共有する。
+  - カーブ(基準カーブとバンプしたカーブ)は market.curve_set で全行・全UDFが共有する。
     同じレート・評価日なら、ブートストラップはその最初の1回だけ。
   - 過去起算スワップ用のTONA実績フィキシングは、ヒストリカルDB(朝のバッチがhistorical_data.xlsxの
     Fixingシートから取り込んだもの)から読む。評価日より前の日だけを使う(market_data.Market)。

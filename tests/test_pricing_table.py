@@ -18,7 +18,7 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import market, udf_common  # noqa: E402
+from engine.common import market, risk, udf_common  # noqa: E402
 from engine.common.conventions import forward_start_date  # noqa: E402
 from engine.common.risk import annuity_delta, parallel_delta, price, resolve_params, solve_notional_for_target_delta  # noqa: E402
 from engine.common.terms import SwapParams, SwapTerms  # noqa: E402
@@ -61,8 +61,9 @@ class PricingTableTest(unittest.TestCase):
 
     def _assert_row(self, actual, expected):
         self.assertEqual(actual[5], "")
-        # fixrate(%)・delta(百万円)は1e-9、PV(円)・adj_notional(円)は想定元本100億円で0.01円
-        for value, want, tol in zip(actual[:5], expected, (1e-9, 0.01, 1e-9, 1e-9, 0.01)):
+        # fixrate(%)・delta(annuity)(百万円)は1e-9、PV(円)・adj_notional(円)は想定元本100億円で0.01円。
+        # delta(bump)は0.1bpのPV差分を10倍するので、PVの最下位のずれも10倍になる(1e-8百万円=0.01円)
+        for value, want, tol in zip(actual[:5], expected, (1e-9, 0.01, 1e-8, 1e-9, 0.01)):
             if want == "":
                 self.assertEqual(value, "")
             else:
@@ -135,9 +136,10 @@ class PricingTableTest(unittest.TestCase):
 
     def test_three_evaluations_per_row(self):
         """par・PV・パラレルの3回(1行用のUDFを5つ並べると7回)。"""
-        with mock.patch.object(measures, "price", wraps=measures.price) as spy:
+        # パラレルはrisk.parallel_deltaの中で評価する(risk.price)ので、両方を数える
+        with mock.patch.object(measures, "price", wraps=measures.price) as spy,                 mock.patch.object(risk, "price", wraps=risk.price) as risk_spy:
             udf.PricingTable([_HEADER, _row(delta=1.0), _row(fix_rate=1.0)], self.rt)
-        self.assertEqual(spy.call_count, 6)
+        self.assertEqual(spy.call_count + risk_spy.call_count, 6)
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ def SwapDelta(
     start, tenor, end_date, fix_freq, fix_dcf, float_freq, roll_conv,
     notional, pay_rec, fix_rate, real_time_range, valuation_date=None,
 ) -> float:
-    """カーブに使っている全テナーを+1bpしたときのデルタ(百万円単位)。
+    """カーブに使っている全テナーを動かしたときのデルタ(1bpあたり、百万円単位)。
     fix_rateが空欄ならパーレートに固定してから計算する。"""
     curves = udf_common._market(real_time_range, valuation_date)
     params = _params(
@@ -133,7 +133,7 @@ _RISK_COLUMNS = (
 @xw.arg("real_time_range", ndim=2)
 def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
     """
-    risk_flag=1 の全行について、テナーごとに+1bpしたときのデルタ(百万円単位)の合計を、
+    risk_flag=1 の全行について、テナーごとに動かしたときのデルタ(1bpあたり、百万円単位)の合計を、
     RealTimeシートのテナー行の並びで返す(Ticker/Deltaの2列、1行目は見出し)。
 
     pricing_table: pricingシートの見出し行(1行目)から最終行まで(例: pricing!$A$1:$T$201)。

@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import morning_batch, market, udf_common  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
-from engine.common.conventions import business_days_start, forward_start_date  # noqa: E402
+from engine.common.conventions import business_days_start, forward_start_date, imm_code_to_date  # noqa: E402
 from engine.common.curve import bootstrap_curve, normalize_tenor, spot_date_for  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.market import curve_set, realtime_snapshot  # noqa: E402
@@ -43,6 +43,7 @@ VAL = date(2026, 9, 25)
 BOOTSTRAP_TOL_YEN = 0.1
 NOTIONAL = 10_000_000_000
 QUOTES = {k.lower(): v for k, v in SPOT_RATES.items()} | {"m1": 0.75}  # m1はカーブに使われない
+BUMP = market.BUMP_BP / 100.0  # バンプ幅(%表記のクォートに足す値)
 
 
 def _pv(rates, params):
@@ -66,9 +67,9 @@ class CurveSetTest(unittest.TestCase):
         self.assertEqual(set(self.curves.bump_labels), set(QUOTES) - {"m1"})
 
     def test_parallel_delta_equals_rebootstrap(self):
-        bumped = {k: v + (0.01 if k in self.curves.bump_labels else 0.0) for k, v in QUOTES.items()}
-        expected = _pv(bumped, self.params) - _pv(QUOTES, self.params)
-        self.assertAlmostEqual(parallel_delta(self.curves, self.params), expected, delta=1e-6)
+        bumped = {k: v + (BUMP if k in self.curves.bump_labels else 0.0) for k, v in QUOTES.items()}
+        expected = (_pv(bumped, self.params) - _pv(QUOTES, self.params)) / market.BUMP_BP
+        self.assertAlmostEqual(parallel_delta(self.curves, self.params), expected, delta=1e-5)
 
     def test_bucketed_delta_equals_rebootstrap(self):
         deltas = bucketed_delta(self.curves, self.params)
@@ -76,8 +77,9 @@ class CurveSetTest(unittest.TestCase):
         base = _pv(QUOTES, self.params)
         for label in ("5y", "7y", "8y", "12m"):
             with self.subTest(label=label):
-                bumped = dict(QUOTES, **{label: QUOTES[label] + 0.01})
-                self.assertAlmostEqual(deltas[label], _pv(bumped, self.params) - base, delta=BOOTSTRAP_TOL_YEN)
+                bumped = dict(QUOTES, **{label: QUOTES[label] + BUMP})
+                expected = (_pv(bumped, self.params) - base) / market.BUMP_BP
+                self.assertAlmostEqual(deltas[label], expected, delta=BOOTSTRAP_TOL_YEN / market.BUMP_BP)
 
     def test_bumped_curves_are_built_once_and_shared(self):
         """パラレルのカーブは1回だけ作って共有し、バケットデルタはカーブを作らない(クォートを動かす)。"""
@@ -103,7 +105,7 @@ class CurveSetTest(unittest.TestCase):
         quote = self.curves.base_curve.quotes["5y"]
         with self.assertRaises(RuntimeError):
             with self.curves.bumped("5y"):
-                self.assertAlmostEqual(quote.value(), (QUOTES["5y"] + 0.01) / 100.0, places=15)
+                self.assertAlmostEqual(quote.value(), (QUOTES["5y"] + BUMP) / 100.0, places=15)
                 raise RuntimeError("途中のエラー")
         self.assertEqual(quote.value(), QUOTES["5y"] / 100.0)
 
@@ -111,6 +113,23 @@ class CurveSetTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             with self.curves.bumped("m1"):
                 pass
+
+    def test_bucketed_deltas_add_up_to_parallel_between_pillars(self):
+        """ピラーの間にあるフォワード(IMM・短いフォワード)でも、バケットデルタの合計がパラレルの
+        デルタと合う(1bpのバンプでは、Convex Monotone補間の単調性の調整が効いたり外れたりして
+        合わなかった。docs/decisions.mdの「デルタのバンプ幅」)。"""
+        spot = self.curves.spot_date
+        cases = {
+            "Z27-Z28": SwapTerms(imm_code_to_date("Z27"), CONV, end=imm_code_to_date("Z28")),
+            "Z28-Z29": SwapTerms(imm_code_to_date("Z28"), CONV, end=imm_code_to_date("Z29")),
+            "27m3m": SwapTerms(forward_start_date(spot, "27m"), CONV, tenor="3m"),
+        }
+        for name, terms in cases.items():
+            with self.subTest(name):
+                params = resolve_params(self.curves, SwapParams(terms, NOTIONAL, "PAY"))
+                total = sum(bucketed_delta(self.curves, params).values())
+                parallel = parallel_delta(self.curves, params)
+                self.assertAlmostEqual(total, parallel, delta=abs(parallel) * 1e-3)
 
     def test_bucketed_deltas_equal_one_by_one(self):
         """複数ポジションをまとめて計算しても、1本ずつ計算したものと同じ。"""
@@ -175,7 +194,7 @@ class RiskGridTest(unittest.TestCase):
                 expected[label] = expected.get(label, 0.0) + value / 1_000_000.0
         for ticker, value in by_ticker.items():
             if value != "":
-                self.assertAlmostEqual(value, expected[ticker.lower()], delta=1e-9)
+                self.assertAlmostEqual(value, expected[ticker.lower()], delta=BOOTSTRAP_TOL_YEN / market.BUMP_BP / 1e6)
 
     def test_row_error_reports_row_number(self):
         table = self.table + [_pricing_row(1, self.today, "5y", pay_rec="XXX")]

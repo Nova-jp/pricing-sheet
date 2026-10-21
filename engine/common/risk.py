@@ -1,10 +1,11 @@
 """
-リスク(デルタ)計算モジュール。カーブは market.CurveSet(基準カーブと+1bpしたカーブの一式、
+リスク(デルタ)計算モジュール。カーブは market.CurveSet(基準カーブとバンプしたカーブの一式、
 全行で共有)から受け取り、ここではブートストラップしない。
 
-- parallel_delta: カーブに使っている全テナーを+1bpしたときのPV差分
-- bucketed_deltas / bucketed_delta: テナーごとに1本ずつ+1bpしたときのPV差分(カーブに使っている
-  テナーだけ)。基準カーブのクォートを1本ずつ一時的に+1bpして、全ポジションをまとめて評価する
+- parallel_delta: カーブに使っている全テナーを動かしたときのPV差分(1bpあたり)
+- bucketed_deltas / bucketed_delta: テナーごとに1本ずつ動かしたときのPV差分(1bpあたり、カーブに
+  使っているテナーだけ)。基準カーブのクォートを1本ずつ一時的に動かして、全ポジションをまとめて評価する
+- バンプ幅は market.BUMP_BP(0.1bp)で、PV差分をバンプ幅で割って1bpあたりにする(per_bp)
 - annuity_delta: Notional × アニュイティ × 0.0001 の解析的近似値(参考値)
 - solve_notional_for_target_delta: D列(目標delta)からE列(adj_notional)を逆算する
 
@@ -15,8 +16,9 @@
 """
 
 from dataclasses import replace
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
+from engine.common.market import BUMP_BP
 from engine.common.market_data import Market
 from engine.common.swap_pricer import SwapPricingResult, price_swap
 from engine.common.terms import PAY, SwapParams
@@ -36,14 +38,21 @@ def resolve_params(curves, params: SwapParams) -> SwapParams:
     return replace(params, fix_rate=base.fix_rate_used)
 
 
-def parallel_delta(curves, params: SwapParams) -> float:
-    """円。params.fix_rate は resolve_params で固定済みであること。"""
-    base = price(curves.base, params).pv
-    return price(curves.parallel(), params).pv - base
+def per_bp(pv_change: float) -> float:
+    """バンプ(market.BUMP_BP)でのPV差分 → 1bpあたりのデルタ。"""
+    return pv_change / BUMP_BP
+
+
+def parallel_delta(curves, params: SwapParams, base_pv: Optional[float] = None) -> float:
+    """円(1bpあたり)。params.fix_rate は resolve_params で固定済みであること。
+    base_pv: 同じポジションの基準カーブでのPV。渡せば評価し直さない。"""
+    if base_pv is None:
+        base_pv = price(curves.base, params).pv
+    return per_bp(price(curves.parallel(), params).pv - base_pv)
 
 
 def bucketed_deltas(curves, params_list: Sequence[SwapParams]) -> List[Dict[str, float]]:
-    """ポジションごとの {テナーのラベル: 円}。params.fix_rate は resolve_params で固定済みであること。
+    """ポジションごとの {テナーのラベル: 円(1bpあたり)}。params.fix_rate は resolve_params で固定済みであること。
     テナーごとにクォートを1回だけ動かし(カーブの引き直しはテナーの数だけ)、その間に全ポジションを
     評価する(RiskGridの全行)。"""
     base = [price(curves.base, p).pv for p in params_list]
@@ -51,12 +60,12 @@ def bucketed_deltas(curves, params_list: Sequence[SwapParams]) -> List[Dict[str,
     for label in curves.bump_labels:
         with curves.bumped(label) as bumped:
             for n, p in enumerate(params_list):
-                deltas[n][label] = price(bumped, p).pv - base[n]
+                deltas[n][label] = per_bp(price(bumped, p).pv - base[n])
     return deltas
 
 
 def bucketed_delta(curves, params: SwapParams) -> Dict[str, float]:
-    """{テナーのラベル: 円}。1ポジション版(bucketed_deltas)。"""
+    """{テナーのラベル: 円(1bpあたり)}。1ポジション版(bucketed_deltas)。"""
     return bucketed_deltas(curves, [params])[0]
 
 

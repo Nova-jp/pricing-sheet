@@ -64,7 +64,7 @@ class BootstrapResult(NamedTuple):
     used_tenors: List[str]
     skipped_tenors: List[str]
     # カーブに使ったテナー(used_tenorsと同じ表記)→ そのクォート。値を書き換えるとカーブが
-    # 引き直される(QuantLibのObserver)。RiskGridのバケットデルタはこれを一時的に+1bpして測る
+    # 引き直される(QuantLibのObserver)。RiskGridのバケットデルタはこれを一時的に動かして測る
     quotes: Optional[Dict[str, "ql.SimpleQuote"]] = None
 
 

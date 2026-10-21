@@ -16,7 +16,7 @@ pricingシートの1行の計算結果(列)ごとの関数。1行用のUDF(FairR
 from dataclasses import replace
 from typing import Optional
 
-from engine.common.risk import annuity_delta, price, solve_notional_for_target_delta
+from engine.common.risk import annuity_delta, parallel_delta, price, solve_notional_for_target_delta
 from engine.common.swap_pricer import SwapPricingResult
 from engine.common.terms import PAY, SwapParams, SwapTerms
 
@@ -49,12 +49,9 @@ def parallel_delta_mm(
     curves, params: SwapParams, par_result: Optional[SwapPricingResult] = None,
     base_pv: Optional[float] = None,
 ) -> float:
-    """カーブに使っている全テナーを+1bpしたときのデルタ(百万円)。
+    """カーブに使っている全テナーを動かしたときのデルタ(1bpあたり、百万円)。
     base_pv: 同じポジション(par_resultで固定した固定金利)の基準カーブでのPV。渡せば評価し直さない。"""
-    position = fixed(curves, params, par_result)
-    if base_pv is None:
-        base_pv = price(curves.base, position).pv
-    return (price(curves.parallel(), position).pv - base_pv) / _MM
+    return parallel_delta(curves, fixed(curves, params, par_result), base_pv) / _MM
 
 
 def annuity_delta_mm(curves, params: SwapParams, par_result: Optional[SwapPricingResult] = None) -> float:
