@@ -25,6 +25,9 @@ ql.Date.from_date()/to_date() を呼び出し側で直接使う。
          (start起点で正規期間を並べ、端数はショート・バックスタブ)
   - EOM: 同じくForwardだが endOfMonth=True を渡す。
   - IMM: ql.DateGeneration.ThirdWednesday(各周期の月の第3水曜日にロール)
+  - BWD: ql.DateGeneration.Backward, endOfMonth=False
+         (満期日から遡って正規期間を並べ、端数はショート・フロントスタブ。アセットスワップの
+         MMSで、支払日を現物の利払日(償還日から半年ごと)にそろえるために使う)
   休日調整は常にModified Following(swap_pricer側で指定)。
 
   EOMでもendOfMonth=Trueを渡すだけで、実際にEOMロールになるかどうかの判定
@@ -94,7 +97,8 @@ FREQ_TO_QL_FREQUENCY = {
 ROLL_STD = "STD"
 ROLL_EOM = "EOM"
 ROLL_IMM = "IMM"
-SUPPORTED_ROLL = (ROLL_STD, ROLL_EOM, ROLL_IMM)
+ROLL_BWD = "BWD"
+SUPPORTED_ROLL = (ROLL_STD, ROLL_EOM, ROLL_IMM, ROLL_BWD)
 
 
 def rule_and_eom(roll_conv: str) -> tuple:
@@ -105,6 +109,8 @@ def rule_and_eom(roll_conv: str) -> tuple:
         return ql.DateGeneration.ThirdWednesday, False
     if roll_conv == ROLL_EOM:
         return ql.DateGeneration.Forward, True
+    if roll_conv == ROLL_BWD:
+        return ql.DateGeneration.Backward, False
     return ql.DateGeneration.Forward, False
 
 

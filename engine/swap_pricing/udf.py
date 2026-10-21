@@ -11,7 +11,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
     - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates, HedgeHistoricalRates)
     - boj/udf.py       : BOJシート(BojImpliedRates)
-    - asw/udf.py       : ASWシート(AswHistoricalRate, AswHistoricalRates)
+    - asw/udf.py       : ASWシート(AswHistoricalRate, AswHistoricalRates)・ASWPricerシート(AswPricingTable)
     - common/live_udf.py: 各フロントシート(LiveQuotes, LiveSnapshot, LiveInfo。フィード(live_feed.py)が書いた
                           リアルタイムのレートを読む。SwapAnalysis.xlsmと共通)
   Excel境界の型変換・評価日解決・カーブ一式(`_market`)はこれらが共有する

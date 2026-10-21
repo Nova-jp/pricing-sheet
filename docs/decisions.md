@@ -734,6 +734,28 @@
   90万行規模まで育つ想定のテーブルを毎回全件読むには重く、チャートは1〜3銘柄だけで
   十分なため、絞り込みクエリを別に用意した。
 
+## ASWPricer(アセットスワップのプライサー、2026-10-21、ユーザーと決定)
+
+- **定義はNeonの`ASW_data`と同じ: ASW = 現物の複利 − MMS(ユーザー指示)**。Neonへの書き込み元
+  (ユーザーの別プロジェクト market-analysis の`QuantLibHelper.calculate_mms`)を読んで規約を合わせた:
+  MMSは起算日=スポット(T+2)、満期日=償還日(休日調整)、償還日から遡る日程(Backward)、固定側Act/365で
+  PA/SA、変動側も固定側と同じ頻度。現物側はNeonではJSDAの平均値の複利。こちらはJSDAを取れないため、
+  現物オプションと同じ引け値(JCL)の単利+スライド(bp、ユーザーが入力)→単価→半年複利(うるう日除き/365、
+  小数3桁で切り捨て)にした。2026-09-25のDBのカーブで、PAとSAの差(現物の複利が消えるのでMMSの規約だけを比べられる)
+  がNeonと0.01bpの範囲で一致した。
+- **スワップの側はPricingSheetのパーレートと同じ経路・同じカーブ(リアルタイム)**。規約(fix freq・fix dcf・
+  float freq・roll conv)は行ごとに選べる(ユーザー要望: Act/365等も選びたい)。roll convに`BWD`
+  (`ql.DateGeneration.Backward`)を追加した。既存のSTD/EOM/IMMはForward(起算日から並べる)で、MMSの支払日を
+  利払日にそろえられないため。
+- **ASW(bp)の引き算はシートの式**(複利・MMSはUDFが返す)。四則演算はExcelに任せる方針どおり。
+- **par-par ASWも参考値として出す(ユーザー要望。メインは上の定義)**。`ql.AssetSwap`(parAssetSwap=True)の
+  fairSpread。TONAのようなオーバーナイト指標では変動側の日程を渡す必要がある(渡さないとQuantLibがエラー)。
+  `bond.schedule`(NullCalendar)のままだとQuantLibの受渡日(T+1)が土曜になるため、日本のカレンダーで組んだ債券を
+  使い、受渡日が`bond.settlement_date`と一致することを確かめる。起算日が評価日より前の行は計算しない
+  (変動側の実績の登録をしないため)。
+- **リスク→想定元本はpricing表と同じ`notional_for_delta`(アニュイティデルタ基準)をMMSのスワップに適用**。
+  PV・デルタは今は出さない(ユーザー判断)。
+
 ## ヘッジのヒストリカル(HistChartに重ねる、2026-10-12にユーザーと議論。実装前)
 
 フローの取引をpricingシートで計算し、RiskGridを見てユーザーがヘッジ(スポットで取引されている

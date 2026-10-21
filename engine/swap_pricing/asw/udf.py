@@ -1,5 +1,6 @@
 """
-ASWシート用のUDF(JGB銘柄別ASWスプレッドのヒストリカル推移)。
+ASWシート用のUDF(JGB銘柄別ASWスプレッドのヒストリカル推移)と、ASWPricerシート用のUDF
+(AswPricingTable。リアルタイムのカーブと引け値+スライドでASWを計算する。本体は table.py・pricer.py)。
 
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
@@ -16,6 +17,7 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.historical_store import AswRate
+from engine.swap_pricing.asw import table
 
 _CONVENTIONS = ("PA", "SA")
 _MAX_LEGS = 3
@@ -94,3 +96,22 @@ def AswHistoricalRates(bond_codes, convention, from_date=None, to_date=None) -> 
             row.append(_rate(per_leg[code].get(d), conv) if code is not None else "")
         rows.append(row)
     return rows
+
+
+@xw.func
+@xw.arg("asw_table", ndim=2)
+@xw.arg("real_time_range", ndim=2)
+def AswPricingTable(asw_table, real_time_range, valuation_date=None) -> List[list]:
+    """
+    ASWPricer表の全行の coupon・maturity・close・close date・simple yield・settle・price・compound yield・
+    start date・end date・swap rate(MMS)・par-par asw(bp)・adj_notional・message を1回で返す
+    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はasw/table.py)。
+    ASW(bp) = (compound yield − swap rate)×100 はシートの式で計算する。
+
+    asw_table: 見出し行から最終行まで、入力の列だけ(出力の列を含めると循環参照になる)。列は見出し名で探す
+        (flag, bond, slide, yield override, delta, start, fix freq, fix dcf, float freq, roll conv, pay/rec)。
+    real_time_range: PricingTableと同じ(そのシートの TAKE(カーブ用の範囲#,,3))。
+    """
+    curves = udf_common._market(real_time_range, valuation_date)
+    with udf_common._historical_store() as store:
+        return table.price_table(asw_table, curves, store)

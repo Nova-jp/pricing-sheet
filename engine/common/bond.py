@@ -101,6 +101,16 @@ def coupon_dates(bond: Jgb, after: date, until: date) -> List[date]:
     return [d.to_date() for d in schedule(bond) if _qd(after) < d <= _qd(until)]
 
 
+def compound_yield(bond: Jgb, dirty: float, settle: date) -> float:
+    """利含み単価 dirty に一致する半年複利(%、うるう日除き/365、受渡日起点)を小数3桁で切り捨てる。
+    現物オプションの先渡複利(先渡dirty・行使後の受渡日)とアセットスワップの複利(スポット)が使う。"""
+    y = ql.BondFunctions.bondYield(
+        ql_bond(bond, "no_leap"), ql.BondPrice(dirty, ql.BondPrice.Dirty), NO_LEAP, ql.Compounded,
+        ql.Semiannual, _qd(settle), 1.0e-12, 100, 0.02,
+    )
+    return truncate3(y * 100)
+
+
 def settlement_date(trade_date: date, days: int) -> date:
     """取引日・行使日の T+days(日本の営業日)。スポット受渡は T+1。"""
     return CALENDAR.advance(_qd(trade_date), int(days), ql.Days).to_date()
