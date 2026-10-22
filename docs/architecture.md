@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、BOJ K:T、PCA CA:CD、VolPCA LA:LC、VolHV AA:BK(計算領域ごと))。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -76,10 +76,10 @@
 | pricing | AF4 | AK4 |
 | HistChart | AJ3 | AO3 |
 | ASWPricer | AF4 | AK4 |
-| BOJ | K3 | P3 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
 | VolHV(SwapAnalysis) | BB3(`"vol"`、`IV (Live)`の`XLOOKUP`だけが使う) | なし |
+| BOJ(SwapAnalysis) | K3 | P3(テナー表はMainではなくこのシートのV:W) |
 
 フィードの設定は`live_feed.toml`(リポジトリ直下。調整する値はここにまとめる): 秒数(`[timing]`)と
 データセットごとのRIC。
@@ -145,7 +145,7 @@ engine/
 
 | ファイル | 役割 |
 |---|---|
-| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`asw/udf.py`。BOJシートの移行中だけ`engine/boj/udf.py`の`BojImpliedRates`も再エクスポートする) |
+| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`asw/udf.py`) |
 | `pricing/udf.py` | Main/pricingシートのUDF: `PricingTable`(pricing表全体)/`FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`(1行用)/`RiskGrid`/`MarketInfo`。どれも下の部品を組み合わせるだけ |
 | `pricing/row.py` | 1行分のセルの値→取引条件の型(`swap_terms`=SwapTerms、`swap_params`=SwapParams)。start列のテナー・営業日数の読み替えもここ |
 | `pricing/measures.py` | 列ごとの計算: `par`(想定元本1・固定金利なしの評価)/`fair_rate`/`pv`/`parallel_delta_mm`/`annuity_delta_mm`/`notional_for_delta`。`par`の結果・PVを渡すと評価をやり直さない(PricingTableは1行3回の評価) |
@@ -213,7 +213,7 @@ LSEGのデータには依存しない。
 
 ## Excelブック構成(`PricingSheet.xlsm`)
 
-シート: `Main` / `pricing` / `HistChart` / `ASW` / `BOJ` / `_xlwings.conf`(RealTimeシートは2026-10-18に削除。
+シート: `Main` / `pricing` / `HistChart` / `ASW` / `ASWPricer` / `_xlwings.conf`(RealTimeシートは2026-10-18に削除、BOJシートは2026-10-22にSwapAnalysis.xlsmへ移した。
 ASW以外のフロントシートの1行目は取得モードの欄。上の「データフロー」参照)
 
 ### カーブのテナー(Mainシート A10:B54)
@@ -231,7 +231,8 @@ O/Nは`JP1DONI=TRDT`(Traditionの1日物OIS、チェーン`JPONI=TRDT`の先頭)
 LSEGのRICは`live_feed.toml`にある。
 RD・M1〜M9は会合スワップ(TraditionのRD・M1〜M9、チェーン`JPONIBOJ=TRDT`)。RD=スポット日→会合1の
 決定日、M{n}=会合nの決定日の翌営業日→会合n+1の決定日。メインのカーブには使わず
-(`curve.EXCLUDED_MEETING_TENORS`で`skipped_tenors`計上)、BOJシートだけが使う。
+(`curve.EXCLUDED_MEETING_TENORS`で`skipped_tenors`計上)、PricingSheetでは使っていない(SwapAnalysisのBOJシートは
+自前のテナー表で同じ行を持つ)。
 
 UDFに渡す範囲は、そのシートのカーブ用の範囲の`TAKE(範囲#,,3)`(フラグ/Ticker/Value。旧`RealTime!$B$2:$D$45`と同じ形)。
 過去起算のスワップのTONA実績は、ヒストリカルDB(朝のバッチが取り込んだもの)から読む。UDFの引数では
@@ -358,22 +359,6 @@ pricingシートの行を指定して、最大3系列(アウトライト/カー�
     delta(annuity)は符号付き(PAY=+、REC=−)なので、PAY/RECに関係なくフローのレートと同じ向きに動く。
     T29が凡例名(`ヘッジ(モード)`、入力が無ければ空)。
 
-### BOJシート
-
-BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のずれを、2方向で表示する(リアルタイムのみ。
-ヒストリカルは未対応)。カーブ用の範囲(P3#)の会合スワップの行(35〜44行目)を参照する。
-
-- 上部(1行目は取得モードの欄): B3=評価日(空欄なら「今日(ライブ)」)、B4=O/N(`INDEX($P$3#,1,3)`)。
-- **A(8〜17行)スポット→会合期間**: 各会合スワップの起算日・満期日(カーブ用の範囲の4・5列目)で、pricingと同じ
-  メインのカーブの`FairRate(起算日,"",満期日,"PA","act/365fixed","PA","act/365fixed","STD",…)`を計算。
-  G=ずれ(bp)=会合スワップ−スポットからのフォワード、H=会合スワップの前の期間からの変化(bp、RDはO/Nとの差)。
-- **B(22〜34行)会合スワップ→スポット**: C22の`=BojImpliedRates(A22:A34, TAKE($P$3#,,3),
-  TAKE(DROP($P$3#,34,1),10,4), 評価日)`が、O/N+RD+M1〜M9の階段状のカーブ(`boj/meeting_curve.py`)での
-  スポット起算・標準コンベンションのパーレートを1列でスピル。D=ずれ(bp)=スポット−会合スワップのカーブ。
-  評価日が今日でなければエラー。値か日付が欠けた会合スワップの行以降は使わない。
-  最後の会合期間より先のテナーはその行だけエラーの文字列。
-- ずれはミッド同士(売値・買値の幅は考慮しない)。差・変化はExcelの数式。
-
 ### ASWシート
 
 JGB銘柄別のASWスプレッド(`data/historical.db`の`asw_quotes`、朝バッチがNeonから取得)の
@@ -420,10 +405,11 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
 
 pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
-(`VolHV`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
+(`VolHV`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
 スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し・Fwdの計算)はPythonのUDF、
 得点・復元(行列の積)・差分・寄与率・窓の集計などはExcelの数式。`SwapAnalysis.py`は
-`engine/pca/udf.py`・`engine/vol/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+`engine/pca/udf.py`・`engine/vol/udf.py`・`engine/boj/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+`engine/swap_pricing/`(PricingSheetのUDF)は使わない。
 
 | ファイル | 役割 |
 |---|---|
@@ -494,6 +480,28 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
   (`VHV_Date`)、AM:AU 足ごとのIV・HV・短い窓のHV(HVは`SCAN`で2乗の累積をとり、N行前との差/N×年の日数の
   平方根)、AV:AZ 合成(IV・HV・短い窓のHV・IV−HV・IV−短い窓のHV)、BB3 ライブのボラ、BF:BK From以降の
   グラフ用の列(`FILTER`)。足の列はUDFの見出し(`1Yx10Y IV`等)を`XMATCH`で引くので、足の間に空欄があってもよい。
+
+### BOJ会合スワップとスポットのずれ(`BOJ`シート、`engine/boj/`)
+
+BOJ会合スワップ(RD・M1〜M9)と1年以下のスポット(1W〜12M)のずれを、2方向で表示する(リアルタイムのみ。
+ヒストリカルは未対応)。2026-10-22にPricingSheet.xlsmから移した。**このシートだけで完結し、他のブックを
+参照しない**(テナー表・ライブのレートを自分で持つ。理由は[decisions.md](decisions.md))。
+
+- 上部: 1行目は取得モードの欄、B3=O/N(カーブ用の範囲からTickerで引く)。評価日の欄は無い(常に今日)。
+- **A(8〜17行)スポット→会合期間**: A列のTicker(RD・M1〜M9)で、カーブ用の範囲から会合スワップの起算日・満期日・
+  値を`XLOOKUP`で引く。F8の`=BojSpotForwards(B8:C17,TAKE($P$3#,,3))`が、pricingと同じ引き方のメインのカーブでの
+  各期間のパーレート(標準コンベンション。PricingSheetの`FairRate(起算日,"",満期日,"PA","act/365fixed","PA","STD",…)`
+  と同じ値)を1列でスピル。G=ずれ(bp)=会合スワップ−スポットからのフォワード、H=会合スワップの前の期間からの
+  変化(bp、RDはO/Nとの差)。
+- **B(22〜34行)会合スワップ→スポット**: C22の`=BojImpliedRates(A22:A34,TAKE($P$3#,,3),HSTACK(A8:A17,E8:E17,B8:C17))`
+  (会合スワップはA表のTicker/値/起算日/満期日をそのまま渡す)が、O/N+RD+M1〜M9の階段状のカーブ
+  (`engine/boj/meeting_curve.py`)でのスポット起算・標準コンベンションのパーレートを1列でスピル。
+  D=ずれ(bp)=スポット−会合スワップのカーブ。値か日付が欠けた会合スワップの行以降は使わない。
+  最後の会合期間より先のテナーはその行だけエラーの文字列。
+- ずれはミッド同士(売値・買値の幅は考慮しない)。差・変化はExcelの数式。
+- **計算領域(K:W、列のグループで畳んである)**: K3=ライブのレート(`"swap"`)、P3=カーブ用の範囲
+  (`=LET(q,$K$3#,t,$V$4:$V$47,HSTACK($W$4:$W$47,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`、フラグ/Ticker/値/起算日/満期日)、
+  V4:W47=テナー表(Ticker・採否フラグ。O/N〜40Y・RD・M1〜M9。初期値はPricingSheetのMainと同じ。会合スワップは0)。
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)
 

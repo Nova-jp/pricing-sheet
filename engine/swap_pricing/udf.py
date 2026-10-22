@@ -51,7 +51,6 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
 
 import xlwings as xw
 
-from engine.boj.udf import BojImpliedRates  # noqa: F401  移行中だけ: BOJシートをSwapAnalysis.xlsmへ移したら消す
 from engine.common.live_udf import LiveInfo, LiveQuotes, LiveSnapshot  # noqa: F401
 from engine.swap_pricing.asw.udf import *  # noqa: F401,F403
 from engine.swap_pricing.historical.udf import *  # noqa: F401,F403
