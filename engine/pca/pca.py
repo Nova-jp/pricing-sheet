@@ -42,7 +42,9 @@ from engine.common.conventions import CALENDAR
 LEVEL = "LEVEL"
 CHANGE = "CHANGE"
 _MODE_ALIASES = {"LEVEL": LEVEL, "レベル": LEVEL, "CHANGE": CHANGE, "日次変化": CHANGE}
-_STANDARDIZE_ALIASES = {"あり": True, "なし": False, "TRUE": True, "FALSE": False, "1": True, "0": False}
+_STANDARDIZE_ALIASES = {
+    "あり": True, "なし": False, "YES": True, "NO": False, "TRUE": True, "FALSE": False, "1": True, "0": False,
+}
 
 SIGMA_FLOOR_BP = 0.01
 
@@ -50,7 +52,7 @@ SIGMA_FLOOR_BP = 0.01
 def parse_mode(value) -> str:
     mode = _MODE_ALIASES.get(str(value or "").strip().upper())
     if mode is None:
-        raise ValueError(f"モードは「レベル」か「日次変化」です: {value!r}")
+        raise ValueError(f"モードは「Level」か「Change」(「レベル」/「日次変化」)です: {value!r}")
     return mode
 
 
@@ -61,7 +63,7 @@ def parse_standardize(value) -> bool:
         return bool(value)
     flag = _STANDARDIZE_ALIASES.get(str(value or "").strip().upper())
     if flag is None:
-        raise ValueError(f"標準化は「あり」か「なし」です: {value!r}")
+        raise ValueError(f"標準化は「Yes」か「No」(「あり」/「なし」)です: {value!r}")
     return flag
 
 

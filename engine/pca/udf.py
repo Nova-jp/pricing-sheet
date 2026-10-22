@@ -11,7 +11,8 @@
 
 ■ 引数(共通)
   labels: 使う銘柄の縦の並び(スワップはテナー、ボラは「満期x原資産」)。並び順が表の行順。
-  pca_mode: 「レベル」/「日次変化」。standardize: 「あり」(z-score)/「なし」(分散共分散)。
+  pca_mode: 「Level」/「Change」(「レベル」/「日次変化」も可)。
+  standardize: 「Yes」(z-score)/「No」(分散共分散)(「あり」/「なし」も可)。
   window: サンプル数(営業日)。base_date: 推定基準日(windowの最終日。空欄=比較日より前の直近)。
   target_date: 比較日(空欄=今日、実績はRealTimeのライブの値。日付=DBのその日の引け値)。
   dataset: "swap"(既定)/"vol"。

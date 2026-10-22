@@ -155,6 +155,11 @@ class EstimateTest(unittest.TestCase):
         self.assertEqual(parse_mode("日次変化"), CHANGE)
         self.assertTrue(parse_standardize("あり"))
         self.assertFalse(parse_standardize(False))
+        # 新しいシートのプルダウンは英語(PCAGrid)
+        self.assertEqual(parse_mode("Level"), LEVEL)
+        self.assertEqual(parse_mode("Change"), CHANGE)
+        self.assertTrue(parse_standardize("Yes"))
+        self.assertFalse(parse_standardize("No"))
         self.assertEqual(parse_dataset("vol"), VOL)
         self.assertEqual(parse_dataset(None), SWAP)
 
