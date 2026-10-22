@@ -81,19 +81,28 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 | TB | ターゲットバイイング(プットを売る) | Put |
 | ITMBW | ITMバイライト(ストライク + プレミアム = 購入単価になるストライクで、コールを売る) | Call |
 
-ストライクの指定は5つの入力列に分け、1行につき1つだけ埋める(プルダウンで方式を選ぶと書式がずれるため、ユーザー決定)。
+ストライクの指定は6つの入力列に分け、1行につき1つだけ埋める(プルダウンで方式を選ぶと書式がずれるため、ユーザー決定)。
 2つ以上埋めた行、ITMBWなのにストライクの入力がある行は、メッセージを出しストライクを#N/Aにする。
 
 | 入力 | ストライク単価K |
 |---|---|
 | Spot +sen(銭) | ⌊スポット単価 + 入力/100⌋₃(2026-10-21に追加) |
 | Fwd +sen(銭) | ⌊先渡clean + 入力/100⌋₃ |
+| Fwd +bp | F1(y = 先渡単利(下記、切り捨て後の表示の値) + 入力/100, 起点 = te)(2026-10-22に追加) |
 | Fwd price | 入力そのもの(行使後の受渡のclean単価) |
 | ATM +bp | F1(y = ATM単利 + 入力/100, 起点 = **te**) |
 | Yield(%) | F1(y = 入力, 起点 = te) |
 | (ITMBW、入力なし) | F11(F = 先渡clean、目標 = スポット単価) |
 
-表示のストライク単利は F2(P = K, 起点 = se)。
+表示のストライク単利は F2(P = K, 起点 = se)、先渡単利(Fwd yield simple、確認用の表示)は F2(P = 先渡clean, 起点 = se)。
+
+**起点の非対称(2026-10-22、ユーザーと議論)**: 単利→単価でストライクを作るときは te、単価→単利の表示は se。
+プライサー(正)の規則で、サンプルはこの組み合わせでだけ一致する(Kを0.001円で切り捨て。se起点ではどの端数処理でも
+Kが0.003〜0.009円、プレミアムが0.12〜0.90銭ずれる)。理屈では受渡日se起点が自然(行使=受渡日の指定、日本の債券の
+単価は受渡日起点。日本証券業協会「選択権付債券売買取引に関する基本契約書」の参考様式は換算の起点を定めていない)だが、
+サンプルを正とした。ユーザーが後日、ブラック式に入れる中身(スポット・先渡・ストライク)を明細の列で比べて原因を確かめる。
+そのため入力の単利と表示の単利が0.1bpずれることがあり、Fwd +bpは+0bpでもKと先渡cleanが一致しない(te→seの日数分)。
+シートのteは`INT(Expiry)`(Expiryに時刻が入っていても日付で数える)。
 
 **F11(ITMBW)**: f(K) = K + C(K) はKについて単調増加(傾き 1 − N(d2) > 0)で、K → 0 で先渡価格、K = 目標で目標以上
 になる。そのため解があるのは「スポット単価 > 先渡clean(キャリーが正)」のときだけで、そうでなければエラーにする。
@@ -148,7 +157,7 @@ Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルと
 **表UDF(2026-10-21、ユーザー指示)**: 1行ごとにUDFを置くと、再計算の時間がUDFのセルの数で決まる(1セルごとに
 Excelとの往復がかかる。PricingTableと同じ理由、[decisions.md](decisions.md))。行ごとに5〜6個(100行で500超)
 あったUDFを、全行を1回で計算する3つの表UDF(本体は`engine/bond_option/table.py`)にまとめた。四則演算程度の計算は
-Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AV〜BD)に
+Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AX〜BF)に
 スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
 する。表示のセルを手で上書きすれば、下流の式とその先の表UDFはその値で計算される(スピルの中を上書きして
 #SPILL!になることもない)。1行の入力の誤りで表全体をエラーにせず、計算できなかった値は空欄(表示の列は#N/A)、
@@ -169,19 +178,22 @@ Excelの式のまま残す(手で上書きしたときに対応しやすいた�
   `RepoOffer`)、G1:I5 スキームの対応表(名前`SchemeTable` = G2:I5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
   黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
   入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
-  明細(AE〜AT)と計算用(AV〜BF)は折りたたみ(AUは2つのグループを分ける隙間)。
+  明細(AG〜AV)と計算用(AX〜BH)は折りたたみ(AWは2つのグループを分ける隙間)。2026-10-22にFwd +bp・先渡単利の
+  2列を挿入した。ずらし幅の入力(ATM slide・Spot +sen・Fwd +sen・Fwd +bp・ATM +bp)は+付き・負は赤の表示形式
+  (`+General;[Red]-General;0`。日本語版ExcelのCOMは`[Red]`を受け付けないので`NumberFormatLocal`の
+  `+G/標準;[赤]-G/標準;0`で設定する)。
 
 | ブロック | 列 |
 |---|---|
 | Trade | A Bond, B Scheme(対応表から選ぶ), C Expiry, D Settle lag(1/2), E Notional(億円) |
 | Market | F Repo override(%), G Repo(使う値。overrideが空ならSchemeの対応表のBid/Offer。未設定ならメッセージ), H ATM slide(bp), I ATM yield, J Spot price(`JGB_PRICE`) |
-| Strike input(1つだけ) | K Spot +sen, L Fwd +sen, M Fwd price, N ATM +bp, O Yield(%) |
-| Forward | P Fwd clean |
-| Strike | Q Strike basis(どの入力を使うか、または入力の誤りのメッセージ), R Strike price, S Strike yield(se起点) |
-| Vol | T・U Normal vol(override │ 使う値), V・W bp vol, X・Y Price vol |
-| Premium | Z Premium(銭), AA 円, AB Strike + premium(ITMBWの確認), AC Quote text(客先に返す文面。中身は後日決める), AD Message |
-| Details(折りたたみ) | AE〜AH 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AI Type(対応表から), AJ〜AL スポット受渡日・行使後の受渡日・T, AM〜AP 経過利子×2・期中の利払・Fwd dirty, AQ〜AT Fwd yield・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
-| Calc(折りたたみ) | AV `OptionMarketTable`, BA `ItmBuyWriteTable`, BC `PremiumTable`(8行目にスピル), BF3 ライブのボラ(`LiveQuotes("vol")`) |
+| Strike input(1つだけ) | K Spot +sen, L Fwd +sen, M Fwd +bp, N Fwd price, O ATM +bp, P Yield(%) |
+| Forward | Q Fwd clean, R Fwd yield simple(先渡単利、se起点) |
+| Strike | S Strike basis(どの入力を使うか、または入力の誤りのメッセージ), T Strike price, U Strike yield(se起点) |
+| Vol | V・W Normal vol(override │ 使う値), X・Y bp vol, Z・AA Price vol |
+| Premium | AB Premium(銭), AC 円, AD Strike + premium(ITMBWの確認), AE Quote text(客先に返す文面。中身は後日決める), AF Message |
+| Details(折りたたみ) | AG〜AJ 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AK Type(対応表から), AL〜AN スポット受渡日・行使後の受渡日・T, AO〜AR 経過利子×2・期中の利払・Fwd dirty, AS〜AV Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
+| Calc(折りたたみ) | AX `OptionMarketTable`, BC `ItmBuyWriteTable`, BE `PremiumTable`(8行目にスピル), BH3 ライブのボラ(`LiveQuotes("vol")`) |
 
 旧構成(2026-10-19〜21)の`INDEX(配列UDF(…), 行, 列)`のセルはExcelが旧式の数式(`cm`属性なし)として保存していた
 (`tools/template.py`の検査はこの形を除いている。今のシートでは使っていない)。
