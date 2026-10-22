@@ -34,8 +34,10 @@ LSEG Workspace(起動・ログイン中)
 | `PricingSheet.xlsm` ・ `SwapAnalysis.xlsm` ・ `BondOption.xlsm` | 作業用のブック(計算はUDFのみ。`.gitignore`済み) |
 | `PricingSheet.py` ・ `SwapAnalysis.py` ・ `BondOption.py` | xlwingsの制約(ブックと同名の.pyが必要)のため、UDFを再エクスポートするだけのファイル |
 | `engine/common/` | 共有の計算エンジン・データ層(カーブ、プライサー、DB、朝バッチ、リアルタイムのフィード) |
-| `engine/swap_pricing/` | PricingSheet.xlsmのUDF(`pricing/`・`historical/`・`asw/`・`boj/`) |
+| `engine/swap_pricing/` | PricingSheet.xlsmのUDF(`pricing/`・`historical/`・`asw/`) |
 | `engine/pca/` | SwapAnalysis.xlsmのPCA |
+| `engine/vol/` | SwapAnalysis.xlsmのIV vs HV |
+| `engine/boj/` | SwapAnalysis.xlsmのBOJ会合スワップとスポットのずれ |
 | `engine/bond_option/` | BondOption.xlsmのプライサー・ボラ |
 | `historical_data.xlsx` | LSEGのヒストリカル生データを取得するブック(作業用で`.gitignore`済み) |
 | `live_feed.toml` | リアルタイムのフィードの設定(購読するRIC・秒数) |

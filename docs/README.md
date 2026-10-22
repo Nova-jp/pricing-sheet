@@ -19,7 +19,7 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   各ファイル冒頭のdocstringに役割を明記しているので、詳細はコードを直接参照するのが
   最新かつ正確。
 - `engine/swap_pricing/udf.py` — Excelから直接呼べるUDFの単一の窓口(`PricingSheet.py`が再エクスポート)。
-  実体はシート(機能)ごとに`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`に分かれている
+  実体はシート(機能)ごとに`pricing/udf.py`・`historical/udf.py`・`asw/udf.py`に分かれている
   (共有部分は`engine/common/udf_common.py`)
 - `engine/common/conventions.py` — 業務上の表記(テナー・dcf・freq・roll・IMMコード・startのテナー)→
   QuantLibの対応表とカレンダー

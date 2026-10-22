@@ -3,7 +3,7 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 
 ■ 使用データ
   RealTimeシートのスポットテナー(O/N〜40Y)のみ。会合スワップ(RD・M1〜M9)は使わない
-  (BOJシートの比較用に engine/swap_pricing/boj/meeting_curve.py が別のカーブを引く)。
+  (BOJシートの比較用に engine/boj/meeting_curve.py が別のカーブを引く)。
 
 ■ O/Nの扱い
   O/Nのみ settlementDays=0, tenor=1日 のOISヘルパーとして評価日(T)起点で

@@ -1,16 +1,20 @@
 """
-BOJシート用のUDF(会合スワップ(RD・M1〜)とスポットの歪み比較)。
+BOJシート(SwapAnalysis.xlsm)用のUDF(会合スワップ(RD・M1〜)とスポットの歪み比較)。
+
+PricingSheet.xlsm・`engine/swap_pricing/`には依存しない(分析ブックはそれだけで完結させる)。
+メインのカーブは`engine.common`(udf_common._market)で、pricingと同じ引き方のものを使う。
 
 Excel境界の型変換(`_is_blank`等)と評価日解決は`engine.common.udf_common`を
 `udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。理由はudf_common.pyのdocstring)。
 """
 
+import datetime
 from typing import Dict, List
 
 import xlwings as xw
 
+from engine.boj.meeting_curve import MeetingPeriod, build_meeting_curve
 from engine.common import udf_common
-from engine.swap_pricing.boj.meeting_curve import MeetingPeriod, build_meeting_curve
 from engine.common.curve import BootstrapResult, ON_KEYS
 from engine.common.market_data import Market
 from engine.common.risk import price
@@ -18,7 +22,7 @@ from engine.common.terms import PAY, STANDARD, SwapParams, SwapTerms
 
 
 def _meeting_periods(meeting_range) -> List[MeetingPeriod]:
-    """RealTimeの会合スワップ行 [Ticker, Value, 起算日, 満期日] → 期間の列(上から順)。
+    """会合スワップの行 [Ticker, Value, 起算日, 満期日] → 期間の列(上から順)。
 
     値か日付が欠けた行(LSEGで未提示のM10以降など)で打ち切る。途中の期間が欠けたまま先の期間を
     使うと、欠けた期間全体が直前の期間のフォワードで埋まってしまうため。
@@ -62,16 +66,45 @@ def _meeting_curve(real_time_range, meeting_range, valuation_date) -> BootstrapR
 
 
 @xw.func
+@xw.arg("periods", ndim=2)
+@xw.arg("real_time_range", ndim=2)
+def BojSpotForwards(periods, real_time_range, valuation_date=None) -> List[list]:
+    """メインのカーブ(pricingと同じ引き方)での、各期間(起算日→満期日)のパーレート(%)を返す
+    (periodsと同じ行数の1列。標準コンベンション PA/act365f/STD = 会合スワップと同じ1期間の複利)。
+
+    periods: 起算日・満期日の2列(例: BOJ!B8:C17)。どちらかが日付(シリアル値)でない行は空文字。
+    real_time_range: フラグ/Ticker/Value の範囲(BOJシートのカーブ用の範囲の TAKE(…#,,3))。
+    valuation_date: 空欄=今日。PricingSheetの FairRate(起算日,"",満期日,"PA","act/365fixed","PA","STD",…)
+    と同じ値(同じカーブ・同じ評価)。
+    """
+    curves = udf_common._market(real_time_range, valuation_date)
+    result = []
+    for row in periods or []:
+        dates = (list(row or []) + [None, None])[:2]
+        if not all(isinstance(v, (datetime.date, int, float)) and not isinstance(v, bool) for v in dates):
+            result.append([""])  # 会合スワップの日付が未提示の行
+            continue
+        start, end = (udf_common._to_date(v) for v in dates)
+        params = SwapParams(SwapTerms(start, STANDARD, end=end), 1.0, PAY)
+        try:
+            result.append([price(curves.base, params).target_fixrate])
+        except (RuntimeError, ValueError) as exc:
+            result.append([f"エラー: {exc}"])
+    return result
+
+
+@xw.func
 @xw.arg("tenors", ndim=2)
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("meeting_range", ndim=2)
 def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None) -> List[list]:
     """会合スワップ(RD・M1〜)とO/Nで引いた階段状のカーブから、スポット起算のパーレート(%)を返す
-    (tenorsと同じ行数の1列。標準コンベンション PA/act365f/STD = RealTimeのスポットと同じ)。
+    (tenorsと同じ行数の1列。標準コンベンション PA/act365f/STD = ライブのスポットと同じ)。
 
-    tenors: テナーの列(例: BOJ!A22:A34)。real_time_range: TAKE($P$3#,,3)(フラグ/Ticker/Value。O/Nを読む)。
-    meeting_range: TAKE(DROP($P$3#,34,1),10,4)(会合スワップのTicker/Value/起算日/満期日)。valuation_date: Main!評価日。
-    カーブの引き方は engine/swap_pricing/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
+    tenors: テナーの列(例: BOJ!A22:A34)。real_time_range: フラグ/Ticker/Value の範囲(O/Nを読む)。
+    meeting_range: 会合スワップの Ticker/Value/起算日/満期日 の4列(上から RD, M1, …)。
+    valuation_date: 空欄=今日(今日以外はエラー)。
+    カーブの引き方は engine/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
     エラーの文字列になる。
     """
     boot = _meeting_curve(real_time_range, meeting_range, valuation_date)

@@ -26,13 +26,16 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
     `boj/`に分割、薄い再エクスポート層`udf.py`)
   - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析(history/pca/udf)
   - `engine/vol/` — SwapAnalysis.xlsm固有のIV vs HV(hv/udf。FwdのHVはDBのカーブから)
+  - `engine/boj/` — SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ(meeting_curve/udf)
+  - 分析ブック(`pca/`・`vol/`・`boj/`)は`swap_pricing/`に依存させず、`common/`だけを使う
+    (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
 
 ## 設計方針(必ず守る)
 
 - **UDF専用、VBAなし**。QuantLibが必要な計算(パーレート/PV/デルタ/
   リスクの合算(RiskGrid)/ヒストリカル)だけをUDFにする(機能ごとに`pricing/udf.py`・
-  `historical/udf.py`・`boj/udf.py`に分かれ、共有部分は`udf_common.py`)。
+  `historical/udf.py`・`asw/udf.py`等に分かれ、共有部分は`udf_common.py`)。
   カーブのスプレッド・フライ・合計のような四則演算はExcel自身の数式に
   任せる。「高度な計算が必要そうなら、勝手にUDF化・複雑化せず先に相談する」。
 - `PricingSheet.py`は`engine/swap_pricing/udf.py`の再エクスポート専用
