@@ -98,7 +98,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
    止めるときはその窓でCtrl+C(ブックはすぐに「フィードは停止しています」になる)。ログは`data/live_feed.log`。
    二重に起動すると「別のフィードが動いています」で止まる。
 3. ExcelでPricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsmを開く。計算方法は「手動」。
-4. 各フロントシート(Main・pricing・HistChart・BOJ・PCA・VolPCA・Option)の1行目が取得モードの欄。B1のプルダウンが
+4. 各フロントシート(Main・pricing・HistChart・PCA・VolPCA・BOJ・Option)の1行目が取得モードの欄。B1のプルダウンが
    `Live`なら、そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。
    `Fixed`にすると、そのシートが最後にLiveで読んだレートのまま止まり、Shift+F9では入力を変えたセル
    (追加したコンベンションの行など)だけがそのレートで計算される(HistChartの重い再計算も止まる)。
