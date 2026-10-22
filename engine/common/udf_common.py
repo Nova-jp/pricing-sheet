@@ -1,5 +1,5 @@
 """
-UDFの各機能(pricing_udf.py・historical/udf.py・boj/udf.py)が共有する、Excel境界の
+UDFの各機能(swap_pricing/のpricing・historical・asw、boj/udf.py、vol/udf.py)が共有する、Excel境界の
 型変換と評価日時点のマーケット解決。機能固有のUDF定義はここには置かない。
 
 ■ テストでの差し替え方

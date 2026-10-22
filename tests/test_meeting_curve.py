@@ -1,5 +1,5 @@
 """
-会合スワップのカーブ(engine/swap_pricing/boj/meeting_curve.py)のリグレッションテスト。
+会合スワップのカーブ(engine/boj/meeting_curve.py)のリグレッションテスト。
 
 - 各会合スワップとO/Nが、QuantLibの評価(price_swap / Tonarの予測フィキシング)で
   入力レートに機械精度で戻ること(ブートストラップの再現精度)
@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import QuantLib as ql  # noqa: E402
 
 from engine.common.curve import spot_date_for  # noqa: E402
-from engine.swap_pricing.boj.meeting_curve import MeetingPeriod, build_meeting_curve, on_period  # noqa: E402
+from engine.boj.meeting_curve import MeetingPeriod, build_meeting_curve, on_period  # noqa: E402
 from engine.common.market_data import Market  # noqa: E402
 from engine.common.swap_pricer import price_swap  # noqa: E402
 from engine.common.terms import STANDARD, SwapTerms  # noqa: E402
@@ -150,12 +150,12 @@ class BojImpliedRatesUdfTest(unittest.TestCase):
 
     def _call(self, tenors, meeting_range, today=VALUATION, valuation_date=None):
         from engine.common import udf_common
-        from engine.swap_pricing import udf
+        from engine.boj import udf
         with mock.patch.object(udf_common, "_today", lambda: today):
             return udf.BojImpliedRates([[t] for t in tenors], self.REAL_TIME, meeting_range, valuation_date)
 
     def test_rates_match_curve(self):
-        from engine.swap_pricing.boj.meeting_curve import build_meeting_curve as build
+        from engine.boj.meeting_curve import build_meeting_curve as build
         boot = build(VALUATION, ON_RATE, PERIODS)
         result = self._call(["1W", "3M", "12M", ""], self._meeting_range(PERIODS))
         self.assertEqual(result[3], [""])
@@ -174,6 +174,40 @@ class BojImpliedRatesUdfTest(unittest.TestCase):
     def test_past_valuation_date_is_error(self):
         with self.assertRaises(ValueError):
             self._call(["1W"], self._meeting_range(PERIODS), today=date(2026, 10, 5), valuation_date=VALUATION)
+
+
+class BojSpotForwardsUdfTest(unittest.TestCase):
+    """UDF(BojSpotForwards): メインのカーブでの会合期間のパーレートが、PricingSheetの
+    FairRate(起算日,"",満期日,"PA","act/365fixed","PA","STD",…)と同じ値になること。"""
+
+    def _real_time(self):
+        from tests.test_curve_repricing import SPOT_RATES
+        return [[None, "O/N", ON_RATE]] + [[1, k, v] for k, v in SPOT_RATES.items()] + [[0, "RD", 1.2275]]
+
+    def _call(self, func, *args):
+        from engine.common import udf_common
+        with mock.patch.object(udf_common, "_today", lambda: VALUATION), \
+                mock.patch.object(udf_common, "_db_fixings", lambda: {}):
+            return func(*args)
+
+    def test_matches_fair_rate(self):
+        from engine.boj import udf
+        from engine.swap_pricing import udf as pricing_udf
+        rt = self._real_time()
+        periods = [[datetime.datetime.combine(p.start, datetime.time()), p.end] for p in PERIODS]
+        result = self._call(udf.BojSpotForwards, periods, rt)
+        self.assertEqual(len(result), len(PERIODS))
+        for (value,), p in zip(result, PERIODS):
+            with self.subTest(period=p.label):
+                expected = self._call(
+                    pricing_udf.FairRate, p.start, "", p.end, "PA", "act/365fixed", "PA", "STD", rt,
+                )
+                self.assertEqual(value, expected)
+
+    def test_rows_without_dates_are_blank(self):
+        from engine.boj import udf
+        result = self._call(udf.BojSpotForwards, [[None, None], ["", PERIODS[0].end], [None]], self._real_time())
+        self.assertEqual(result, [[""], [""], [""]])
 
 
 if __name__ == "__main__":

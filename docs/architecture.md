@@ -110,9 +110,10 @@ roll_conv文字列等)→QuantLib引数」の対応表と、Excel境界の型変
 ```
 engine/
   common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
-  swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/bojの3機能)
+  swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/aswの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
   vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)
+  boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
 ```
 
@@ -144,7 +145,7 @@ engine/
 
 | ファイル | 役割 |
 |---|---|
-| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`boj/udf.py`・`asw/udf.py`) |
+| `udf.py` | **Excelから直接呼べるUDFの単一の窓口**(xlwingsの「ワークブックと同名の.pyファイル」制約のための薄い再エクスポート層。`Ping`以外の実体は`pricing/udf.py`・`historical/udf.py`・`asw/udf.py`。BOJシートの移行中だけ`engine/boj/udf.py`の`BojImpliedRates`も再エクスポートする) |
 | `pricing/udf.py` | Main/pricingシートのUDF: `PricingTable`(pricing表全体)/`FairRate`/`SwapPV`/`SwapDelta`/`SwapAnnuityDelta`/`NotionalForDelta`(1行用)/`RiskGrid`/`MarketInfo`。どれも下の部品を組み合わせるだけ |
 | `pricing/row.py` | 1行分のセルの値→取引条件の型(`swap_terms`=SwapTerms、`swap_params`=SwapParams)。start列のテナー・営業日数の読み替えもここ |
 | `pricing/measures.py` | 列ごとの計算: `par`(想定元本1・固定金利なしの評価)/`fair_rate`/`pv`/`parallel_delta_mm`/`annuity_delta_mm`/`notional_for_delta`。`par`の結果・PVを渡すと評価をやり直さない(PricingTableは1行3回の評価) |
@@ -152,13 +153,11 @@ engine/
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない=カーブの引き方を知らない)。モードはFIXED(同じ日付の取引をそのまま過去日で評価)とROLLING(基準日の取引の「スポット日→起算日」「起算日→満期日」の営業日数を保って各過去日へ平行移動。IMMコードも動かす。roll conv=IMMはエラー。暦日数=dcfの期間は一定にならない)。入力は種類に関係なく基準日の取引の2つの日付として読み、空欄のstartは基準日のスポット日。過去日Dの計算にはD当日以降のTONA実績を使わない。満期までの範囲だけカーブを読み出す |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約のスポットのスワップ)。その日のカーブに使っていないテナー(クォートが無かった日)は補間値を出さず空欄。O/N・会合スワップは受け付けない |
-| `boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
-| `boj/udf.py` | BOJシートのUDF: `BojImpliedRates` |
 | `asw/udf.py` | ASWシートのUDF: `AswHistoricalRate`/`AswHistoricalRates`、ASWPricerシートのUDF: `AswPricingTable`(本体は下の`asw/table.py`)。`AswHistoricalRate`系はカーブを組まず`historical_store.asw_quotes_for`を読むだけ(ROLLING/FIXEDの概念はない。銘柄コード(bond_code)ごとに日付→値が決まっているだけのため) |
 | `asw/pricer.py` | ASWPricerの計算(定義はNeonの`ASW_data`と同じ): 現物の単価・複利(スポット受渡T+1、`bond.compound_yield`)、par-par ASW(`ql.AssetSwap`、日本のカレンダーで受渡日を数える債券を組む)。MMSは`pricing/measures.py`の`par`をそのまま使う |
 | `asw/table.py` | `AswPricingTable`の本体: 銘柄→DBの銘柄情報・引け値、単利=引け値+スライド(yield overrideが優先)、MMS(起算日=start、空欄はスポット。満期日=償還日)、par-par、adj_notional。pricing表と同じく見出し名で列を探し、flag=1の行だけ計算し、行ごとのエラーはmessageへ |
 
-分析ブック(`engine/pca/`・`engine/vol/`)は後述の「分析ブック」節を参照。
+分析ブック(`engine/pca/`・`engine/vol/`・`engine/boj/`)は後述の「分析ブック」節を参照。
 
 `tests/test_past_start.py`: 過去起算スワップ(合成フィキシング)と評価日の扱いの
 リグレッションテスト(`python -m unittest tests.test_past_start -v`)。
@@ -203,7 +202,7 @@ LSEGのデータには依存しない。
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要。
   `engine/swap_pricing/udf.py`自体は薄い再エクスポート層で、実体はシート(機能)ごとに
   `pricing_udf.py`(Main/pricing)・`historical/udf.py`(HistChart)・
-  `boj/udf.py`(BOJ)に分かれている。共有部分(Excel境界の型変換・評価日解決・`_market`)は
+  `asw/udf.py`(ASW・ASWPricer)に分かれている。共有部分(Excel境界の型変換・評価日解決・`_market`)は
   `udf_common.py`に集約している(2026-10-12、機能ごとのディレクトリに分割。理由は[decisions.md](decisions.md))。
 - ブックの計算方法は「手動」。UDFは非volatileのままでよく、F9(再計算)を
   押すたびに最新のセル値を使って再評価される。VBAマクロ・ボタンは一切不要。
@@ -417,7 +416,7 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
   par-par asw(bp)・adj_notional・message。W以外はAQ〜BDの出力を参照するだけ。
 - 計算(AF:BD、折りたたみ): AQ3の`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(入力の列だけを渡す)。
 
-## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`)
+## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`・`engine/boj/`)
 
 pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
@@ -431,6 +430,8 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、
 | `engine/pca/history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ |
 | `engine/pca/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
 | `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
+| `engine/boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
+| `engine/boj/udf.py` | BOJシートのUDF: `BojImpliedRates`(会合スワップ+O/Nのカーブでのスポットのパーレート)、`BojSpotForwards`(メインのカーブでの会合期間のパーレート。PricingSheetの`FairRate`と同じ値を、`engine/common`の部品だけで出す) |
 
 ボラのヒストリカルは、朝のバッチ(`engine/common/morning_batch.py`)が`historical_data.xlsx`の
 Volシートを読んでDBの`vol_quotes`に取り込む(カーブには使わない)。
