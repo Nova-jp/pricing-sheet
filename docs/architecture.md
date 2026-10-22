@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:EV(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HD(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -416,7 +416,7 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、
 |---|---|
 | `engine/pca/history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ |
 | `engine/pca/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
-| `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
+| `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)、`PcaGrid`(PCAGrid用。複数ケースの推定を1回で返す)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
 | `engine/boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `engine/boj/udf.py` | BOJシートのUDF: `BojImpliedRates`(会合スワップ+O/Nのカーブでのスポットのパーレート)、`BojSpotForwards`(メインのカーブでの会合期間のパーレート。PricingSheetの`FairRate`と同じ値を、`engine/common`の部品だけで出す) |
 
@@ -457,29 +457,35 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
 - **ライブの値**: PCAはCA4の`=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値…。
   `CHOOSECOLS(…,1,2)`を`PcaActual`に渡す)、VolPCAはLA3の同じ形の`"vol"`(銘柄/RIC/値をそのまま渡す)。RealTime/RealTimeVolシートは
   2026-10-18に削除(RICは`live_feed.toml`。上の「データフロー」参照)。
-- **グラフの横軸**: 差分・主成分ベクトルは棒グラフで、横軸のラベル位置は「下端」(`TickLabelPosition=Low`)。
-  既定の「軸の隣」だと0の線にラベルが出て、マイナスの棒と重なる。実績・平均・復元は水準なので折れ線。
+- **グラフの横軸**: 差分は棒グラフ、主成分ベクトルは折れ線で、どちらも横軸のラベル位置は「下端」
+  (`TickLabelPosition=Low`)。既定の「軸の隣」だと0の線にラベルが出て、マイナスの値と重なる。
 
 ### PCAの条件比較(`PCAGrid`シート)
 
-PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の格子で並べて見るシート。UDFは`PCA`シートと
-同じ(`PcaModel`/`PcaWindow`/`PcaActual`/`PcaActualInfo`)で、差分は同じ`MMULT`の数式。
+PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の格子で並べて見るシート。差分は`PCA`シートと
+同じ`MMULT`の数式。UDFの呼び出しはシート全体で`PcaGrid`1回(全ケースの推定)・`PcaActual`2回
+(Level/Change)・`PcaActualInfo`1回(Changeの警告)・`LiveQuotes`/`LiveInfo`だけ(Excelとの往復は
+セル1つごとに約170msかかるので、ケースごとにUDFを呼ばない)。Liveの更新(Shift+F9)で走るのは実績の
+3回とライブの2回で、推定(`PcaGrid`)は条件・テナーを変えたときだけ。
 比較日は選べない(常に今日=そのシートのライブの値、推定基準日の空欄=今日より前の直近)。
 セルの文字(プルダウン・見出し・名前)は英語(`Level`/`Change`、`Yes`/`No`。UDFは日本語の値も受け付ける)。
-- **設定**: 1行目は取得モード。左端A11:B53がテナー表(`Use`=`Yes`/`No`、全ケース共通。並び順が横軸の順)。
+テナーの選択だけはPCAシートと同じ`○`/`×`(ユーザー指示)。
+- **設定**: 1行目は取得モード。左端A11:B53がテナー表(`Use`=`○`/`×`、全ケース共通。並び順が横軸の順)。
   E列から7列ずつ10ケース(Case 1〜10)で、ケースごとに3〜7行目で推定基準日(空欄=直近)・window・
   モード・標準化を選ぶ。8行目に推定期間とサンプル数、9行目に警告(`PcaWindow`・`PcaActualInfo`の警告)。
   A:Dと1〜9行目は固定表示。
 - **グラフ(行=k、列=ケース)**: 11行目から16行ずつ6段。1〜5段目は差分の棒グラフで、D列(各段の
   2行目、既定1〜5)でその段の主成分数kを選ぶ(その段の全ケース共通)。プラスは青、マイナスは橙。
   タイトルはセル参照で`k=3   RMS 0.62bp   Max 1.20bp (20Y)`(RMS=差分の2乗平均の平方根、Max=絶対値の
-  最大とそのテナー)。6段目はそのケースのPC1〜PC5の棒グラフ。横軸のラベルは下端(上記)。
+  最大とそのテナー)。6段目はそのケースのPC1〜PC5の折れ線。横軸のラベルは下端(上記)。
   グラフの名前は`PCG_{ケース}_{段}`。
-- **計算領域(CA:EV、列のグループで畳んである)**: CB4 選択テナー(`FILTER`、名前`PCG_Tenor`)、
-  CD4 ライブのレート。CI列から50行ずつケースごとの帯(4行目、54行目、…): `PcaModel`・`PcaActual`・
-  `PcaWindow`・`PcaActualInfo`、k=1〜5の差分(見出し行=グラフのタイトル、名前`PCG_R{ケース}_{k}`)、
-  PC1〜PC5(名前`PCG_V{ケース}_{j}`、PCAシートと同じ`#N/A`埋めの式)。系列は畳んだ列にあるので、
-  グラフは「非表示の行と列のデータを表示」にしてある。
+- **計算領域(CA:HD、列のグループで畳んである)**: CB4 選択テナー(`FILTER`、名前`PCG_Tenor`)、
+  CD4 ライブのレート、CI4/CJ4 実績(`PcaActual`のLevel/Change)、CL4 Changeの実績の情報、
+  CO4 `PcaGrid`(設定欄E4:BP7から7列おきに各ケースの4項目を`CHOOSECOLS`で渡す。空欄は先に""にする)。
+  EP列から50行ずつケースごとの帯(4行目、54行目、…): EQ `PcaGrid`からそのケースの行を`FILTER`、
+  GQ 実績(モードでLevel/Changeを選ぶ)、GR:GV k=1〜5の差分(見出し行=グラフのタイトル、
+  名前`PCG_R{ケース}_{k}`)、GX:HB PC1〜PC5(名前`PCG_V{ケース}_{j}`、PCAシートと同じ`#N/A`埋めの式)。
+  系列は畳んだ列にあるので、グラフは「非表示の行と列のデータを表示」にしてある。
 
 ### IV vs HV(`VolHV`シート、`engine/vol/`)
 

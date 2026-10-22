@@ -7,7 +7,9 @@
   - 計算方法は「手動」+F9。UDFは非volatile。TODAY()は引数に使わない(比較日の空欄=今日)。
   - 配列はそのまま返し、Excelの動的配列のスピルに任せる(@xw.ret(expand=...)は使わない)。
   - 主成分の推定は引数とDBの更新時刻ごとにプロセス内で覚えておき、
-    PcaModel/PcaEigen/PcaWindowで1回の計算を共有する。
+    PcaModel/PcaEigen/PcaWindow/PcaGridで1回の計算を共有する。
+  - Excelとの往復はUDFのセル1つごとにかかるので、複数の条件をまとめて見るシート(PCAGrid)は
+    ケースごとにUDFを呼ばず、PcaGridの1回で全ケースの推定結果を返す。
 
 ■ 引数(共通)
   labels: 使う銘柄の縦の並び(スワップはテナー、ボラは「満期x原資産」)。並び順が表の行順。
@@ -112,6 +114,51 @@ def PcaWindow(labels, pca_mode, standardize, window, base_date=None, target_date
         ["除外した営業日数", model.excluded_days],
         ["警告", warning],
     ]
+
+
+GRID_HEADER = ["Case", "Start", "End", "Samples", "Excluded", "Warning", "Label", "Mean", "Scale"]
+
+
+@xw.func
+@xw.arg("labels", ndim=1)
+@xw.arg("settings", ndim=2)
+def PcaGrid(labels, settings, dataset="swap") -> List[list]:
+    """
+    複数の推定条件(ケース)の主成分ベクトルを1回の呼び出しでまとめて返す(PCAGridシート用)。
+
+    settings: 4行×ケース数の列。行は上から 推定基準日(空欄=今日より前の直近)・window・モード・標準化。
+      windowが空欄の列は使わない(行を出さない)。比較日は今日(実績はPcaActualのライブの値)。
+    戻り値: 見出し行 GRID_HEADER + [PC1, …, PCm] と、ケースごと・銘柄ごとの行
+      [ケース番号(列の順、1始まり), 推定開始日, 推定終了日, サンプル数, 除外した営業日数, 警告,
+       銘柄, 平均, スケール, PC1, …]。windowの情報はそのケースの全行に同じ値を入れる
+      (Excel側はケース番号でFILTERして使う)。推定できないケースは1行だけで、警告にエラーの理由を入れ、
+      他は空欄にする(1ケースのエラーで全ケースを止めない)。
+    """
+    dataset = parse_dataset(dataset)
+    names = _labels(labels)
+    m = len(names)
+    today = _today()
+    rows = [GRID_HEADER + [f"PC{j + 1}" for j in range(m)]]
+    for case, (base_date, window, pca_mode, standardize) in enumerate(zip(*settings), start=1):
+        if _is_blank(window):
+            continue
+        base = None
+        try:
+            base = _to_date(base_date)
+            model = _estimate_cached(
+                dataset, names, pca.parse_mode(pca_mode), pca.parse_standardize(standardize),
+                _window(window), base or pca.default_until(today), _db_key(),
+            )
+        except ValueError as exc:
+            rows.append([case, "", "", "", "", str(exc)] + [""] * (m + 3))
+            continue
+        warning = pca.gap_warning(model.end, today, "推定終了日") if base is None else ""
+        info = [case, model.start, model.end, model.n_samples, model.excluded_days, warning]
+        rows += [
+            info + [label, float(model.mean[i]), float(model.scale[i])] + [float(v) for v in model.vectors[i]]
+            for i, label in enumerate(names)
+        ]
+    return rows
 
 
 def _observe(labels, pca_mode, target_date, real_time_range, dataset):

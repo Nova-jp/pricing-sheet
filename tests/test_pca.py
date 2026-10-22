@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from datetime import date
+from unittest import mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import numpy as np  # noqa: E402
 import QuantLib as ql  # noqa: E402
 
+from engine.pca import udf  # noqa: E402
 from engine.pca.history import SWAP, VOL, load_history, parse_dataset  # noqa: E402
 from engine.pca.pca import (  # noqa: E402
     CHANGE,
@@ -199,6 +201,54 @@ class PrincipalComponentsTest(unittest.TestCase):
             self.assertGreater(result.vectors[:, 0].sum(), 0)
             self.assertGreater(result.vectors[-1, 1], result.vectors[0, 1])
             self.assertTrue(np.all(np.diff(result.eigenvalues) <= 0))
+
+
+class PcaGridTest(unittest.TestCase):
+    """PcaGrid: 複数ケースの推定を1回の呼び出しで返す(PcaModel/PcaWindowと同じ値)。"""
+
+    def _grid(self, settings, today=DAYS[-1]):
+        history = _history()
+        udf._estimate_cached.cache_clear()
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1),                 mock.patch.object(udf, "_today", return_value=today):
+            return history, udf.PcaGrid(LABELS, settings)
+
+    def test_cases(self):
+        # 列=ケース: [推定基準日, window, モード, 標準化]。3列目はwindowが空欄なので使わない
+        settings = [
+            ["", DAYS[-6], "", ""],
+            [10, 8, "", 100],
+            ["Level", "Change", "Level", "Level"],
+            ["No", "Yes", "No", "No"],
+        ]
+        history, rows = self._grid(settings)
+        self.assertEqual(rows[0], udf.GRID_HEADER + [f"PC{j + 1}" for j in range(len(LABELS))])
+        cases = [r[0] for r in rows[1:]]
+        self.assertEqual(cases, [1] * 5 + [2] * 5 + [4])
+
+        # ケース1: 推定基準日が空欄=今日より前の直近(PcaModelと同じ推定)
+        model = _est(history, LEVEL, 10, default_until(DAYS[-1]))
+        case1 = rows[1:6]
+        self.assertEqual(case1[0][1:6], [model.start, model.end, 10, model.excluded_days, ""])
+        self.assertEqual([r[6] for r in case1], LABELS)
+        np.testing.assert_allclose([r[7] for r in case1], model.mean)
+        np.testing.assert_allclose([r[9:] for r in case1], model.vectors)
+
+        # ケース2: 推定基準日あり・日次変化・標準化あり
+        model = _est(history, CHANGE, 8, DAYS[-6], standardize=True)
+        case2 = rows[6:11]
+        self.assertEqual(case2[0][2], DAYS[-6])
+        np.testing.assert_allclose([r[8] for r in case2], model.scale)
+        np.testing.assert_allclose([r[9:] for r in case2], model.vectors)
+
+        # ケース4: 推定できない(サンプル不足)→ 1行だけで警告に理由、他のケースは計算される
+        self.assertEqual(len(rows[-1]), len(rows[0]))
+        self.assertIn("window", rows[-1][5])
+        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 3))
+
+    def test_gap_warning_when_base_is_blank(self):
+        today = _business_days(DAYS[-1], 4)[-1]  # DBの最終日から3営業日後
+        _, rows = self._grid([[""], [10], ["Level"], ["No"]], today=today)
+        self.assertIn("推定終了日", rows[1][5])
 
 
 class LoadHistoryTest(unittest.TestCase):
