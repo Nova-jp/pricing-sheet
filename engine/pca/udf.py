@@ -69,22 +69,29 @@ def _model(labels, pca_mode, standardize, window, base_date, target_date, datase
     return model, target, base is None
 
 
+def _model_row(model: pca.PcaModel, i: int, label: str) -> list:
+    """PcaModel・PcaGridの銘柄ごとの行 [銘柄, Mean, Scale, Std, PC1, …]。"""
+    return [label, float(model.mean[i]), float(model.scale[i]), float(model.std[i])] + [
+        float(v) for v in model.vectors[i]
+    ]
+
+
 @xw.func
 @xw.arg("labels", ndim=1)
 def PcaModel(labels, pca_mode, standardize, window, base_date=None, target_date=None,
              dataset="swap") -> List[list]:
     """
-    平均・スケールと主成分ベクトル。見出し行 [Label, Mean, Scale, PC1, …, PCm] + 銘柄ごとの行。
+    平均・スケールと主成分ベクトル。見出し行 [Label, Mean, Scale, Std, PC1, …, PCm] + 銘柄ごとの行。
     Mean: windowのサンプルの平均 μ(値の単位。日次変化モードは変化の平均)。
     Scale: 標準化ありは標準偏差 σ、なしは1。
+    Std: windowのサンプルの標準偏差(値の単位。標準化の有無によらない。グラフの平均±1σ用)。
     PCj: 第j主成分の単位ベクトル(全銘柄数m本。Excel側でTAKEしてk本使う)。
     """
     model, _, _ = _model(labels, pca_mode, standardize, window, base_date, target_date, dataset)
     m = len(model.labels)
-    header = ["Label", "Mean", "Scale"] + [f"PC{j + 1}" for j in range(m)]
+    header = ["Label", "Mean", "Scale", "Std"] + [f"PC{j + 1}" for j in range(m)]
     return [header] + [
-        [label, float(model.mean[i]), float(model.scale[i])] + [float(v) for v in model.vectors[i]]
-        for i, label in enumerate(_labels(labels))
+        _model_row(model, i, label) for i, label in enumerate(_labels(labels))
     ]
 
 
@@ -116,7 +123,9 @@ def PcaWindow(labels, pca_mode, standardize, window, base_date=None, target_date
     ]
 
 
-GRID_HEADER = ["Case", "Start", "End", "Samples", "Excluded", "Warning", "Label", "Mean", "Scale"]
+GRID_HEADER = [
+    "Case", "Start", "End", "Samples", "Excluded", "Warning", "Label", "Mean", "Scale", "Std",
+]
 
 
 @xw.func
@@ -130,7 +139,7 @@ def PcaGrid(labels, settings, dataset="swap") -> List[list]:
       windowが空欄の列は使わない(行を出さない)。比較日は今日(実績はPcaActualのライブの値)。
     戻り値: 見出し行 GRID_HEADER + [PC1, …, PCm] と、ケースごと・銘柄ごとの行
       [ケース番号(列の順、1始まり), 推定開始日, 推定終了日, サンプル数, 除外した営業日数, 警告,
-       銘柄, 平均, スケール, PC1, …]。windowの情報はそのケースの全行に同じ値を入れる
+       銘柄, 平均, スケール, 標準偏差, PC1, …](銘柄以降はPcaModelと同じ列)。windowの情報はそのケースの全行に同じ値を入れる
       (Excel側はケース番号でFILTERして使う)。推定できないケースは1行だけで、警告にエラーの理由を入れ、
       他は空欄にする(1ケースのエラーで全ケースを止めない)。
     """
@@ -150,13 +159,12 @@ def PcaGrid(labels, settings, dataset="swap") -> List[list]:
                 _window(window), base or pca.default_until(today), _db_key(),
             )
         except ValueError as exc:
-            rows.append([case, "", "", "", "", str(exc)] + [""] * (m + 3))
+            rows.append([case, "", "", "", "", str(exc)] + [""] * (m + 4))
             continue
         warning = pca.gap_warning(model.end, today, "推定終了日") if base is None else ""
         info = [case, model.start, model.end, model.n_samples, model.excluded_days, warning]
         rows += [
-            info + [label, float(model.mean[i]), float(model.scale[i])] + [float(v) for v in model.vectors[i]]
-            for i, label in enumerate(names)
+            info + _model_row(model, i, label) for i, label in enumerate(names)
         ]
     return rows
 

@@ -142,7 +142,8 @@ class PcaModel(NamedTuple):
     n_samples: int
     excluded_days: int  # start〜endの営業日のうち、サンプルに使わなかった日数
     mean: np.ndarray  # μ(値の単位。CHANGEは日次変化の平均)
-    scale: np.ndarray  # σ(標準化なしは1)
+    scale: np.ndarray  # 標準化に使うσ(標準化なしは1)
+    std: np.ndarray  # windowのサンプルの標準偏差(値の単位。標準化の有無によらない。グラフの±1σ用)
     eigenvalues: np.ndarray  # 標準化なし: bp²、あり: 単位なし
     vectors: np.ndarray
 
@@ -183,8 +184,9 @@ def estimate(
         )
     samples = np.array(rows[::-1])
     mean = samples.mean(axis=0)
+    std = samples.std(axis=0, ddof=1)
     if standardize:
-        scale = samples.std(axis=0, ddof=1)
+        scale = std
         flat = [keys[i] for i in np.flatnonzero(scale * unit_bp < SIGMA_FLOOR_BP)]
         if flat:
             raise ValueError(
@@ -199,7 +201,7 @@ def estimate(
     return PcaModel(
         labels=keys, mode=mode, standardize=standardize, start=start, end=end,
         n_samples=len(rows), excluded_days=_business_days(start, end) - len(used_days),
-        mean=mean, scale=scale, eigenvalues=result.eigenvalues, vectors=result.vectors,
+        mean=mean, scale=scale, std=std, eigenvalues=result.eigenvalues, vectors=result.vectors,
     )
 
 

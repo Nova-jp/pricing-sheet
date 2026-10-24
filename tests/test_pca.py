@@ -80,6 +80,10 @@ class EstimateTest(unittest.TestCase):
         self.assertEqual(m.n_samples, 10)
         np.testing.assert_allclose(m.mean, np.mean([_x(history, d) for d in DAYS[-14:-4]], axis=0))
         np.testing.assert_array_equal(m.scale, np.ones(len(LABELS)))
+        # Std(グラフの±1σ用)は標準化なしでもwindowの標準偏差
+        np.testing.assert_allclose(
+            m.std, np.std([_x(history, d) for d in DAYS[-14:-4]], axis=0, ddof=1),
+        )
 
     def test_default_base_date_excludes_target(self):
         # 推定基準日が空欄なら比較日より前まで(当日は推定に使わない)
@@ -113,6 +117,7 @@ class EstimateTest(unittest.TestCase):
         m = _est(history, standardize=True, window=30)
         samples = np.array([_x(history, d) for d in DAYS[-31:-1]])
         np.testing.assert_allclose(m.scale, samples.std(axis=0, ddof=1))
+        np.testing.assert_array_equal(m.std, m.scale)
         self.assertAlmostEqual(m.eigenvalues.sum(), len(LABELS))
         # 標準化なしは固有値の和=分散(bp²)の和
         m = _est(history, window=30)
@@ -231,19 +236,31 @@ class PcaGridTest(unittest.TestCase):
         self.assertEqual(case1[0][1:6], [model.start, model.end, 10, model.excluded_days, ""])
         self.assertEqual([r[6] for r in case1], LABELS)
         np.testing.assert_allclose([r[7] for r in case1], model.mean)
-        np.testing.assert_allclose([r[9:] for r in case1], model.vectors)
+        np.testing.assert_allclose([r[9] for r in case1], model.std)
+        np.testing.assert_allclose([r[10:] for r in case1], model.vectors)
 
         # ケース2: 推定基準日あり・日次変化・標準化あり
         model = _est(history, CHANGE, 8, DAYS[-6], standardize=True)
         case2 = rows[6:11]
         self.assertEqual(case2[0][2], DAYS[-6])
         np.testing.assert_allclose([r[8] for r in case2], model.scale)
-        np.testing.assert_allclose([r[9:] for r in case2], model.vectors)
+        np.testing.assert_allclose([r[10:] for r in case2], model.vectors)
 
         # ケース4: 推定できない(サンプル不足)→ 1行だけで警告に理由、他のケースは計算される
         self.assertEqual(len(rows[-1]), len(rows[0]))
         self.assertIn("window", rows[-1][5])
-        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 3))
+        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 4))
+
+    def test_pca_model_has_same_columns(self):
+        # PcaModelの列は PcaGridの「銘柄」以降と同じ [Label, Mean, Scale, Std, PC1, …]
+        history = _history()
+        udf._estimate_cached.cache_clear()
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1):
+            table = udf.PcaModel(LABELS, "Level", "No", 10, base_date=DAYS[-6], target_date=DAYS[-1])
+        self.assertEqual(table[0], udf.GRID_HEADER[6:] + [f"PC{j + 1}" for j in range(len(LABELS))])
+        model = _est(history, LEVEL, 10, DAYS[-6])
+        np.testing.assert_allclose([r[3] for r in table[1:]], model.std)
+        np.testing.assert_allclose([r[4:] for r in table[1:]], model.vectors)
 
     def test_gap_warning_when_base_is_blank(self):
         today = _business_days(DAYS[-1], 4)[-1]  # DBの最終日から3営業日後
