@@ -114,6 +114,7 @@ engine/
   swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/aswの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
   vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)
+  fwd/             # SwapAnalysis.xlsm固有のFwd(NyMy)の監視とヒストリカル(3方式)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
 ```
@@ -137,6 +138,7 @@ engine/
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
+| `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日。現物オプションが使う([bond_option.md](bond_option.md)) |
 | `jgb_source.py` | LSEG(Python API `lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}DWAT`の`CF_YIELD`)を取得する。朝バッチの④が使う |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
@@ -404,14 +406,15 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
   par-par asw(bp)・adj_notional・message。W以外はAQ〜BDの出力を参照するだけ。
 - 計算(AF:BD、折りたたみ): AQ3の`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(入力の列だけを渡す)。
 
-## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`・`engine/boj/`)
+## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`)
 
 pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
-(`VolHV`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
+(`VolHV`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)、Fwd(NyMy)の監視と
+ヒストリカル(`FwdMonitor`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
 スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し・Fwdの計算)はPythonのUDF、
 得点・復元(行列の積)・差分・寄与率・窓の集計などはExcelの数式。`SwapAnalysis.py`は
-`engine/pca/udf.py`・`engine/vol/udf.py`・`engine/boj/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+`engine/pca/udf.py`・`engine/vol/udf.py`・`engine/boj/udf.py`・`engine/fwd/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
 `engine/swap_pricing/`(PricingSheetのUDF)は使わない。
 
 | ファイル | 役割 |
@@ -514,7 +517,7 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
 
 | ファイル | 役割 |
 |---|---|
-| `engine/vol/hv.py` | 日次カーブDBから、銘柄(満期x原資産)ごとのFwd(起算日=その日のスポット日+満期)と、その同じ契約の前の日付のカーブからの変化(bp)を計算する。スワップは1回だけ組み、カーブを差し替えて`fairRate`を読む(値は`swap_pricer.par_rate`と一致)。IVは`vol_quotes`から日付で突き合わせる |
+| `engine/vol/hv.py` | 日次カーブDBから、銘柄(満期x原資産)ごとのFwd(起算日=その日のスポット日+満期)と、その同じ契約の前の日付のカーブからの変化(bp)を計算する。評価は`engine/common/forward.py`の`ForwardPricer`(値は`swap_pricer.par_rate`と一致)。IVは`vol_quotes`から日付で突き合わせる |
 | `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。引数とDBの更新時刻ごとに1回だけ計算する(3銘柄・約460日で約1秒) |
 
 シートの構成(左から設定・結果・計算領域):
@@ -530,6 +533,34 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
   (`VHV_Date`)、AM:AU 足ごとのIV・HV・短い窓のHV(HVは`SCAN`で2乗の累積をとり、N行前との差/N×年の日数の
   平方根)、AV:AZ 合成(IV・HV・短い窓のHV・IV−HV・IV−短い窓のHV)、BB3 ライブのボラ、BF:BK From以降の
   グラフ用の列(`FILTER`)。足の列はUDFの見出し(`1Yx10Y IV`等)を`XMATCH`で引くので、足の間に空欄があってもよい。
+
+### Fwdの監視とヒストリカル(`FwdMonitor`シート、`engine/fwd/`)
+
+Fwd(NyMy、1y1y〜11y1y・15/20/25/30/35y1y、5y5y〜35y5yの23本)の今日のライブと比較日のストリップ、
+変化とZ値の監視表、指定した系列(単独・カーブ・フライ)を重ねる比較チャート(理由は[decisions.md](decisions.md)の
+「FwdMonitor」)。ヒストリカルは3方式(CMT=定義どおり、FIXED=基準日の取引の日付を固定、ROLLING=基準日の
+取引の営業日数を保って移動)。
+
+| ファイル | 役割 |
+|---|---|
+| `engine/fwd/history.py` | 日次カーブDBから、銘柄ごと・3方式ごとの各日のFwd(%)と、その日の取引を前の日付のカーブで評価した差(bp、ロールダウンを含まない)を計算する。カーブは日付ごとに1回だけ読み、3方式・全銘柄で共有する。FIXED・ROLLINGの取引の決め方はHistChartの同名の方式と同じ(値も一致。`engine/swap_pricing/`は使わず`common/`の部品で組む)。ROLLINGの営業日の移動は営業日の一覧の添字の計算(`ql.Calendar.advance`と同じ結果で速い) |
+| `engine/fwd/udf.py` | `FwdHistory(labels, mode, base_date)`: [Date, 銘柄…, 銘柄 dF…] の表(最初のカーブの日付は除く。基準日より後の日付は返さない)。3方式は1回の計算でまとめて求め、引数・基準日・DBの更新時刻ごとに覚えておく(23銘柄×3方式・約480日で約7秒、DBが変わった日の初回だけ)。`FwdLive(labels, real_time_range)`: ライブのカーブ(pricingと同じ引き方)での今日の取引のFwd(labelsと同じ並びの縦1列。空欄の行は空欄を返す=Nx1YとNx5Yの間の区切りの空行で行がずれない) |
+
+シートの構成:
+- **設定(A3:B8)**: 1行目は取得モード(他のフロントシートと同じ)。`Base date`(FIXED・ROLLINGの基準日、空欄=今日。名前`FWM_Base`)、
+  `Compare date`(ストリップと`vs compare`の比較日。DBのその日以前の直近の日。`FWM_Cmp`)、`Sigma window (bd)`(Zの分母のσの窓、
+  `FWM_Win`)、`Chart from`(比較チャートの開始日、空欄=全期間。`FWM_From`)、`Chart view`(Level/Change=開始日からの変化。`FWM_View`)。
+- **監視表(A11:K35)**: 1y1y〜35y1y(12〜27行)・空行(28行、区切り)・5y5y〜35y5y(29〜35行)。Live(%)・Close(%)(DBの最終日)・
+  Chg 1D/1W/1M・vs compare(bp。CMT=同じテナーの定義どうしの差でロールダウンを含む)・Sigma(同じ取引の日次変化の窓の
+  二乗平均平方根、平均は引かない)・Z(1D)=Chg 1D/σ・Z(1W)=Chg 1W/(σ√5)・Curve vs prev(ライブで1つ上の銘柄との差)。
+  B列は計算領域のGT4(`FwdLive`、空行を除いた銘柄GS4)を銘柄で引く(区切りの空行で行がずれない)。Chg・Zはヒートマップ。
+- **ストリップ(L3〜)**: Nx1Y・Nx5Yそれぞれ、横軸=何年先の散布図(ライブと比較日)と、比較日からの変化の棒グラフ。
+- **比較表(A38:O48、10行)**: 行ごとにShow・Mode(CMT/FIXED/ROLLING)・脚(最大3本)と重み(bp)。Live・Chg 1D/1M・Sigma・Z。
+  系列の合成は名前付きのLAMBDA(`FWM_Leg`=方式と銘柄の列、`FWM_Row`=行の重み付きの和、`FWM_Sigma`、`FWM_LiveOf`)。
+- **比較チャート(A50〜)**: Show=Yesの上から4行(GN:GQ。行の番号は`SMALL`で取る)を重ねる折れ線。単位はbpの1軸。
+- **計算領域(AA:GT、列のグループで畳んである)**: AA3 ライブのレート、AF3 カーブ入力(フラグ/Ticker/Value…、AL:AMのテナーと
+  フラグ)、AO3/CK3/EG3 `FwdHistory`のCMT/FIXED/ROLLING(名前`FWM_HC`/`FWM_HF`/`FWM_HR`)、GC:GK ストリップ用、GM:GQ 比較チャート用、
+  GS:GT ライブ。元データが畳んだ列にあるので、グラフは「非表示の行と列のデータを表示」にしてある。
 
 ### BOJ会合スワップとスポットのずれ(`BOJ`シート、`engine/boj/`)
 
