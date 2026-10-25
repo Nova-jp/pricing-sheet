@@ -2,7 +2,7 @@
 主成分分析(PCA)。スワップ(テナー)とボラ(満期x原資産)の共通ロジック。
 
 ■ 手順(標準的なPCA)
-  1. 推定: 推定基準日(windowの最終日)からさかのぼって、選択した銘柄が全てそろった
+  1. 推定: 推定の最終日(Window end)からさかのぼって、選択した銘柄が全てそろった
      営業日のサンプルを N 個集める(1本でも欠けた日は除外して、さらに過去へ)。
        - LEVEL : サンプル = 各日の水準
        - CHANGE: サンプル = 隣り合う営業日どうしの日次変化(間の営業日が欠けている
@@ -10,18 +10,19 @@
      サンプルの平均 μ と、標準化するなら標準偏差 σ(しないなら σ=1)を求め、
      z = (サンプル − μ) / σ の分散共分散行列を固有値分解して主成分ベクトル V を作る。
      標準化なし=分散共分散行列(bp)のPCA、標準化あり=相関行列のPCA(z-score)。
-  2. 比較: 比較日の実績 x(LEVELは水準、CHANGEは比較日の日次変化)について
+  2. 復元: 復元日(Recon date)の実績 x(LEVELは水準、CHANGEは復元日の日次変化)について
        得点 s = Vᵀ(x − μ)/σ、復元 = μ + σ·V_k·s_k、差分 = x − 復元。
      この計算は Excel の数式で行う(ここでは μ・σ・V と x を返すだけ)。
-     比較日は推定基準日と独立に選べる(windowの中でもよい)。
+     復元日は推定の最終日と独立に選べる(windowの中でもよい)。
   3. 差分のσ(residual_std): 推定した μ・σ・V を固定したまま、推定終了日からさかのぼったN日の
      サンプル(推定と同じ選び方。Nの既定はwindow)の各日を k 本で復元して差分を出し、
      銘柄ごとの標準偏差をとる(差分のグラフの±1σ。定義どおりに日ごとに計算する)。
 
-■ 推定基準日の既定(空欄)
-  比較日より前の、選択銘柄がそろった直近の営業日(out-of-sample。当日のリアルタイムの気配は
-  実勢を表していない時間帯があるため推定に混ぜない。ユーザー指示)。それが比較日の前営業日で
-  なければ(DBの更新漏れ等)警告を出して計算は続ける。
+■ 推定の最終日・復元日の既定(空欄)
+  どちらも今日(ユーザー指示)。推定に使うのはDBの引け値だけで、今日のリアルタイムの気配は推定に
+  混ぜない(実勢を表していない時間帯があるため。ユーザー指示)。DBに今日の引け値がなければ、
+  推定は実際には直近の営業日までになる。推定に使った最後の日が推定の最終日の前営業日より前なら
+  (DBの更新漏れ・銘柄の欠損)警告を出して計算は続ける。
 
 ■ 標準化ありの注意
   windowの中でほとんど動かない銘柄(利上げの間のO/N等)は σ≈0 になり z-score が極端になる。
@@ -189,7 +190,7 @@ def estimate(
     history: History, labels: Sequence[str], mode: str, standardize: bool, window: int,
     until: date, unit_bp: float,
 ) -> PcaModel:
-    """until(推定基準日)以前の window 個のサンプルで主成分ベクトルを作る。"""
+    """until(推定の最終日)以前の window 個のサンプルで主成分ベクトルを作る。"""
     keys = _labels(labels)
     samples, used_days, end = _samples(history, keys, mode, window, until, "window")
     mean = samples.mean(axis=0)
@@ -233,31 +234,27 @@ def residual_std(
     return (samples - recon).std(axis=0, ddof=1) * unit_bp
 
 
-def default_until(target_date: date) -> date:
-    """推定基準日が空欄のとき: 比較日より前の日まで(out-of-sample)。"""
-    return target_date - timedelta(days=1)
-
-
-def gap_warning(end: date, target_date: date, what: str) -> str:
-    """end が target_date の前営業日でなければ警告文(DBの更新漏れ等)。なければ空。"""
-    gap = _business_days(end + timedelta(days=1), target_date)
+def gap_warning(end: date, window_end: date) -> str:
+    """推定に使った最後の日 end が推定の最終日 window_end(当日か前営業日)に届いていなければ
+    警告文(DBの更新漏れ・銘柄の欠損。セルに出すので英語)。なければ空。"""
+    gap = _business_days(end + timedelta(days=1), window_end)
     if gap <= 1:
         return ""
-    return f"{what}{end}は比較日{target_date}の{gap}営業日前です(DB未更新か、銘柄の欠損)"
+    return f"Window ends {end}, {gap} business days before {window_end} (DB not updated, or tenors missing)"
 
 
 class Observation(NamedTuple):
-    values: np.ndarray  # LEVEL: 比較日の水準、CHANGE: 基準日→比較日の変化
+    values: np.ndarray  # LEVEL: 復元日の水準、CHANGE: 基準日→復元日の変化
     base_date: Optional[date]  # CHANGEの変化の基準日(DBの値)
     warning: str
 
 
 def observe(
-    history: History, labels: Sequence[str], mode: str, target_date: date, level, source: str,
+    history: History, labels: Sequence[str], mode: str, recon_date: date, level, source: str,
 ) -> Observation:
-    """比較日の実績。level は比較日の {銘柄(大文字): 値}(RealTimeかDBのその日)。
+    """復元日の実績。level は復元日の {銘柄(大文字): 値}(RealTimeかDBのその日)。
 
-    CHANGEは「比較日の水準 − 比較日より前で選択銘柄がそろったDBの直近の日の水準」。
+    CHANGEは「復元日の水準 − 復元日より前で選択銘柄がそろったDBの直近の日の水準」。
     その日が前営業日でなければ、何営業日分の変化かを警告に出して計算は続ける(ユーザー指示)。
     """
     keys = _labels(labels)
@@ -267,13 +264,13 @@ def observe(
     x = np.array([level[k] for k in keys], dtype=float)
     if mode == LEVEL:
         return Observation(x, None, "")
-    valid = _valid_dates_desc(history, keys, target_date - timedelta(days=1))
+    valid = _valid_dates_desc(history, keys, recon_date - timedelta(days=1))
     if not valid:
-        raise ValueError(f"比較日{target_date}より前に、選択銘柄がそろった日がDBにありません")
+        raise ValueError(f"復元日{recon_date}より前に、選択銘柄がそろった日がDBにありません")
     base, prev = valid[0]
-    gap = _business_days(base + timedelta(days=1), target_date)
+    gap = _business_days(base + timedelta(days=1), recon_date)
     warning = (
-        f"比較日の変化は{base}からの{gap}営業日分です(前営業日のDBの値がありません)"
+        f"Change over {gap} business days from {base} (no DB value on the previous business day)"
         if gap > 1 else ""
     )
     return Observation(x - prev, base, warning)
