@@ -65,7 +65,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HD(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -418,7 +418,7 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、
 |---|---|
 | `engine/pca/history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ |
 | `engine/pca/pca.py` | windowの選び方(`estimate`)、比較日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数 |
-| `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)、`PcaGrid`(PCAGrid用。複数ケースの推定を1回で返す)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
+| `engine/pca/udf.py` | `PcaModel`/`PcaEigen`/`PcaWindow`(推定)、`PcaActual`/`PcaActualInfo`(比較日の実績)、`PcaGrid`(PCAGrid用。複数ケースの推定を1回で返す)、`PcaResidStd`/`PcaGridResidStd`(差分のσ)。最後の引数`dataset`で"swap"/"vol"を選ぶ。推定は引数とDBの更新時刻ごとに1回だけ計算して共有 |
 | `engine/boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `engine/boj/udf.py` | BOJシートのUDF: `BojImpliedRates`(会合スワップ+O/Nのカーブでのスポットのパーレート)、`BojSpotForwards`(メインのカーブでの会合期間のパーレート。PricingSheetの`FairRate`と同じ値を、`engine/common`の部品だけで出す) |
 
@@ -435,13 +435,16 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
 - 比較: 比較日(空欄=今日でそのシートのライブの値、日付=DBのその日の引け値)の実績x
   (日次変化モードは「比較日 − DBの前営業日」。前営業日がなければ直近の日との差で警告)について
   z=(x−μ)/σ、得点=V_kᵀz、復元=μ+σ·V_k·得点、差分=x−復元。推定基準日と独立に選べる。
+- 差分のσ(`pca.residual_std`、差分のグラフの±1σ): 推定したμ・σ・Vを固定したまま、推定終了日から
+  さかのぼったN日のサンプル(推定と同じ選び方。N=σの日数、空欄=window)の各日をk本で復元して差分を出し、
+  銘柄ごとの標準偏差をとる(定義どおりに日ごとに計算する。Nをwindowより大きくすると推定より前の日も入る)。
 
 シートは1機能1枚(スワップ: `PCA`、ボラ: `VolPCA`)。設定・結果・計算を同じシートに置き、
 設定を変えてF9を押せば同じ画面で結果が更新される(理由は[decisions.md](decisions.md))。
 どちらも左から「設定」「結果」「計算領域(右端、列のグループで畳んである)」の順:
 - **設定(A〜D列)**: 1行目は取得モードの欄。「主成分ベクトルの推定」(B4推定基準日・B5 window・B6モード・B7標準化)と
-  「比較」(B10比較日・B11主成分数k)。各項目の説明はセルの入力時メッセージ(選ぶと表示される)。
-  名前はスワップが`PCA_推定基準日`等、ボラが`VOL_推定基準日`等。その下が銘柄の選択:
+  「比較」(B10比較日・B11主成分数k・B12差分のσの日数(空欄=window))。各項目の説明はセルの入力時メッセージ(選ぶと表示される)。
+  名前はスワップが`PCA_BaseDate`等、ボラが`VOL_BaseDate`等(セル・名前・プルダウンは英語。`Level`/`Change`、`Yes`/`No`)。その下が銘柄の選択:
   スワップはテナー表(A15:B56。O/N〜40Y、M1〜M8)の○×で、既定は1Y〜40Yの13本
   (O/Nは×。ライブのO/Nは使えるが既定では外す)。ボラは満期(A:B)・原資産(C:D)の○×で、
   既定は全16×12=192点。
@@ -453,14 +456,19 @@ PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
   復元・平均・PC1〜PC3。差分とPCは0を白にしたカラースケール)を`XLOOKUP`で並べ、上位10本の
   主成分の表を置く。
 - **計算領域**(スワップはZ列〜、ボラはBF列〜。直接編集しない): `PcaEigen`、`PcaModel`
-  [Label/Mean/Scale/PC1…]、選択銘柄の並び(スワップは`FILTER`=`PCA_テナー`、ボラは選択満期・
-  選択原資産の`FILTER`と格子の全点の`TOCOL`=`VOL_銘柄`(満期ごとに原資産の順))。ボラは
+  [Label/Mean/Scale/Std/PC1…](Std=windowの標準偏差。標準化の有無によらない、グラフの±1σ用)、選択銘柄の並び(スワップは`FILTER`=`PCA_Selected`、ボラは選択満期・
+  選択原資産の`FILTER`と格子の全点の`TOCOL`=`VOL_Labels`(満期ごとに原資産の順))。ボラは
   銘柄ごとの実績・平均・スケール・復元・差分もここで計算する。
 - **ライブの値**: PCAはCA4の`=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値…。
   `CHOOSECOLS(…,1,2)`を`PcaActual`に渡す)、VolPCAはLA3の同じ形の`"vol"`(銘柄/RIC/値をそのまま渡す)。RealTime/RealTimeVolシートは
   2026-10-18に削除(RICは`live_feed.toml`。上の「データフロー」参照)。
 - **グラフの横軸**: 差分は棒グラフ、主成分ベクトルは折れ線で、どちらも横軸のラベル位置は「下端」
   (`TickLabelPosition=Low`)。既定の「軸の隣」だと0の線にラベルが出て、マイナスの値と重なる。
+- **±1σの破線**(PCAシート・PCAGrid): 実績・平均・復元の折れ線には平均±1σ(σ=推定windowの標準偏差、
+  `PcaModel`/`PcaGrid`のStd。平均と同じ色)。差分の棒グラフには±1σ(bp、灰色。棒と同じ軸に折れ線の系列を重ねる)で、
+  σは差分の標準偏差(上の「差分のσ」。kごとに違う)。PCAシートはBX:BY(平均±1σ、名前`PCA_Up`/`PCA_Dn`)・
+  CE:CF(差分の±1σ、CE4=`PcaResidStd`、名前`PCA_SUp`/`PCA_SDn`)。系列が畳んだ列にあるので、グラフは「非表示の行と列のデータを表示」にしてある
+  (この設定がないと、追加した系列がその場で消える)。主成分ベクトルのグラフには引かない。
 
 ### PCAの条件比較(`PCAGrid`シート)
 
@@ -476,17 +484,23 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
   E列から7列ずつ10ケース(Case 1〜10)で、ケースごとに3〜7行目で推定基準日(空欄=直近)・window・
   モード・標準化を選ぶ。8行目に推定期間とサンプル数、9行目に警告(`PcaWindow`・`PcaActualInfo`の警告)。
   A:Dと1〜9行目は固定表示。
-- **グラフ(行=k、列=ケース)**: 11行目から16行ずつ6段。1〜5段目は差分の棒グラフで、D列(各段の
+- **グラフ(行=k、列=ケース)**: 11行目から16行ずつ7段。1〜5段目は差分の棒グラフで、D列(各段の
   2行目、既定1〜5)でその段の主成分数kを選ぶ(その段の全ケース共通)。プラスは青、マイナスは橙。
   タイトルはセル参照で`k=3   RMS 0.62bp   Max 1.20bp (20Y)`(RMS=差分の2乗平均の平方根、Max=絶対値の
-  最大とそのテナー)。6段目はそのケースのPC1〜PC5の折れ線。横軸のラベルは下端(上記)。
+  最大とそのテナー)。差分には±1σ(bp)の破線を重ねる(上記)。6段目はそのケースのPC1〜PC5の折れ線。
+  7段目(107行目〜)は実績・平均・復元(D108で選ぶk、既定3)と平均±1σの破線の折れ線。横軸のラベルは下端(上記)。
+  差分のσの日数はA55/B55の`Resid σ days`(全ケース共通、空欄=各ケースのwindow)。
   グラフの名前は`PCG_{ケース}_{段}`。
-- **計算領域(CA:HD、列のグループで畳んである)**: CB4 選択テナー(`FILTER`、名前`PCG_Tenor`)、
+- **計算領域(CA:HZ、列のグループで畳んである)**: CB4 選択テナー(`FILTER`、名前`PCG_Tenor`)、
   CD4 ライブのレート、CI4/CJ4 実績(`PcaActual`のLevel/Change)、CL4 Changeの実績の情報、
   CO4 `PcaGrid`(設定欄E4:BP7から7列おきに各ケースの4項目を`CHOOSECOLS`で渡す。空欄は先に""にする)。
   EP列から50行ずつケースごとの帯(4行目、54行目、…): EQ `PcaGrid`からそのケースの行を`FILTER`、
   GQ 実績(モードでLevel/Changeを選ぶ)、GR:GV k=1〜5の差分(見出し行=グラフのタイトル、
-  名前`PCG_R{ケース}_{k}`)、GX:HB PC1〜PC5(名前`PCG_V{ケース}_{j}`、PCAシートと同じ`#N/A`埋めの式)。
+  名前`PCG_R{ケース}_{k}`)、GX:HB PC1〜PC5(名前`PCG_V{ケース}_{j}`、PCAシートと同じ`#N/A`埋めの式)、
+  HD:HG 7段目の平均・復元・平均±1σ(HEの見出し行=グラフのタイトル、名前`PCG_Mean`/`PCG_Rec`/`PCG_Up`/`PCG_Dn`
+  +ケース、実績は`PCG_Act`+ケース=GQ)、HH:HQ 差分のグラフの段ごとの±1σ(bp、`PCG_SUp{ケース}_{段}`/`PCG_SDn…`)、
+  HR σの警告(9行目の警告に足す)。HS4 `PcaGridResidStd`(全ケース×段ごとのkの差分のσを1回で返す。`PcaGrid`の
+  出力に列を足さないのは、テナーを多く選ぶと出力が右隣のケースの帯にぶつかるため)。
   系列は畳んだ列にあるので、グラフは「非表示の行と列のデータを表示」にしてある。
 
 ### IV vs HV(`VolHV`シート、`engine/vol/`)
