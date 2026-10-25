@@ -299,12 +299,14 @@ class HistoricalStore:
                 (_iso(as_of_date), input_hash),
             )
 
-    def delete_vols_except(self, keep: Iterable[date]) -> int:
-        """keep 以外の日付の vol_quotes・vol_inputs を消す(プレミアムから計算していない古い行)。消した日数を返す。"""
+    def delete_vols_except(self, keep: Iterable[date], until: date) -> int:
+        """until 以前で keep 以外の日付の vol_quotes・vol_inputs を消す(プレミアムから計算していない古い行)。
+        消した日数を返す。until より後の日付は、プレミアムがまだ無いだけかもしれないので残す。"""
         keep_iso = {_iso(d) for d in keep}
         with self._connect() as conn:
             stale = [d for (d,) in conn.execute(
-                "SELECT as_of_date FROM vol_quotes UNION SELECT as_of_date FROM vol_inputs") if d not in keep_iso]
+                "SELECT as_of_date FROM vol_quotes UNION SELECT as_of_date FROM vol_inputs")
+                if d not in keep_iso and d <= _iso(until)]
             for d in stale:
                 conn.execute("DELETE FROM vol_quotes WHERE as_of_date = ?", (d,))
                 conn.execute("DELETE FROM vol_inputs WHERE as_of_date = ?", (d,))

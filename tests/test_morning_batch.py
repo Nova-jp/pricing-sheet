@@ -236,10 +236,25 @@ class CurveBatchTest(unittest.TestCase):
     def test_old_vol_rows_without_premiums_are_removed(self):
         from unittest import mock
 
-        HistoricalStore(self.db).save_vol_quotes({date(2026, 9, 28): {"1Yx10Y": 66.0}})  # 以前の =R の値
+        HistoricalStore(self.db).save_vol_quotes({date(2026, 9, 22): {"1Yx10Y": 66.0}})  # 以前の =R の値
         with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()):
             self._run(skip_vol=False)
-        self.assertNotIn(date(2026, 9, 28), HistoricalStore(self.db).vol_quotes())
+        self.assertNotIn(date(2026, 9, 22), HistoricalStore(self.db).vol_quotes())
+
+    def test_old_vol_rows_are_kept_until_premiums_are_fetched(self):
+        # 初回の取得に失敗したとき(プレミアムが1件も無い)は、以前の vol_quotes を消さない
+        from unittest import mock
+
+        HistoricalStore(self.db).save_vol_quotes({date(2026, 9, 25): {"1Yx10Y": 66.0}})
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", side_effect=RuntimeError("429")):
+            self._run(skip_vol=False)
+        self.assertEqual(HistoricalStore(self.db).vol_quotes(), {date(2026, 9, 25): {"1Yx10Y": 66.0}})
+        # プレミアムの最終日より後の日付も残す(まだプレミアムが無いだけかもしれない)
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()[:1]):
+            self._run(skip_vol=False)
+        vols = HistoricalStore(self.db).vol_quotes()
+        self.assertEqual(vols[date(2026, 9, 25)], {"1Yx10Y": 66.0})
+        self.assertIn(date(2026, 9, 24), vols)
 
     def test_premium_fetch_failure_does_not_abort_the_batch(self):
         from unittest import mock

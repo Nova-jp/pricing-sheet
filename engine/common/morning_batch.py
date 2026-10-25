@@ -37,8 +37,8 @@
      失敗してもここだけスキップする。--skip-vol で行わない。
   ⑦ プレミアムと②のその日のカーブから、営業日ベースのノーマルvol(engine/common/swaption.py)を計算し、
      vol_quotes に保存する(分析ブックのPCA・VolHV用。カーブには使わない)。入力(カーブの入力ハッシュ・
-     プレミアム・計算方法)が前回と同じ日は計算し直さない。プレミアムかカーブの無い日の vol_quotes は消す
-     (以前のLSEG計算系列 =R の値を残さない)。
+     プレミアム・計算方法)が前回と同じ日は計算し直さない。プレミアムのある最終日までで、プレミアムかカーブの
+     無い日の vol_quotes は消す(以前のLSEG計算系列 =R の値を残さない)。プレミアムが1件も無ければ消さない。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -306,7 +306,9 @@ def build_vols(store: HistoricalStore, rebuild: bool = False, log=print) -> Dict
                 continue
             store.save_vols(as_of, vols, h)
             built += 1
-        removed = store.delete_vols_except(k for k in keep if k not in failed)
+        # プレミアムが1件も無い(初回の取得に失敗した等)ときは何も消さない。消すのはプレミアムのある最終日まで
+        # (2026-10-25に、初回の取得がLSEGの上限で失敗し、以前の vol_quotes を全て消してしまった)
+        removed = store.delete_vols_except((k for k in keep if k not in failed), until=max(premiums)) if premiums else 0
     log(f"ボラ計算: 新規/更新 {built}日 / 変更なし {len(keep) - built - len(failed)}日 / "
         f"失敗 {len(failed)}日 / 古い行を削除 {removed}日")
     for d, msg in sorted(failed.items()):
