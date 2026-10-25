@@ -128,9 +128,36 @@ class _LegDates(NamedTuple):
         """過去日D(スポット日 as_of_spot)で組むスワップ。"""
         if mode == FIXED:
             return self.base
-        start = CALENDAR.advance(ql.Date.from_date(as_of_spot), self.offset_days, ql.Days)
-        end = CALENDAR.advance(start, self.length_days, ql.Days)
-        return SwapTerms(start.to_date(), self.base.convention, end=end.to_date())
+        start = _advance_business_days(as_of_spot, self.offset_days)
+        end = _advance_business_days(start, self.length_days)
+        return SwapTerms(start, self.base.convention, end=end)
+
+
+# 営業日の一覧(QuantLibの CALENDAR.businessDayList、シリアル値の昇順)と、シリアル値→位置。
+# CALENDAR.advance(d, n, ql.Days) は1日ずつ数えるため、ROLLINGで長いフォワード(20y10y等)を
+# 全日付について移動すると、それだけで1系列の計算時間の約3割を占めていた。
+_business_days: List[int] = []
+_business_day_index: Dict[int, int] = {}
+_BUSINESS_DAY_LIST_YEARS = 70  # 一覧に入れる範囲(40Y+30Yのフォワード程度まで)
+
+
+def _advance_business_days(d: date, n: int) -> date:
+    """営業日 d から n 営業日後(負なら前)の日付。CALENDAR.advance(d, n, ql.Days) と同じ結果を、
+    QuantLibの営業日の一覧の位置の足し算で求める。d が営業日でないとき・一覧の範囲外になるときは
+    CALENDAR.advance をそのまま使う。"""
+    global _business_days, _business_day_index
+    ql_d = ql.Date.from_date(d)
+    serial = ql_d.serialNumber()
+    if not _business_days or not (_business_days[0] <= serial <= _business_days[-1]):
+        days = CALENDAR.businessDayList(
+            ql_d - ql.Period(1, ql.Years), ql_d + ql.Period(_BUSINESS_DAY_LIST_YEARS, ql.Years),
+        )
+        _business_days = [x.serialNumber() for x in days]
+        _business_day_index = {s: i for i, s in enumerate(_business_days)}
+    i = _business_day_index.get(serial)
+    if i is not None and 0 <= i + n < len(_business_days):
+        return ql.Date(_business_days[i + n]).to_date()
+    return CALENDAR.advance(ql_d, n, ql.Days).to_date()
 
 
 def _leg_dates(spec: SwapSpec, mode: str, base_date: date, base_spot: date) -> _LegDates:
