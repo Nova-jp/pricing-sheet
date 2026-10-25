@@ -42,7 +42,7 @@
         │  live_feed.toml のRICを購読。値が変わったら最大 write_interval_sec(1秒)ごとに書く。
         │  ティックが無くても heartbeat_sec(2秒)ごとにデータセットごとの状態(ハートビート)を書く
         ▼
-[data/live.db(ローカルのSQLite。LSEG由来なのでコミットしない)]
+[data/live.db(ローカルのSQLite。LSEG由来なのでコミットしない。git worktreeからもメインの作業ツリーのものを読む)]
         │  そのシートの取得モード(B1)がLiveなら再計算(Shift+F9)のたびに読む。Fixedなら読まない。
         │  ハートビートが stale_after_sec(10秒)より古いか、LSEGとの接続が正常でなければエラー
         ▼

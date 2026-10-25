@@ -97,6 +97,8 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
    約20秒で「swap: 44銘柄を購読しました」「vol: 192銘柄を購読しました」「接続の状態: ok」と出れば動いている。
    止めるときはその窓でCtrl+C(ブックはすぐに「フィードは停止しています」になる)。ログは`data/live_feed.log`。
    二重に起動すると「別のフィードが動いています」で止まる。
+   git worktreeで作った開発用のフォルダのブック・コードも、直下(メインの作業ツリー)の`data/live.db`を読む
+   (worktreeごとにフィードを起動しない。`engine/common/paths.py`)。
 3. ExcelでPricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsmを開く。計算方法は「手動」。
 4. 各フロントシート(Main・pricing・HistChart・PCA・VolPCA・BOJ・Option)の1行目が取得モードの欄。B1のプルダウンが
    `Live`なら、そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。

@@ -37,10 +37,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 from engine.common.live_store import FEED_OK, FEED_STOPPED, FeedStatus, LiveStore
-from engine.common.paths import DATA_DIR, REPO_ROOT
+from engine.common.paths import LIVE_DATA_DIR, REPO_ROOT
 
 DEFAULT_CONFIG = REPO_ROOT / "live_feed.toml"
-LOG_PATH = DATA_DIR / "live_feed.log"
+LOG_PATH = LIVE_DATA_DIR / "live_feed.log"  # live.dbと同じ場所(メインの作業ツリー)
 
 # データセットの種類 → 購読するフィールド
 KIND_FIELDS: Dict[str, Tuple[str, ...]] = {
@@ -437,7 +437,7 @@ def main(argv=None) -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="設定ファイル(既定 live_feed.toml)")
     args = parser.parse_args(argv)
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LIVE_DATA_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
         handlers=[logging.StreamHandler(), logging.FileHandler(LOG_PATH, encoding="utf-8")],

@@ -160,10 +160,12 @@ class LiveStoreTest(unittest.TestCase):
 class _Caller:
     """xlwingsがUDFの引数 caller に渡す呼び出し元のセル(Range)の代わり。"""
 
-    def __init__(self, book, sheet):
+    def __init__(self, book, sheet, folder=None):
         self.sheet = mock.Mock()
         self.sheet.name = sheet
         self.sheet.book.name = book
+        # 既定はメインの作業ツリーにあるブック
+        self.sheet.book.fullname = str(Path(folder or live_udf.MAIN_ROOT) / book)
 
 
 MAIN = _Caller("PricingSheet.xlsm", "Main")
@@ -205,6 +207,27 @@ class LiveUdfTest(unittest.TestCase):
         # 別のブックの同じ名前のシートとは混ざらない
         with self.assertRaises(ValueError):
             live_udf.LiveSnapshot("swap", caller=_Caller("SwapAnalysis.xlsm", "Main"))
+
+    def test_worktree_book_does_not_overwrite_the_main_snapshot(self):
+        """live.dbは全worktreeで共有するので、別のフォルダの同じ名前のブックの固定の値は
+        メインの作業ツリーのブックとは別に保存する。"""
+        self.store.publish("swap", ROWS)
+        before = live_udf.LiveQuotes("swap", caller=MAIN)
+        changed = [row[:] for row in ROWS]
+        changed[0][1] = 0.478
+        self.store.publish("swap", changed)
+        other = _Caller("PricingSheet.xlsm", "Main", folder=Path(self._tmp.name) / "pricing-sheet-wt")
+        self.assertEqual(live_udf.LiveQuotes("swap", caller=other)[0][1], 0.478)
+        self.assertEqual(live_udf.LiveSnapshot("swap", caller=MAIN), before)
+        self.assertEqual(live_udf.LiveSnapshot("swap", caller=other)[0][1], 0.478)
+
+    def test_book_key(self):
+        main_book = str(live_udf.MAIN_ROOT / "PricingSheet.xlsm")
+        self.assertEqual(live_udf._book_key("PricingSheet.xlsm", main_book), "PricingSheet.xlsm")
+        self.assertEqual(live_udf._book_key("PricingSheet.xlsm", main_book.upper()), "PricingSheet.xlsm")
+        other = str(Path(self._tmp.name) / "PricingSheet.xlsm")
+        self.assertEqual(live_udf._book_key("PricingSheet.xlsm", other), other)
+        self.assertEqual(live_udf._book_key("PricingSheet.xlsm", None), "PricingSheet.xlsm")
 
     def test_quotes_is_an_error_when_the_feed_stopped(self):
         self.store.publish("swap", ROWS)

@@ -704,6 +704,19 @@
   - ローカルのHTTP/WebSocketのサーバにはしない(受け渡しはSQLiteのままで遅れは変わらず、ポート・起動の管理が増える。
     複数のPCに配るときに検討する)。UDFサーバの中のスレッドにもしない(UDFサーバの再起動のたびに購読が切れ、
     QuantLibの計算と取り合う)。
+- **live.dbはメインの作業ツリーのものを全てのgit worktreeで共有する(2026-10-25、ユーザーと決定)**。
+  フィードはメインの作業ツリー(最初にクローンしたフォルダ)で1本だけ動かし、worktreeのコード・ブックも
+  そこの`data/live.db`を読む(`paths.main_worktree_root`: worktreeの`.git`ファイル→`commondir`をたどる。
+  設定は要らない)。worktreeのブックでもExcelでライブのレートを確かめられるようにするため。
+  - 採らなかった案: worktreeごとにフィードを起動する(Workspaceのセッション・購読(約240銘柄)がworktreeの数だけ
+    増え、上限は確かめていない。PCの資源も増える。Excelは同名のブックを同時に開けないので、同時に動かしても
+    見られるのは1つだけ)。環境変数で場所を指定する(xlwingsのUDFサーバはExcelの環境を引き継ぐので、
+    設定のたびにExcelの再起動が要る)。
+  - 固定の値(Fixed)のキーは、メインの作業ツリーのブックは今までどおりブック名、それ以外のフォルダのブックは
+    フルパスにする(`live_udf._book_key`)。worktreeの同じ名前のブックが、メインのブックの固定の値を
+    上書きしないように(メインのブックの保存済みの固定の値はそのまま使える)。
+  - ヒストリカルDB(`historical.db`)は今までどおり自分のフォルダのもの(worktreeではコピーを使い本物を書き換えない)。
+  - フィードのログ(`live_feed.log`)もlive.dbと同じ場所に書く。
 - **接続はLSEG Workspaceのデスクトップセッション**(`lseg.data`。JGBの取得と同じ)。Workspaceがlocalhostに立てる
   API Proxyとのhandshakeでトークンを得るだけで、資格情報はWorkspaceだけが持つ(コードに書かない)。App Keyは
   `lseg-data`同梱の既定値で接続できる。自分のキーを使うときは環境変数`LSEG_APP_KEY`(値は`OPERATIONS.md`)。

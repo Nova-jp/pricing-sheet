@@ -24,11 +24,13 @@ UDFは読むだけ。
 """
 
 import datetime
+from pathlib import Path
 from typing import List
 
 import xlwings as xw
 
 from engine.common.live_store import LiveStore
+from engine.common.paths import MAIN_ROOT
 
 
 def _live_store() -> LiveStore:
@@ -63,11 +65,25 @@ def LiveInfo(dataset, quotes=None, caller=None) -> datetime.datetime:
 
 
 def _where(caller):
-    """呼び出し元のセルの(ブック名, シート名)。固定の値を保存する場所のキー。"""
+    """呼び出し元のセルの(ブックのキー, シート名)。固定の値を保存する場所のキー。"""
     if caller is None:
         raise ValueError("呼び出し元のセルが分かりません(Excelのセルから呼んでください)")
     sheet = caller.sheet
-    return sheet.book.name, sheet.name
+    return _book_key(sheet.book.name, getattr(sheet.book, "fullname", None)), sheet.name
+
+
+def _book_key(name: str, fullname) -> str:
+    """固定の値を保存するブックのキー。メインの作業ツリーにあるブックは名前だけ(従来どおり)、
+    それ以外のフォルダ(git worktree等)のブックはフルパス。live.db はメインの作業ツリーのものを
+    全てのworktreeで共有するので(engine/common/paths.py)、worktreeの同じ名前のブックが
+    メインのブックの固定の値を上書きしないようにする。"""
+    if not fullname:
+        return name
+    try:
+        folder = Path(str(fullname)).resolve().parent
+    except (OSError, ValueError):
+        return name
+    return name if folder == MAIN_ROOT.resolve() else str(fullname)
 
 
 def _as_table(rows) -> List[list]:
