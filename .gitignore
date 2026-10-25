@@ -1,6 +1,10 @@
 .env
 OPERATIONS.md
 *.db
+# SQLiteの使用中にできる一時ファイル(live.dbはWALモード。中身はDBと同じくLSEGのデータ)
+*.db-wal
+*.db-shm
+*.db-journal
 __pycache__/
 *.pyc
 .DS_Store
