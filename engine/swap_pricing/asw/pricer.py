@@ -3,7 +3,7 @@
 
 ■ 定義(Neonの ASW_data と同じ。書き込み元は別プロジェクト market-analysis の QuantLibHelper.calculate_mms)
   ASW = 現物の複利 − MMS。引き算はExcelの式で行い、ここでは複利とMMSを返す。
-  - 現物の複利: 引け値(JCL)の単利+スライドの単利 → 単価(スポット受渡 T+1、小数3桁で切り捨て)→
+  - 現物の複利: 引け値(大和 =DWAT)の単利+スライドの単利 → 単価(スポット受渡 T+1、小数3桁で切り捨て)→
     利含み単価に一致する半年複利(うるう日除き/365、小数3桁で切り捨て。bond.compound_yield。
     Neon側はJSDAの平均値の複利で、同じく小数3桁)。
   - MMS: 起算日=スポット(T+2)、満期日=償還日(Modified Following)、償還日から遡る日程(roll conv=BWD)、

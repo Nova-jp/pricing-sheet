@@ -218,6 +218,30 @@ class JgbSourceTest(unittest.TestCase):
         self.assertIsNone(code_from_ric("JP03800067=JCL"))
         self.assertIsNone(code_from_ric("JP03800099="))
 
+    def test_fetch_closes_reads_daiwa_simple_yield(self):
+        """引け値は {RIC}DWAT の CF_YIELD(単利)。値か日付が無い銘柄は飛ばす。"""
+        from engine.common import jgb_source
+
+        class FakeFrame:
+            def __init__(self, records):
+                self.records = records
+
+            def to_dict(self, orient):
+                return self.records
+
+        ld = mock.Mock()
+        ld.get_data.return_value = FakeFrame([
+            {"Instrument": "JP03730067=DWAT", "CF_YIELD": 2.6, "VALUE_DT1": date(2026, 10, 23)},
+            {"Instrument": "JP03840067=DWAT", "CF_YIELD": float("nan"), "VALUE_DT1": date(2026, 10, 23)},
+        ])
+        bonds = [
+            JgbRecord("JB373", "JP03730067=", "", 0.6, date(2033, 12, 20)),
+            JgbRecord("JB384", "JP03840067=", "", 3.1, date(2036, 9, 20)),
+        ]
+        closes = jgb_source._fetch_closes(ld, bonds)
+        ld.get_data.assert_called_once_with(["JP03730067=DWAT", "JP03840067=DWAT"], ["CF_YIELD", "VALUE_DT1"])
+        self.assertEqual(closes, [JgbClose(date(2026, 10, 23), "JB373", 2.6)])
+
 
 class UdfTest(unittest.TestCase):
     def setUp(self):
