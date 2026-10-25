@@ -146,8 +146,8 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - PCA(スワップ)/VolPCA(ボラ)シートの左の設定欄で推定(Window end・window・モード・標準化)と
   復元(Recon date・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。Window endの空欄は
   今日(DBの直近の引け値まで)、Recon dateの空欄はそのシートのライブの値(1行目の取得モードがLiveなら読み直す)。
-- PCAGridシート(スワップのPCAの条件比較)は、左端のテナー表・各ケースの推定の条件(3〜7行目)・
-  各段のk(D列)を入れてF9。比較日は今日(ライブの値)に固定。
+- PCAGridシート(スワップのPCAの条件比較)は、左端のテナー表・各ケースの推定の条件(3〜7行目。Window endの
+  空欄=今日)・各段のk(D列)・A4のRecon date(全ケース共通。空欄=今日のライブの値)を入れてF9。
 
 ## 5.2 現物オプション(BondOption.xlsm)
 
