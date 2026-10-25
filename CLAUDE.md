@@ -66,10 +66,14 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   (例 `git worktree add ../pricing-sheet-<名前> -b feature/<名前> origin/main`)。同じフォルダで`git checkout`すると
   他のセッションのブランチ・未コミットの変更を巻き込む。マージ後は`git worktree remove`で片付ける。
   - 直下のブック(`.xlsm`/`.xlsx`)と`data/`のDBはgit管理外なので、worktreeには無い。**ブックやExcelのCOMを触る作業は
-    直下のフォルダで1つずつ順番に行う**(Excelは同名のブックを同時に開けない)。
+    1つずつ順番に行う**(Excelは同名のブックを同時に開けない)。
   - worktreeを作ったら、直下の`data/historical.db`をworktreeの`data/`にコピーして使う(本物のDBは書き換えない)。
-    バッチを試すときは`--xlsx`で直下の`historical_data.xlsx`を指定して作り直す。ExcelのUDFは常に直下のコードと
-    DBで動くので、worktreeのDBはテスト・検証用(`live.db`はコピーしても更新されない)。
+    バッチを試すときは`--xlsx`で直下の`historical_data.xlsx`を指定して作り直す。`live.db`はコピーしない
+    (worktreeのコードも直下の`data/live.db`を読む。フィードは直下で1本だけ動かす)。
+  - 確かめ方は2段: worktreeごとにテスト・実DBの比較・UDFの直接呼び出しで確かめ(並行してよい)、Excelでの確認は
+    1つずつ(他の同名のブックを閉じ、直下のブックをworktreeにコピーして開き、開いたブックのフルパスとUDFサーバの
+    起動フォルダを確かめる)。PRの説明に「Pythonでの確認」「Excelでの確認」を分けて書く。マージ後は直下で`git pull`
+    してUDFサーバを再起動し、直下のブックで確かめる。
   - コミットの直前に`git status -sb`で今のブランチを確かめる。
 - 変更後は全テスト(`python -m unittest discover -s tests`)を流す。計算に関わる変更は、
   実DBで変更前後の結果が一致することも確かめる。
