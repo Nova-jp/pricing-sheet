@@ -11,8 +11,7 @@
 処理:
   ① historical_data.xlsx の Mid(日付×テナーのミッド)と Fixing(TONA実績)を読み、
      DBの quotes / fixings に取り込む(同じ日付は置き換え。過去に取り込んだ日付は残る)。
-     Volシート(スワップションATMノーマルvol)があれば vol_quotes にも取り込む
-     (分析ブックのPCA用。カーブには使わない)
+     (historical_data.xlsx の Vol系のシートは使わない。ボラは⑥⑦でTraditionのプレミアムから作る)
   ② DBにある全日付について、historical_curve.toml で選んだテナーでカーブを構築し、
      暦日ごとのDFを curves に保存する(形式は historical_store.py)。
      - "O/N" はその日のTONA実績(フィキシング対象日=その日)を使う
@@ -33,6 +32,13 @@
   ⑤ LSEG(engine/common/futures_source.py)から長期国債先物の限月ごとの清算値を取得し、fut_settles に
      保存する(2020年から。取り終えた限月は取らず、取引中の限月は保存済みの最終日から取り直す)。
      失敗してもここだけスキップする。--skip-jgb で④と一緒に行わない。
+  ⑥ LSEG(Python API、engine/common/swaption_source.py)から TraditionのスワップションATMプレミアムを
+     差分で取得し、swaption_premiums に保存する(前回の最終日の少し前から。初回は2022-01-12から)。
+     失敗してもここだけスキップする。--skip-vol で行わない。
+  ⑦ プレミアムと②のその日のカーブから、営業日ベースのノーマルvol(engine/common/swaption.py)を計算し、
+     vol_quotes に保存する(分析ブックのPCA・VolHV用。カーブには使わない)。入力(カーブの入力ハッシュ・
+     プレミアム・計算方法)が前回と同じ日は計算し直さない。プレミアムかカーブの無い日の vol_quotes は消す
+     (以前のLSEG計算系列 =R の値を残さない)。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -42,26 +48,29 @@ import hashlib
 import json
 import sys
 import tomllib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import openpyxl
 import QuantLib as ql
 
-from engine.common import futures_source, jgb_futures, jgb_source, neon_source
+from engine.common import futures_source, jgb_futures, jgb_source, neon_source, swaption_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
 from engine.common.paths import HISTORICAL_DB_PATH, REPO_ROOT
+from engine.common.swaption import PremiumConverter
 
 DEFAULT_XLSX = REPO_ROOT / "historical_data.xlsx"
 DEFAULT_CONFIG = REPO_ROOT / "historical_curve.toml"
 ON_TENOR = "O/N"
 _DATE_HEADER = "日付"
-_VOL_HEADER = "満期x原資産"
-VOL_SHEET = "Vol"
 FUTURES_HISTORY_START = date(2020, 1, 1)  # 先物の清算値を取り始める日(ユーザー指示)
+# プレミアムの差分取得で、前回の最終日より何日前から取り直すか(LSEG側の修正を拾うため)
+PREMIUM_OVERLAP_DAYS = 10
+# volの計算方法の名前(式・営業日の数え方を変えたら変える。全日付を計算し直す)
+VOL_METHOD = "trdt-fwd-straddle/bd-incl-today/252"
 
 
 class CurveConfig(NamedTuple):
@@ -129,20 +138,6 @@ def _date_matrix(rows, labels) -> Dict[date, Dict[str, float]]:
         if values:
             result[as_of] = values
     return result
-
-
-def read_vol_sheet(path: Path) -> Dict[date, Dict[str, float]]:
-    """historical_data.xlsx の Volシート → {日付: {満期x原資産: ノーマルvol(bp)}}。
-    シートが無い(古い雛形)ときは空。銘柄の表記はシートの見出しのまま(例 1Yx10Y)。"""
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    try:
-        if VOL_SHEET not in wb.sheetnames:
-            return {}
-        header, rows = _rows_after_date_header(wb[VOL_SHEET], _VOL_HEADER)
-        labels = [str(h).strip() if h not in (None, "") else None for h in header[1:]]
-        return _date_matrix(rows, labels)
-    finally:
-        wb.close()
 
 
 def read_historical_workbook(path: Path) -> Tuple[Dict[date, Dict[str, float]], Dict[date, float]]:
@@ -260,6 +255,65 @@ def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None
         log(f"  警告: {w}")
 
 
+def sync_swaption_premiums(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
+    """LSEGからTraditionのスワップションATMプレミアムを差分で取得して保存する。失敗してもバッチ全体は止めない。"""
+    today = today or date.today()
+    last = store.swaption_premiums_last_date()
+    start = swaption_source.FIRST_DATE if last is None else last - timedelta(days=PREMIUM_OVERLAP_DAYS)
+    try:
+        rows = swaption_source.fetch_premiums(start, today)
+    except Exception as e:
+        log(f"スワップションのプレミアム取得: 失敗のためスキップ ({e})")
+        return
+    store.save_swaption_premiums(rows)
+    dates = sorted({r.as_of_date for r in rows})
+    span = f"{dates[0]}〜{dates[-1]}" if dates else "なし"
+    log(f"スワップションのプレミアム取得: {len(rows)}件 / {len(dates)}日分({span})")
+
+
+def vol_input_hash(curve_hash: str, premiums: Dict[str, float]) -> str:
+    payload = json.dumps({"method": VOL_METHOD, "curve": curve_hash, "premiums": sorted(premiums.items())})
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def build_vols(store: HistoricalStore, rebuild: bool = False, log=print) -> Dict[date, str]:
+    """プレミアムとその日のカーブから vol_quotes を作る。失敗した日 → 内容 を返す。"""
+    premiums = store.swaption_premiums()
+    curve_hashes = store.input_hashes()
+    existing = {} if rebuild else store.vol_input_hashes()
+    keep: List[date] = []
+    built = 0
+    failed: Dict[date, str] = {}
+    with store:
+        for as_of in sorted(premiums):
+            curve_hash = curve_hashes.get(as_of)
+            if curve_hash is None:
+                continue  # カーブの無い日(非営業日・構築の失敗)
+            keep.append(as_of)
+            h = vol_input_hash(curve_hash, premiums[as_of])
+            if existing.get(as_of) == h:
+                continue
+            try:
+                ql.Settings.instance().evaluationDate = ql.Date.from_date(as_of)
+                converter = PremiumConverter(store.load(as_of).curve, as_of)
+                vols = {}
+                for label, premium in premiums[as_of].items():
+                    v = converter.convert(label, premium)
+                    if v is not None:
+                        vols[label] = v.vol
+            except Exception as e:  # 1日の失敗で全体を止めない
+                failed[as_of] = str(e)
+                continue
+            store.save_vols(as_of, vols, h)
+            built += 1
+        removed = store.delete_vols_except(k for k in keep if k not in failed)
+    log(f"ボラ計算: 新規/更新 {built}日 / 変更なし {len(keep) - built - len(failed)}日 / "
+        f"失敗 {len(failed)}日 / 古い行を削除 {removed}日")
+    for d, msg in sorted(failed.items()):
+        log(f"  {d}: ボラ計算の失敗 {msg}")
+    return failed
+
+
 def run(
     xlsx_path: Path = DEFAULT_XLSX,
     config_path: Path = DEFAULT_CONFIG,
@@ -268,6 +322,7 @@ def run(
     log=print,
     skip_jgb: bool = False,
     jgb_history_from: Optional[date] = None,
+    skip_vol: bool = False,
 ) -> BatchSummary:
     config = load_config(config_path)
     builder = get_curve_builder(config.builder)
@@ -276,15 +331,15 @@ def run(
     mid, fixings = read_historical_workbook(xlsx_path)
     store.save_quotes(mid)
     store.save_fixings(fixings)
-    vols = read_vol_sheet(xlsx_path)
-    store.save_vol_quotes(vols)
-    log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分 / Vol {len(vols)}日分")
+    log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分")
     sync_asw_quotes(store, log)
     if not skip_jgb:
         sync_jgbs(store, log)
         if jgb_history_from is not None:
             sync_jgb_history(store, jgb_history_from, log)
         sync_futures(store, log)
+    if not skip_vol:
+        sync_swaption_premiums(store, log)
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()
@@ -333,6 +388,7 @@ def run(
         log(f"  {d}: 欠損テナーを除いて構築 ({', '.join(tenors)})")
     for d, msg in sorted(failed.items()):
         log(f"  {d}: 失敗 {msg}")
+    build_vols(store, rebuild, log)
     return summary
 
 
@@ -353,9 +409,12 @@ def main(argv=None) -> int:
         "--jgb-history-from", type=date.fromisoformat, metavar="YYYY-MM-DD",
         help="10年債の引け値の過去分をこの日から取る(初回・抜けた日を埋めるとき)",
     )
+    parser.add_argument("--skip-vol", action="store_true",
+                        help="LSEGからのスワップションのプレミアムの取得を行わない(保存済みのプレミアムからのボラ計算は行う)")
     args = parser.parse_args(argv)
     summary = run(
         args.xlsx, args.config, args.db, args.rebuild, skip_jgb=args.skip_jgb, jgb_history_from=args.jgb_history_from,
+        skip_vol=args.skip_vol,
     )
     return 1 if summary.failed else 0
 

@@ -146,7 +146,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
   `SwapAnalysis.xlsm`を開いて「Restart UDF Server」→「Import Functions」(`SwapAnalysis.py`から
   `PcaModel`等を登録)。
 - 過去分はDB(`data/historical.db`)を読むので、上の毎朝のバッチを先に実行しておく
-  (スワップの生ミッドとVolシートのボラを取り込む)。
+  (スワップの生ミッドを取り込み、LSEGから取ったスワップションのプレミアムからボラを計算する)。
 - PCA(スワップ)/VolPCA(ボラ)シートの左の設定欄で推定(Window end・window・モード・標準化)と
   復元(Recon date・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。Window endの空欄は
   今日(DBの直近の引け値まで)、Recon dateの空欄はそのシートのライブの値(1行目の取得モードがLiveなら読み直す)。

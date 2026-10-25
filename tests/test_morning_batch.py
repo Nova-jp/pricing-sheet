@@ -60,20 +60,6 @@ def _write_workbook(path: Path, missing=None, mid_days=DAYS):
     wb.save(path)
 
 
-def _add_vol_sheet(path: Path):
-    """Volシート(historical_data.xlsxと同じ構成: 「満期x原資産」の見出し行+RIC行+新しい順の日付)。"""
-    wb = openpyxl.load_workbook(path)
-    vol = wb.create_sheet("Vol")
-    vol.append(["Implied Vol ヒストリカル(ATMノーマルvol, bp/年)"])
-    vol.append(["期間: ..."])
-    vol.append([])
-    vol.append(["満期x原資産", "1Mx1Y", "1Yx10Y"])
-    vol.append(["RIC", "JPYTO1MX1YATM=R", "JPYTO1YX10YATM=R"])
-    vol.append([datetime(2026, 9, 25), 44.09, "#N/A"])
-    vol.append([datetime(2026, 9, 24), 42.42, 72.5])
-    wb.save(path)
-
-
 def _write_config(path: Path, tenors):
     quoted = ", ".join(f'"{t}"' for t in tenors)
     path.write_text(f'builder = "convex_monotone"\ntenors = [{quoted}]\n', encoding="utf-8")
@@ -99,6 +85,7 @@ class CurveBatchTest(unittest.TestCase):
 
     def _run(self, **kwargs):
         kwargs.setdefault("skip_jgb", True)  # LSEGに接続しない(JGBの取得はモックで別に確かめる)
+        kwargs.setdefault("skip_vol", True)  # 同じく(プレミアムの取得はモックで別に確かめる)
         return morning_batch.run(self.xlsx, self.config, self.db, log=lambda *_: None, **kwargs)
 
     def test_builds_curve_equal_to_direct_bootstrap_with_tona_as_on(self):
@@ -204,15 +191,64 @@ class CurveBatchTest(unittest.TestCase):
             rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED")
         self.assertEqual(rows[1:], [[d, "", "", ""] for d in DAYS])
 
-    def test_vol_sheet_is_imported(self):
-        # Volシートがあれば vol_quotes に取り込む(エラー値は欠損)。無い雛形でもバッチは動く
-        self.assertEqual(HistoricalStore(self.db).vol_quotes() if self.db.exists() else {}, {})
-        _add_vol_sheet(self.xlsx)
-        self._run()
-        self.assertEqual(HistoricalStore(self.db).vol_quotes(), {
-            date(2026, 9, 25): {"1Mx1Y": 44.09},
-            date(2026, 9, 24): {"1Mx1Y": 42.42, "1Yx10Y": 72.5},
-        })
+    def _premiums(self):
+        from engine.common.swaption_source import PremiumQuote
+
+        return [
+            PremiumQuote(date(2026, 9, 24), "1Yx10Y", 450.0, 2.9),
+            PremiumQuote(date(2026, 9, 25), "1Yx10Y", 455.0, 2.9),
+            PremiumQuote(date(2026, 9, 25), "1Mx1Y", 7.0, 1.2),
+            PremiumQuote(date(2026, 9, 26), "1Yx10Y", 460.0, 2.9),  # 土曜(カーブが無い)
+        ]
+
+    def test_vols_are_computed_from_premiums_and_the_curve_of_the_day(self):
+        import QuantLib as ql
+        from unittest import mock
+
+        from engine.common.swaption import PremiumConverter
+        from engine.common.swaption_source import FIRST_DATE
+
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()) as fetch:
+            self._run(skip_vol=False)
+        self.assertEqual(fetch.call_args.args[0], FIRST_DATE)  # 初回は最初の日から
+        store = HistoricalStore(self.db)
+        vols = store.vol_quotes()
+        self.assertEqual(sorted(vols), [date(2026, 9, 24), date(2026, 9, 25)])  # カーブの無い日は作らない
+        as_of = date(2026, 9, 25)
+        ql.Settings.instance().evaluationDate = ql.Date.from_date(as_of)
+        expected = PremiumConverter(store.load(as_of).curve, as_of).convert("1Yx10Y", 455.0).vol
+        self.assertAlmostEqual(vols[as_of]["1Yx10Y"], expected, places=12)
+        self.assertEqual(set(vols[as_of]), {"1Yx10Y", "1Mx1Y"})
+
+    def test_second_run_fetches_from_overlap_and_skips_unchanged_days(self):
+        from datetime import timedelta
+        from unittest import mock
+
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()):
+            self._run(skip_vol=False)
+        logs = []
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
+            morning_batch.run(self.xlsx, self.config, self.db, log=logs.append, skip_jgb=True, skip_vol=False)
+        self.assertEqual(fetch.call_args.args[0],
+                         date(2026, 9, 26) - timedelta(days=morning_batch.PREMIUM_OVERLAP_DAYS))
+        self.assertIn("ボラ計算: 新規/更新 0日 / 変更なし 2日", "\n".join(logs))
+
+    def test_old_vol_rows_without_premiums_are_removed(self):
+        from unittest import mock
+
+        HistoricalStore(self.db).save_vol_quotes({date(2026, 9, 28): {"1Yx10Y": 66.0}})  # 以前の =R の値
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()):
+            self._run(skip_vol=False)
+        self.assertNotIn(date(2026, 9, 28), HistoricalStore(self.db).vol_quotes())
+
+    def test_premium_fetch_failure_does_not_abort_the_batch(self):
+        from unittest import mock
+
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums",
+                               side_effect=RuntimeError("Workspaceに繋がりません")):
+            summary = self._run(skip_vol=False)
+        self.assertEqual(summary.built, DAYS)
+        self.assertEqual(HistoricalStore(self.db).vol_quotes(), {})
 
     def test_empty_workbook_is_rejected(self):
         _write_workbook(self.xlsx, mid_days=[])

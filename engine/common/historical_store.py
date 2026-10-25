@@ -9,8 +9,11 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - quotes  : 日付×テナーの生レート(Midシートの全テナー)。構築方法やテナー選択を
               変えたとき、xlsxの取得期間から外れた過去日もここから作り直せる
   - fixings : TONA実績(Fixingシート)。O/Nのピラーと、過去起算の計算に使う
-  - vol_quotes : スワップションATMノーマルvol(Volシート、bp/年)。銘柄は「満期x原資産」
-              (例 1Yx10Y)。分析ブック(engine.pca)のPCAが読む。カーブには使わない
+  - swaption_premiums : TraditionのスワップションATMストラドルのフォワード・プレミアム(bp)とATMのストライク(%)。
+              銘柄は「満期x原資産」(例 1Yx10Y)。LSEG(Python API、engine/common/swaption_source.py)から朝バッチが取得する
+  - vol_quotes : スワップションATMノーマルvol(営業日ベース、bp/年 = bp/日×√252)。朝バッチが swaption_premiums と
+              その日のカーブから計算する(engine/common/swaption.py)。分析ブック(PCA・VolHV)が読む。カーブには使わない
+  - vol_inputs : vol_quotes を計算した入力(その日のカーブの入力ハッシュとプレミアム)のハッシュ。同じなら計算し直さない
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
   - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
@@ -76,6 +79,17 @@ CREATE TABLE IF NOT EXISTS vol_quotes (
     label TEXT NOT NULL,
     vol REAL NOT NULL,
     PRIMARY KEY (as_of_date, label)
+);
+CREATE TABLE IF NOT EXISTS swaption_premiums (
+    as_of_date TEXT NOT NULL,
+    label TEXT NOT NULL,
+    premium REAL NOT NULL,
+    atm_strike REAL,
+    PRIMARY KEY (as_of_date, label)
+);
+CREATE TABLE IF NOT EXISTS vol_inputs (
+    as_of_date TEXT PRIMARY KEY,
+    input_hash TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS curves (
     as_of_date TEXT PRIMARY KEY,
@@ -262,6 +276,40 @@ class HistoricalStore:
                     [(_iso(as_of_date), label, v) for label, v in vols.items()],
                 )
 
+    def save_swaption_premiums(self, rows: Iterable) -> None:
+        """swaption_source.PremiumQuote の並び。同じ日付・銘柄は置き換える(LSEG側の修正も反映されるように)。"""
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO swaption_premiums (as_of_date, label, premium, atm_strike) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(as_of_date, label) DO UPDATE SET premium=excluded.premium, atm_strike=excluded.atm_strike",
+                [(_iso(r.as_of_date), r.label, r.premium, r.atm_strike) for r in rows],
+            )
+
+    def save_vols(self, as_of_date: date, vols: Dict[str, float], input_hash: str) -> None:
+        """その日の vol_quotes を丸ごと置き換え、計算した入力のハッシュを記録する。"""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM vol_quotes WHERE as_of_date = ?", (_iso(as_of_date),))
+            conn.executemany(
+                "INSERT INTO vol_quotes (as_of_date, label, vol) VALUES (?, ?, ?)",
+                [(_iso(as_of_date), label, v) for label, v in vols.items()],
+            )
+            conn.execute(
+                "INSERT INTO vol_inputs (as_of_date, input_hash) VALUES (?, ?) "
+                "ON CONFLICT(as_of_date) DO UPDATE SET input_hash=excluded.input_hash",
+                (_iso(as_of_date), input_hash),
+            )
+
+    def delete_vols_except(self, keep: Iterable[date]) -> int:
+        """keep 以外の日付の vol_quotes・vol_inputs を消す(プレミアムから計算していない古い行)。消した日数を返す。"""
+        keep_iso = {_iso(d) for d in keep}
+        with self._connect() as conn:
+            stale = [d for (d,) in conn.execute(
+                "SELECT as_of_date FROM vol_quotes UNION SELECT as_of_date FROM vol_inputs") if d not in keep_iso]
+            for d in stale:
+                conn.execute("DELETE FROM vol_quotes WHERE as_of_date = ?", (d,))
+                conn.execute("DELETE FROM vol_inputs WHERE as_of_date = ?", (d,))
+        return len(stale)
+
     def save_curve(
         self, as_of_date: date, builder: str, input_hash: str,
         used_tenors: Iterable[str], skipped_tenors: Iterable[str], dfs: array,
@@ -446,6 +494,24 @@ class HistoricalStore:
             for d, label, v in conn.execute("SELECT as_of_date, label, vol FROM vol_quotes"):
                 result.setdefault(date.fromisoformat(d), {})[label] = v
         return result
+
+    def swaption_premiums(self) -> Dict[date, Dict[str, float]]:
+        """{日付: {満期x原資産: プレミアム(bp)}}。"""
+        result: Dict[date, Dict[str, float]] = {}
+        with self._connect() as conn:
+            for d, label, p in conn.execute("SELECT as_of_date, label, premium FROM swaption_premiums"):
+                result.setdefault(date.fromisoformat(d), {})[label] = p
+        return result
+
+    def swaption_premiums_last_date(self) -> Optional[date]:
+        with self._connect() as conn:
+            (d,) = conn.execute("SELECT MAX(as_of_date) FROM swaption_premiums").fetchone()
+        return date.fromisoformat(d) if d else None
+
+    def vol_input_hashes(self) -> Dict[date, str]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT as_of_date, input_hash FROM vol_inputs").fetchall()
+        return {date.fromisoformat(d): h for d, h in rows}
 
     def fixings(self) -> Dict[date, float]:
         with self._connect() as conn:

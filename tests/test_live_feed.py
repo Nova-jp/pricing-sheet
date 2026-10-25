@@ -26,9 +26,24 @@ CONFIG = {
     "timing": {"write_interval_sec": 1, "heartbeat_sec": 2, "stale_after_sec": 10, "resubscribe_after_sec": 30},
     "datasets": [
         {"name": "swap", "kind": "ois", "rows": [["O/N", "JP1DONI=TRDT"], ["M1", "JPBOJ1ONI=TRDT"]]},
-        {"name": "vol", "kind": "vol", "expiries": ["1M"], "tenors": ["1Y", "2Y"]},
+        {"name": "vol", "kind": "vol", "curve": "swap", "expiries": ["1M"], "tenors": ["1Y", "2Y"]},
     ],
 }
+R1, R2 = "JPY1M1YTOATM=TRDT", "JPY1M2YTOATM=TRDT"
+
+
+class _FakeVolCalculator:
+    """プレミアムの10分の1をvolとして返す(配線だけを確かめる)。fail に文字列を入れるとその内容で失敗する。"""
+
+    def __init__(self):
+        self.fail = None
+        self.calls = []
+
+    def rows(self, premium_rows, swap_rows, trade_date):
+        self.calls.append((premium_rows, swap_rows, trade_date))
+        if self.fail:
+            raise ValueError(self.fail)
+        return [[label, ric, None if p is None else p / 10] for label, ric, p in premium_rows]
 
 
 def at(seconds):
@@ -45,9 +60,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(swap.rows[0], ("O/N", "JP1DONI=TRDT"))
         self.assertEqual(swap.rows[33], ("40Y", "JP40YONI=TRDT"))
         self.assertEqual(swap.rows[34:36], (("RD", "JPBOJRDONI=TRDT"), ("M1", "JPBOJ1ONI=TRDT")))
-        self.assertEqual(len(vol.rows), 16 * 12)
-        self.assertEqual(vol.rows[1], ("1Mx2Y", "JPYTO1MX2YATM=R"))
-        self.assertEqual(vol.rows[-1], ("20Yx20Y", "JPYTO20YX20YATM=R"))
+        self.assertEqual(len(vol.rows), 14 * 12)  # Traditionに無い6Y・9Y満期は除いた
+        self.assertEqual(vol.rows[1], ("1Mx2Y", "JPY1M2YTOATM=TRDT"))
+        self.assertEqual(vol.rows[-1], ("20Yx20Y", "JPY20Y20YTOATM=TRDT"))
+        self.assertEqual(vol.curve, "swap")
         self.assertEqual(config.timing.stale_after_sec, 10)
 
     def test_defaults_when_timing_is_omitted(self):
@@ -70,6 +86,8 @@ class ConfigTest(unittest.TestCase):
             ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["O/N"]]}]}, "rows"),
             ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["a", "X="], ["b", "X="]]}]}, "RIC"),
             ({"datasets": [{"name": "vol", "kind": "vol", "expiries": ["1M"]}]}, "tenors"),
+            ({"datasets": [dict(CONFIG["datasets"][1], curve="")]}, "curve"),
+            ({"datasets": [CONFIG["datasets"][0], dict(CONFIG["datasets"][1], curve="vol")]}, "curve"),
         ):
             with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
                 parse_config(raw)
@@ -102,23 +120,23 @@ class DatasetFeedTest(unittest.TestCase):
         self.assertEqual(self.swap.rows()[1], ["M1", None, None, None])
 
     def test_bad_status_blanks_the_row_until_refreshed(self):
-        self.vol.on_refresh({"MID_IV_NOR": 28.81}, "JPYTO1MX1YATM=R")
-        self.vol.on_refresh({"MID_IV_NOR": 35.72}, "JPYTO1MX2YATM=R")
+        self.vol.on_refresh({"PRIMACT_1": 28.81}, R1)
+        self.vol.on_refresh({"PRIMACT_1": 35.72}, R2)
         self.vol.take_dirty()
-        self.vol.on_status({"State": {"Stream": "Open", "Data": "Suspect", "Text": "stale"}}, "JPYTO1MX1YATM=R")
+        self.vol.on_status({"State": {"Stream": "Open", "Data": "Suspect", "Text": "stale"}}, R1)
         self.assertTrue(self.vol.take_dirty())
-        self.assertEqual(self.vol.rows(), [["1Mx1Y", "JPYTO1MX1YATM=R", None], ["1Mx2Y", "JPYTO1MX2YATM=R", 35.72]])
-        self.assertIn("Suspect", self.vol.bad()["JPYTO1MX1YATM=R"])
+        self.assertEqual(self.vol.rows(), [["1Mx1Y", R1, None], ["1Mx2Y", R2, 35.72]])  # プレミアムのまま
+        self.assertIn("Suspect", self.vol.bad()[R1])
         self.assertFalse(self.vol.all_bad())
         # 回復(refresh)すれば値に戻る
-        self.vol.on_refresh({"MID_IV_NOR": 29.0}, "JPYTO1MX1YATM=R")
+        self.vol.on_refresh({"PRIMACT_1": 29.0}, R1)
         self.assertEqual(self.vol.rows()[0][2], 29.0)
         self.assertEqual(self.vol.bad(), {})
 
     def test_not_found_ric_is_bad(self):
         self.vol.on_status({"State": {"Data": "Suspect", "Stream": "Closed", "Code": "NotFound",
-                                      "Text": "***The record could not be found"}}, "JPYTO1MX1YATM=R")
-        self.vol.on_status({"Stream": "Closed", "Data": "Suspect"}, "JPYTO1MX2YATM=R")  # Stateで包まれていない形
+                                      "Text": "***The record could not be found"}}, R1)
+        self.vol.on_status({"Stream": "Closed", "Data": "Suspect"}, R2)  # Stateで包まれていない形
         self.assertTrue(self.vol.all_bad())
         self.assertEqual([r[2] for r in self.vol.rows()], [None, None])
 
@@ -128,7 +146,7 @@ class _FakeConnection:
         self.closed = False
         swap, vol = feed.datasets["swap"], feed.datasets["vol"]
         swap.on_refresh({"BID": 1.2, "ASK": 1.3}, "JP1DONI=TRDT", now=at(0))
-        vol.on_refresh({"MID_IV_NOR": 28.81}, "JPYTO1MX1YATM=R", now=at(0))
+        vol.on_refresh({"PRIMACT_1": 28.81}, R1, now=at(0))
 
     def close(self):
         self.closed = True
@@ -145,7 +163,8 @@ class LiveFeedTest(unittest.TestCase):
             self.connections.append(conn)
             return conn
 
-        self.feed = LiveFeed(parse_config(CONFIG), self.store, connect=connect, pid=111)
+        self.vol_calc = _FakeVolCalculator()
+        self.feed = LiveFeed(parse_config(CONFIG), self.store, connect=connect, pid=111, vol_calculator=self.vol_calc)
         logging.disable(logging.CRITICAL)  # 接続の失敗・開き直しのログを出さない
 
     def tearDown(self):
@@ -186,6 +205,35 @@ class LiveFeedTest(unittest.TestCase):
         self.assertEqual(self.store.read("swap").updated_at, at(1))
         self.assertEqual({s.heartbeat_at for s in self.store.feed_statuses()}, {at(4)})
         self.assertEqual({s.last_tick_at for s in self.store.feed_statuses()}, {at(0.2), at(0)})
+
+    def test_vol_is_calculated_from_premiums_and_swap_rows(self):
+        self.feed._reconnect()
+        self.feed.step(at(0))
+        self.assertEqual(self.store.read("vol").rows, [["1Mx1Y", R1, 2.881], ["1Mx2Y", R2, None]])
+        premiums, swap_rows, trade_date = self.vol_calc.calls[-1]
+        self.assertEqual(swap_rows[0][:2], ["O/N", 1.25])
+        self.assertEqual(trade_date, T0.date())
+        # スワップだけが動いても計算し直す。どちらも動かなければ計算しない
+        n = len(self.vol_calc.calls)
+        self.feed.datasets["swap"].on_update({"BID": 1.22}, "JP1DONI=TRDT", now=at(0.5))
+        self.feed.step(at(1))
+        self.assertEqual(len(self.vol_calc.calls), n + 1)
+        self.feed.step(at(2))
+        self.assertEqual(len(self.vol_calc.calls), n + 1)
+
+    def test_vol_failure_blanks_values_and_is_reported(self):
+        self.feed._reconnect()
+        self.vol_calc.fail = "カーブを組めません"
+        self.feed.step(at(0))
+        self.assertEqual([r[2] for r in self.store.read("vol").rows], [None, None])
+        status = {s.dataset: s for s in self.store.feed_statuses()}["vol"]
+        self.assertEqual(status.state, FEED_OK)
+        self.assertIn("カーブを組めません", status.message)
+        self.vol_calc.fail = None
+        self.feed.datasets["vol"].on_update({"PRIMACT_1": 30.0}, R1, now=at(1))
+        self.feed.step(at(2))
+        self.assertEqual(self.store.read("vol").rows[0][2], 3.0)
+        self.assertEqual({s.dataset: s for s in self.store.feed_statuses()}["vol"].message, "")
 
     def test_disconnect_then_resubscribe_after_timeout(self):
         self.feed._reconnect()
@@ -234,7 +282,8 @@ class LiveFeedTest(unittest.TestCase):
     def test_stop_marks_stopped_and_single_instance(self):
         self.feed._reconnect()
         self.feed.step(at(0))
-        other = LiveFeed(parse_config(CONFIG), self.store, connect=_FakeConnection, pid=222)
+        other = LiveFeed(parse_config(CONFIG), self.store, connect=_FakeConnection, pid=222,
+                         vol_calculator=_FakeVolCalculator())
         with self.assertRaisesRegex(SystemExit, "pid 111"):
             other.check_single_instance(at(5))
         other.check_single_instance(at(11))  # ハートビートが古い(落ちた)フィードは無視する
@@ -245,6 +294,30 @@ class LiveFeedTest(unittest.TestCase):
         other.check_single_instance(at(7))
         with self.assertRaisesRegex(ValueError, "停止しています"):
             self.store.read_live("swap", "PricingSheet.xlsm", "Main", now=at(7))
+
+
+class VolCalculatorTest(unittest.TestCase):
+    def test_vol_equals_conversion_on_the_curve_from_the_same_quotes(self):
+        import QuantLib as ql
+
+        from engine.common.curve import bootstrap_curve
+        from engine.common.swaption import PremiumConverter
+        from tests.test_curve_repricing import SPOT_RATES
+
+        trade_date = T0.date()
+        swap_rows = [["O/N", 0.477, None, None]] + [[t, r, None, None] for t, r in SPOT_RATES.items()]
+        swap_rows.append(["M1", 0.6, None, None])  # historical_curve.toml に無いTickerは使わない
+        rows = live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0], ["2Mx6Y", "Y", None]], swap_rows, trade_date)
+        quotes = {"O/N": 0.477, **SPOT_RATES}
+        result = bootstrap_curve(trade_date, quotes)
+        ql.Settings.instance().evaluationDate = ql.Date.from_date(trade_date)
+        expected = PremiumConverter(result.curve, trade_date).convert("1Yx10Y", 450.0).vol
+        self.assertAlmostEqual(rows[0][2], expected, places=10)
+        self.assertEqual(rows[1], ["2Mx6Y", "Y", None])
+
+    def test_no_swap_rates_is_an_error(self):
+        with self.assertRaisesRegex(ValueError, "スワップのレート"):
+            live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0]], [["O/N", 0.477]], T0.date())
 
 
 if __name__ == "__main__":
