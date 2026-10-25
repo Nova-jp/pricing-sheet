@@ -18,6 +18,8 @@
   window: サンプル数(営業日)。base_date: 推定基準日(windowの最終日。空欄=比較日より前の直近)。
   target_date: 比較日(空欄=今日、実績はRealTimeのライブの値。日付=DBのその日の引け値)。
   dataset: "swap"(既定)/"vol"。
+  sigma_days: 差分のσ(PcaResidStd・PcaGridResidStd)をとるサンプル数(推定終了日からさかのぼる営業日。
+    空欄=推定のwindowと同じ。windowより大きくすれば推定より前の日も入る)。
 """
 
 from functools import lru_cache
@@ -35,14 +37,22 @@ def _labels(values) -> Tuple[str, ...]:
     return tuple(str(v).strip() for v in (values or []) if not _is_blank(v))
 
 
-def _window(value) -> int:
+def _count(value, what: str) -> int:
     try:
         n = float(value)
     except (TypeError, ValueError):
-        raise ValueError(f"windowは営業日数(整数)です: {value!r}")
+        raise ValueError(f"{what}は整数です: {value!r}")
     if n != int(n):
-        raise ValueError(f"windowは営業日数(整数)です: {value!r}")
+        raise ValueError(f"{what}は整数です: {value!r}")
     return int(n)
+
+
+def _window(value) -> int:
+    return _count(value, "window(営業日数)")
+
+
+def _sigma_days(value) -> Optional[int]:
+    return None if _is_blank(value) else _count(value, "σの日数(営業日数)")
 
 
 def _db_key() -> Optional[int]:
@@ -57,6 +67,12 @@ def _estimate_cached(dataset, labels, mode, standardize, window, until, db_key) 
     )
 
 
+@lru_cache(maxsize=128)
+def _resid_std_cached(dataset, labels, mode, standardize, window, until, db_key, k, n_days):
+    model = _estimate_cached(dataset, labels, mode, standardize, window, until, db_key)
+    return tuple(pca.residual_std(load_history(dataset), model, k, n_days, UNIT_BP[dataset]))
+
+
 def _model(labels, pca_mode, standardize, window, base_date, target_date, dataset):
     """→ (推定結果, 比較日, 推定基準日が空欄か)"""
     dataset = parse_dataset(dataset)
@@ -69,23 +85,50 @@ def _model(labels, pca_mode, standardize, window, base_date, target_date, datase
     return model, target, base is None
 
 
+def _model_row(model: pca.PcaModel, i: int, label: str) -> list:
+    """PcaModel・PcaGridの銘柄ごとの行 [銘柄, Mean, Scale, Std, PC1, …]。"""
+    return [label, float(model.mean[i]), float(model.scale[i]), float(model.std[i])] + [
+        float(v) for v in model.vectors[i]
+    ]
+
+
 @xw.func
 @xw.arg("labels", ndim=1)
 def PcaModel(labels, pca_mode, standardize, window, base_date=None, target_date=None,
              dataset="swap") -> List[list]:
     """
-    平均・スケールと主成分ベクトル。見出し行 [Label, Mean, Scale, PC1, …, PCm] + 銘柄ごとの行。
+    平均・スケールと主成分ベクトル。見出し行 [Label, Mean, Scale, Std, PC1, …, PCm] + 銘柄ごとの行。
     Mean: windowのサンプルの平均 μ(値の単位。日次変化モードは変化の平均)。
     Scale: 標準化ありは標準偏差 σ、なしは1。
+    Std: windowのサンプルの標準偏差(値の単位。標準化の有無によらない。グラフの平均±1σ用)。
     PCj: 第j主成分の単位ベクトル(全銘柄数m本。Excel側でTAKEしてk本使う)。
     """
     model, _, _ = _model(labels, pca_mode, standardize, window, base_date, target_date, dataset)
     m = len(model.labels)
-    header = ["Label", "Mean", "Scale"] + [f"PC{j + 1}" for j in range(m)]
+    header = ["Label", "Mean", "Scale", "Std"] + [f"PC{j + 1}" for j in range(m)]
     return [header] + [
-        [label, float(model.mean[i]), float(model.scale[i])] + [float(v) for v in model.vectors[i]]
-        for i, label in enumerate(_labels(labels))
+        _model_row(model, i, label) for i, label in enumerate(_labels(labels))
     ]
+
+
+@xw.func
+@xw.arg("labels", ndim=1)
+def PcaResidStd(labels, pca_mode, standardize, window, k, base_date=None, target_date=None,
+                sigma_days=None, dataset="swap") -> List[list]:
+    """
+    差分(実績 − k本での復元)の標準偏差(bp、銘柄の並びの縦1列。差分のグラフの±1σ)。
+    主成分ベクトル・平均・スケールは推定のまま固定し、推定終了日からさかのぼった sigma_days 個の
+    サンプル(空欄=windowと同じ数)の各日を k 本で復元した差分から計算する。引数はPcaModel+k・sigma_days。
+    """
+    dataset = parse_dataset(dataset)
+    target = _to_date(target_date) or _today()
+    base = _to_date(base_date)
+    values = _resid_std_cached(
+        dataset, _labels(labels), pca.parse_mode(pca_mode), pca.parse_standardize(standardize),
+        _window(window), base or pca.default_until(target), _db_key(),
+        _count(k, "主成分数k"), _sigma_days(sigma_days),
+    )
+    return [[float(v)] for v in values]
 
 
 @xw.func
@@ -104,19 +147,37 @@ def PcaEigen(labels, pca_mode, standardize, window, base_date=None, target_date=
 @xw.arg("labels", ndim=1)
 def PcaWindow(labels, pca_mode, standardize, window, base_date=None, target_date=None,
               dataset="swap") -> List[list]:
-    """推定に使ったwindowの情報(項目/値の2列)。引数はPcaModelと同じ。"""
+    """推定に使ったwindowの情報(項目/値の2列。項目名は英語: 開始日・終了日・サンプル数・除外した営業日数・警告)。
+    引数はPcaModelと同じ。"""
     model, target, auto = _model(labels, pca_mode, standardize, window, base_date, target_date, dataset)
     warning = pca.gap_warning(model.end, target, "推定終了日") if auto else ""
     return [
-        ["推定開始日", model.start],
-        ["推定終了日", model.end],
-        ["サンプル数", model.n_samples],
-        ["除外した営業日数", model.excluded_days],
-        ["警告", warning],
+        ["Start", model.start],
+        ["End", model.end],
+        ["Samples", model.n_samples],
+        ["Excluded days", model.excluded_days],
+        ["Warning", warning],
     ]
 
 
-GRID_HEADER = ["Case", "Start", "End", "Samples", "Excluded", "Warning", "Label", "Mean", "Scale"]
+GRID_HEADER = [
+    "Case", "Start", "End", "Samples", "Excluded", "Warning", "Label", "Mean", "Scale", "Std",
+]
+
+
+def _grid_cases(names, settings, dataset, today):
+    """PcaGrid/PcaGridResidStdのケース: windowが空欄でない列ごとに (ケース番号, 推定のキー or エラー, 推定基準日)。"""
+    for case, (base_date, window, pca_mode, standardize) in enumerate(zip(*settings), start=1):
+        if _is_blank(window):
+            continue
+        base = None
+        try:
+            base = _to_date(base_date)
+            key = (dataset, names, pca.parse_mode(pca_mode), pca.parse_standardize(standardize),
+                   _window(window), base or pca.default_until(today), _db_key())
+        except ValueError as exc:
+            key = exc
+        yield case, key, base
 
 
 @xw.func
@@ -130,7 +191,7 @@ def PcaGrid(labels, settings, dataset="swap") -> List[list]:
       windowが空欄の列は使わない(行を出さない)。比較日は今日(実績はPcaActualのライブの値)。
     戻り値: 見出し行 GRID_HEADER + [PC1, …, PCm] と、ケースごと・銘柄ごとの行
       [ケース番号(列の順、1始まり), 推定開始日, 推定終了日, サンプル数, 除外した営業日数, 警告,
-       銘柄, 平均, スケール, PC1, …]。windowの情報はそのケースの全行に同じ値を入れる
+       銘柄, 平均, スケール, 標準偏差, PC1, …](銘柄以降はPcaModelと同じ列)。windowの情報はそのケースの全行に同じ値を入れる
       (Excel側はケース番号でFILTERして使う)。推定できないケースは1行だけで、警告にエラーの理由を入れ、
       他は空欄にする(1ケースのエラーで全ケースを止めない)。
     """
@@ -139,24 +200,60 @@ def PcaGrid(labels, settings, dataset="swap") -> List[list]:
     m = len(names)
     today = _today()
     rows = [GRID_HEADER + [f"PC{j + 1}" for j in range(m)]]
-    for case, (base_date, window, pca_mode, standardize) in enumerate(zip(*settings), start=1):
-        if _is_blank(window):
-            continue
-        base = None
+    for case, key, base in _grid_cases(names, settings, dataset, today):
         try:
-            base = _to_date(base_date)
-            model = _estimate_cached(
-                dataset, names, pca.parse_mode(pca_mode), pca.parse_standardize(standardize),
-                _window(window), base or pca.default_until(today), _db_key(),
-            )
+            if isinstance(key, ValueError):
+                raise key
+            model = _estimate_cached(*key)
         except ValueError as exc:
-            rows.append([case, "", "", "", "", str(exc)] + [""] * (m + 3))
+            rows.append([case, "", "", "", "", str(exc)] + [""] * (m + 4))
             continue
         warning = pca.gap_warning(model.end, today, "推定終了日") if base is None else ""
         info = [case, model.start, model.end, model.n_samples, model.excluded_days, warning]
         rows += [
-            info + [label, float(model.mean[i]), float(model.scale[i])] + [float(v) for v in model.vectors[i]]
-            for i, label in enumerate(names)
+            info + _model_row(model, i, label) for i, label in enumerate(names)
+        ]
+    return rows
+
+
+@xw.func
+@xw.arg("labels", ndim=1)
+@xw.arg("settings", ndim=2)
+@xw.arg("ks", ndim=1)
+def PcaGridResidStd(labels, settings, ks, sigma_days=None, dataset="swap") -> List[list]:
+    """
+    PCAGridの差分のグラフの±1σ: ケースごと・主成分数kごとの差分の標準偏差(bp。PcaResidStdと同じ値)。
+
+    settings: PcaGridと同じ。ks: 段ごとのk(空欄の段は空欄)。sigma_days: 全ケース共通(空欄=各ケースのwindow)。
+    戻り値: 見出し行 [Case, Warning, ResidStd1, …](ksの順)と、ケースごと・銘柄ごとの行(PcaGridと同じ並び)。
+      推定できないケースは1行だけで警告に理由。σが計算できない段(日数不足等)は空欄で、警告に理由を足す。
+    推定はPcaGridとキャッシュを共有する(PcaGridの出力に列を足さないのは、テナーを多く選ぶと出力が
+    右隣の計算領域にぶつかるため)。
+    """
+    dataset = parse_dataset(dataset)
+    names = _labels(labels)
+    ks = list(ks or [])
+    n_days = _sigma_days(sigma_days)
+    rows = [["Case", "Warning"] + [f"ResidStd{n + 1}" for n in range(len(ks))]]
+    for case, key, _ in _grid_cases(names, settings, dataset, _today()):
+        try:
+            if isinstance(key, ValueError):
+                raise key
+            _estimate_cached(*key)
+        except ValueError as exc:
+            rows.append([case, str(exc)] + [""] * len(ks))
+            continue
+        sigmas, warnings = [], []
+        for k in ks:
+            try:
+                sigmas.append(None if _is_blank(k) else _resid_std_cached(*key, _count(k, "主成分数k"), n_days))
+            except ValueError as exc:
+                sigmas.append(None)
+                warnings.append(f"σ(k={k}): {exc}")
+        warning = " / ".join(warnings)
+        rows += [
+            [case, warning] + ["" if sg is None else float(sg[i]) for sg in sigmas]
+            for i in range(len(names))
         ]
     return rows
 
@@ -203,11 +300,11 @@ def PcaActual(labels, pca_mode, target_date=None, real_time_range=None, dataset=
 @xw.arg("real_time_range", ndim=2)
 def PcaActualInfo(labels, pca_mode, target_date=None, real_time_range=None,
                   dataset="swap") -> List[list]:
-    """比較日の実績の情報(項目/値の2列)。引数はPcaActualと同じ。"""
+    """比較日の実績の情報(項目/値の2列。項目名は英語: 比較日・実績の元・変化の基準日・警告)。引数はPcaActualと同じ。"""
     obs, as_of, source = _observe(labels, pca_mode, target_date, real_time_range, dataset)
     return [
-        ["比較日", as_of],
-        ["実績", source],
-        ["変化の基準日", obs.base_date or ""],
-        ["警告", obs.warning],
+        ["Target date", as_of],
+        ["Source", source],
+        ["Change base", obs.base_date or ""],
+        ["Warning", obs.warning],
     ]

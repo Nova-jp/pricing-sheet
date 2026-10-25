@@ -14,6 +14,9 @@
        得点 s = Vᵀ(x − μ)/σ、復元 = μ + σ·V_k·s_k、差分 = x − 復元。
      この計算は Excel の数式で行う(ここでは μ・σ・V と x を返すだけ)。
      比較日は推定基準日と独立に選べる(windowの中でもよい)。
+  3. 差分のσ(residual_std): 推定した μ・σ・V を固定したまま、推定終了日からさかのぼったN日の
+     サンプル(推定と同じ選び方。Nの既定はwindow)の各日を k 本で復元して差分を出し、
+     銘柄ごとの標準偏差をとる(差分のグラフの±1σ。定義どおりに日ごとに計算する)。
 
 ■ 推定基準日の既定(空欄)
   比較日より前の、選択銘柄がそろった直近の営業日(out-of-sample。当日のリアルタイムの気配は
@@ -142,9 +145,44 @@ class PcaModel(NamedTuple):
     n_samples: int
     excluded_days: int  # start〜endの営業日のうち、サンプルに使わなかった日数
     mean: np.ndarray  # μ(値の単位。CHANGEは日次変化の平均)
-    scale: np.ndarray  # σ(標準化なしは1)
+    scale: np.ndarray  # 標準化に使うσ(標準化なしは1)
+    std: np.ndarray  # windowのサンプルの標準偏差(値の単位。標準化の有無によらない。グラフの±1σ用)
     eigenvalues: np.ndarray  # 標準化なし: bp²、あり: 単位なし
     vectors: np.ndarray
+
+
+def _samples(
+    history: History, keys: Tuple[str, ...], mode: str, n: int, until: date, what: str,
+) -> Tuple[np.ndarray, set, date]:
+    """until 以前で選択銘柄がそろった日から n 個のサンプル(古い順)。
+    → (サンプル行列, 使った日の集合, 最後の日)。足りなければエラー(what は「window」等)。"""
+    if n < 2:
+        raise ValueError(f"{what}は2以上です: {n}")
+    valid = _valid_dates_desc(history, keys, until)
+    if not valid:
+        raise ValueError(f"{until}以前に、選択銘柄がそろった日がDBにありません")
+    rows: List[np.ndarray] = []
+    used_days = set()
+    if mode == LEVEL:
+        for d, x in valid[:n]:
+            rows.append(x)
+            used_days.add(d)
+    else:
+        by_date = dict(valid)
+        for d, x in valid:
+            if len(rows) == n:
+                break
+            prev = _previous_business_day(d)
+            if prev in by_date:
+                rows.append(x - by_date[prev])
+                used_days.update((d, prev))
+    if len(rows) < n:
+        unit = "日" if mode == LEVEL else "個の日次変化"
+        raise ValueError(
+            f"{what}の{n}{unit}に対し、DBで使えるのは{len(rows)}{unit}だけです"
+            f"({until}以前、選択銘柄がそろった日)"
+        )
+    return np.array(rows[::-1]), used_days, valid[0][0]
 
 
 def estimate(
@@ -153,38 +191,11 @@ def estimate(
 ) -> PcaModel:
     """until(推定基準日)以前の window 個のサンプルで主成分ベクトルを作る。"""
     keys = _labels(labels)
-    if window < 2:
-        raise ValueError(f"windowは2以上です: {window}")
-    valid = _valid_dates_desc(history, keys, until)
-    if not valid:
-        raise ValueError(f"{until}以前に、選択銘柄がそろった日がDBにありません")
-    end = valid[0][0]
-
-    rows: List[np.ndarray] = []
-    used_days = set()
-    if mode == LEVEL:
-        for d, x in valid[:window]:
-            rows.append(x)
-            used_days.add(d)
-    else:
-        by_date = dict(valid)
-        for d, x in valid:
-            if len(rows) == window:
-                break
-            prev = _previous_business_day(d)
-            if prev in by_date:
-                rows.append(x - by_date[prev])
-                used_days.update((d, prev))
-    if len(rows) < window:
-        unit = "日" if mode == LEVEL else "個の日次変化"
-        raise ValueError(
-            f"windowの{window}{unit}に対し、DBで使えるのは{len(rows)}{unit}だけです"
-            f"({until}以前、選択銘柄がそろった日)"
-        )
-    samples = np.array(rows[::-1])
+    samples, used_days, end = _samples(history, keys, mode, window, until, "window")
     mean = samples.mean(axis=0)
+    std = samples.std(axis=0, ddof=1)
     if standardize:
-        scale = samples.std(axis=0, ddof=1)
+        scale = std
         flat = [keys[i] for i in np.flatnonzero(scale * unit_bp < SIGMA_FLOOR_BP)]
         if flat:
             raise ValueError(
@@ -198,9 +209,28 @@ def estimate(
     start = min(used_days)
     return PcaModel(
         labels=keys, mode=mode, standardize=standardize, start=start, end=end,
-        n_samples=len(rows), excluded_days=_business_days(start, end) - len(used_days),
-        mean=mean, scale=scale, eigenvalues=result.eigenvalues, vectors=result.vectors,
+        n_samples=len(samples), excluded_days=_business_days(start, end) - len(used_days),
+        mean=mean, scale=scale, std=std, eigenvalues=result.eigenvalues, vectors=result.vectors,
     )
+
+
+def residual_std(
+    history: History, model: PcaModel, k: int, n_days: Optional[int], unit_bp: float,
+) -> np.ndarray:
+    """
+    差分(実績 − k本での復元)の標準偏差(bp、銘柄ごと)。主成分ベクトル・μ・σは model のまま固定し、
+    推定終了日からさかのぼった n_days 個のサンプル(推定と同じ選び方。None=推定のwindowと同じ数)の
+    各日について 復元 = μ + σ·V_k·V_kᵀ(x − μ)/σ、差分 = x − 復元 を出して標準偏差(ddof=1)をとる。
+    """
+    m = len(model.labels)
+    if not 1 <= k <= m:
+        raise ValueError(f"主成分数kは1〜{m}です: {k}")
+    n = model.n_samples if n_days is None else n_days
+    samples, _, _ = _samples(history, model.labels, model.mode, n, model.end, "σの日数")
+    v = model.vectors[:, :k]
+    z = (samples - model.mean) / model.scale
+    recon = model.mean + model.scale * (z @ v @ v.T)
+    return (samples - recon).std(axis=0, ddof=1) * unit_bp
 
 
 def default_until(target_date: date) -> date:

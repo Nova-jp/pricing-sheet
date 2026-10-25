@@ -33,6 +33,7 @@ from engine.pca.pca import (  # noqa: E402
     parse_mode,
     parse_standardize,
     principal_components,
+    residual_std,
 )
 from engine.common.conventions import CALENDAR  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
@@ -80,6 +81,10 @@ class EstimateTest(unittest.TestCase):
         self.assertEqual(m.n_samples, 10)
         np.testing.assert_allclose(m.mean, np.mean([_x(history, d) for d in DAYS[-14:-4]], axis=0))
         np.testing.assert_array_equal(m.scale, np.ones(len(LABELS)))
+        # Std(グラフの±1σ用)は標準化なしでもwindowの標準偏差
+        np.testing.assert_allclose(
+            m.std, np.std([_x(history, d) for d in DAYS[-14:-4]], axis=0, ddof=1),
+        )
 
     def test_default_base_date_excludes_target(self):
         # 推定基準日が空欄なら比較日より前まで(当日は推定に使わない)
@@ -113,6 +118,7 @@ class EstimateTest(unittest.TestCase):
         m = _est(history, standardize=True, window=30)
         samples = np.array([_x(history, d) for d in DAYS[-31:-1]])
         np.testing.assert_allclose(m.scale, samples.std(axis=0, ddof=1))
+        np.testing.assert_array_equal(m.std, m.scale)
         self.assertAlmostEqual(m.eigenvalues.sum(), len(LABELS))
         # 標準化なしは固有値の和=分散(bp²)の和
         m = _est(history, window=30)
@@ -164,6 +170,53 @@ class EstimateTest(unittest.TestCase):
         self.assertFalse(parse_standardize("No"))
         self.assertEqual(parse_dataset("vol"), VOL)
         self.assertEqual(parse_dataset(None), SWAP)
+
+
+def _resid_by_day(history, m, k, days, mode=LEVEL):
+    """定義どおり: 各日(LEVELは水準、CHANGEは前の日との差)を k 本で復元した差分(bp)の標準偏差。"""
+    if mode == LEVEL:
+        x = np.array([_x(history, d) for d in days])
+    else:
+        x = np.array([_x(history, b) - _x(history, a) for a, b in zip(days, days[1:])])
+    v = m.vectors[:, :k]
+    resid = [(xi - (m.mean + m.scale * (v @ (v.T @ ((xi - m.mean) / m.scale))))) * 100 for xi in x]
+    return np.std(resid, axis=0, ddof=1)
+
+
+class ResidualStdTest(unittest.TestCase):
+    """差分のσ: ベクトル・μ・σを固定して、各日の差分の標準偏差をとる。"""
+
+    def test_same_days_as_window(self):
+        history = _history()
+        for mode in (LEVEL, CHANGE):
+            for standardize in (False, True):
+                m = _est(history, mode=mode, standardize=standardize, window=20)
+                days = DAYS[-21:-1] if mode == LEVEL else DAYS[-22:-1]
+                for k in (1, 3):
+                    np.testing.assert_allclose(
+                        residual_std(history, m, k, None, 100.0), _resid_by_day(history, m, k, days, mode),
+                    )
+                # 同じwindowなら、k本目より後の固有値から出るσと一致する(一次変換なので)
+                k = 2
+                closed = m.scale * np.sqrt((m.vectors[:, k:] ** 2) @ m.eigenvalues[k:])
+                closed *= 100.0 if standardize else 1.0
+                np.testing.assert_allclose(residual_std(history, m, k, None, 100.0), closed)
+
+    def test_longer_than_window_uses_earlier_days(self):
+        history = _history()
+        m = _est(history, window=10)
+        np.testing.assert_allclose(
+            residual_std(history, m, 2, 25, 100.0), _resid_by_day(history, m, 2, DAYS[-26:-1]),
+        )
+
+    def test_all_components_and_errors(self):
+        history = _history()
+        m = _est(history, window=10)
+        np.testing.assert_allclose(residual_std(history, m, len(LABELS), None, 100.0), 0, atol=1e-10)
+        with self.assertRaisesRegex(ValueError, "主成分数k"):
+            residual_std(history, m, len(LABELS) + 1, None, 100.0)
+        with self.assertRaisesRegex(ValueError, "σの日数"):
+            residual_std(history, m, 1, 100, 100.0)
 
 
 class ObserveTest(unittest.TestCase):
@@ -231,19 +284,50 @@ class PcaGridTest(unittest.TestCase):
         self.assertEqual(case1[0][1:6], [model.start, model.end, 10, model.excluded_days, ""])
         self.assertEqual([r[6] for r in case1], LABELS)
         np.testing.assert_allclose([r[7] for r in case1], model.mean)
-        np.testing.assert_allclose([r[9:] for r in case1], model.vectors)
+        np.testing.assert_allclose([r[9] for r in case1], model.std)
+        np.testing.assert_allclose([r[10:] for r in case1], model.vectors)
 
         # ケース2: 推定基準日あり・日次変化・標準化あり
         model = _est(history, CHANGE, 8, DAYS[-6], standardize=True)
         case2 = rows[6:11]
         self.assertEqual(case2[0][2], DAYS[-6])
         np.testing.assert_allclose([r[8] for r in case2], model.scale)
-        np.testing.assert_allclose([r[9:] for r in case2], model.vectors)
+        np.testing.assert_allclose([r[10:] for r in case2], model.vectors)
 
         # ケース4: 推定できない(サンプル不足)→ 1行だけで警告に理由、他のケースは計算される
         self.assertEqual(len(rows[-1]), len(rows[0]))
         self.assertIn("window", rows[-1][5])
-        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 3))
+        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 4))
+
+    def test_pca_model_has_same_columns(self):
+        # PcaModelの列は PcaGridの「銘柄」以降と同じ [Label, Mean, Scale, Std, PC1, …]
+        history = _history()
+        udf._estimate_cached.cache_clear()
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1):
+            table = udf.PcaModel(LABELS, "Level", "No", 10, base_date=DAYS[-6], target_date=DAYS[-1])
+        self.assertEqual(table[0], udf.GRID_HEADER[6:] + [f"PC{j + 1}" for j in range(len(LABELS))])
+        model = _est(history, LEVEL, 10, DAYS[-6])
+        np.testing.assert_allclose([r[3] for r in table[1:]], model.std)
+        np.testing.assert_allclose([r[4:] for r in table[1:]], model.vectors)
+
+    def test_residual_std_by_case(self):
+        settings = [["", ""], [10, 8], ["Level", "Change"], ["No", "Yes"]]
+        history = _history()
+        udf._estimate_cached.cache_clear()
+        udf._resid_std_cached.cache_clear()
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1),                 mock.patch.object(udf, "_today", return_value=DAYS[-1]):
+            rows = udf.PcaGridResidStd(LABELS, settings, [1, "", 3, 99], 20)
+            grid = udf.PcaGrid(LABELS, settings)
+            single = udf.PcaResidStd(LABELS, "Change", "Yes", 8, 3, target_date=DAYS[-1], sigma_days=20)
+        self.assertEqual(rows[0], ["Case", "Warning", "ResidStd1", "ResidStd2", "ResidStd3", "ResidStd4"])
+        self.assertEqual([r[0] for r in rows[1:]], [r[0] for r in grid[1:]])  # PcaGridと同じ並び
+        case1, case2 = rows[1:6], rows[6:11]
+        model = _est(history, LEVEL, 10, default_until(DAYS[-1]))
+        np.testing.assert_allclose([r[2] for r in case1], residual_std(history, model, 1, 20, 100.0))
+        self.assertEqual({r[3] for r in case1}, {""})  # kが空欄の段
+        self.assertEqual({r[5] for r in case1}, {""})  # k=99は計算できない → 警告
+        self.assertIn("σ(k=99)", case1[0][1])
+        np.testing.assert_allclose([r[4] for r in case2], [r[0] for r in single])
 
     def test_gap_warning_when_base_is_blank(self):
         today = _business_days(DAYS[-1], 4)[-1]  # DBの最終日から3営業日後
