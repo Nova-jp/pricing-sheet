@@ -13,28 +13,23 @@ QuantLibが要る部分(Fwdスワップレートの日次変化)だけをここ�
   混ざるため、同じ起算日・満期日の契約どうしで比べる。前の日付はDBでカーブのある直前の日
   (休日・欠損をまたぐ日は2日以上の変化になる)。
 
-■ 速くするための工夫(結果は swap_pricer.par_rate と同じ。tests/test_vol.py)
-  カーブを差し替え可能なハンドルに載せ、同じ起算日・満期日のスワップは1回だけ組んで、
-  日付ごとにハンドルを当日のカーブにつなぎ替えて fairRate を読む。スワップの組み方は
-  swap_pricer._build_swap をそのまま使う。カーブは日付ごとに1回だけ読み、全銘柄で共有する。
+■ 速くするための工夫
+  同じ起算日・満期日のスワップを使い回す engine.common.forward.ForwardPricer で評価する
+  (結果は swap_pricer.par_rate と同じ。tests/test_vol.py)。カーブは日付ごとに1回だけ読み、全銘柄で共有する。
 """
 
 import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Dict, List, Mapping, Optional, Protocol, Sequence, Set, Tuple
-
-import QuantLib as ql
+from typing import List, Mapping, Optional, Protocol, Sequence, Tuple
 
 from engine.common.conventions import forward_start_date
 from engine.common.curve import spot_date_for
-from engine.common.swap_pricer import PAY, _build_swap
+from engine.common.forward import ForwardPricer, last_date
 from engine.common.terms import STANDARD, SwapTerms
 
 _LABEL = re.compile(r"^(\d+[MY])X(\d+[MY])$")
 _HORIZON_MARGIN = timedelta(days=40)  # カーブを読む範囲の余裕(満期日の休日調整分)
-
-Key = Tuple[date, str]  # (休日調整前の起算日, 原資産のテナー)
 
 
 class CurveSource(Protocol):
@@ -62,39 +57,6 @@ class VolSeries:
     dfwd: List[List[float]] = field(default_factory=list)  # 日次変化(bp)
 
 
-class _ForwardPricer:
-    """同じ起算日・満期日のスワップを使い回して、日付ごとのFwdスワップレートを読む。"""
-
-    def __init__(self) -> None:
-        self.handle = ql.RelinkableYieldTermStructureHandle()
-        self.index = ql.Tonar(self.handle)
-        self.engine = ql.DiscountingSwapEngine(self.handle)
-        self.swaps: Dict[Key, ql.OvernightIndexedSwap] = {}
-
-    def set_curve(self, as_of_date: date, curve: ql.YieldTermStructureHandle) -> None:
-        ql.Settings.instance().evaluationDate = ql.Date.from_date(as_of_date)
-        self.handle.linkTo(curve.currentLink())
-
-    def rate(self, key: Key) -> float:
-        """Fwdスワップレート(%)。"""
-        swap = self.swaps.get(key)
-        if swap is None:
-            start, tail = key
-            swap = _build_swap(self.index, SwapTerms(start=start, convention=STANDARD, tenor=tail), 1.0, PAY, 0.0)
-            swap.setPricingEngine(self.engine)
-            self.swaps[key] = swap
-        return swap.fairRate() * 100.0
-
-    def keep_only(self, keys: Set[Key]) -> None:
-        for key in [k for k in self.swaps if k not in keys]:
-            del self.swaps[key]
-
-
-def _end(key: Key) -> date:
-    start, tail = key
-    return (ql.Date.from_date(start) + ql.PeriodParser.parse(tail)).to_date()
-
-
 def compute(
     curves: CurveSource,
     vol_quotes: Mapping[date, Mapping[str, float]],
@@ -109,20 +71,20 @@ def compute(
         return series
 
     # 日付ごとの、その日の契約(起算日=その日のスポット日+満期、原資産)
-    contracts: List[List[Key]] = []
+    contracts: List[List[SwapTerms]] = []
     for d in dates:
         spot = spot_date_for(d)
-        contracts.append([(forward_start_date(spot, e), t) for e, t in pairs])
+        contracts.append([SwapTerms(forward_start_date(spot, e), STANDARD, tenor=t) for e, t in pairs])
     ivs = [{k.upper(): v for k, v in vol_quotes.get(d, {}).items()} for d in dates]
 
-    pricer = _ForwardPricer()
+    pricer = ForwardPricer()
     prev: List[float] = []  # 前の日付のカーブで評価した、当日の契約のFwd
     for i, d in enumerate(dates):
         keys = contracts[i]
         nxt = contracts[i + 1] if i + 1 < len(dates) else []
         needed = set(keys) | set(nxt)
         pricer.keep_only(needed)
-        stored = curves.load(d, until=max(_end(k) for k in needed) + _HORIZON_MARGIN)
+        stored = curves.load(d, until=max(last_date(k) for k in needed) + _HORIZON_MARGIN)
         pricer.set_curve(d, stored.curve)
         today = [pricer.rate(k) for k in keys]
         if i > 0:
