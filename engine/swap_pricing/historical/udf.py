@@ -6,10 +6,17 @@ HistChartシート用のUDF(任意コンベンションのヒストリカル・�
 (data/historical.db)を読むだけ。Excel境界の型変換・評価日解決・`_market`は
 `engine.common.udf_common`を`udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。
 理由はudf_common.pyのdocstring)。
+
+■ 昨日までの結果はプロセス内で覚えておく(HistoricalRates・HedgeHistoricalRates)
+  HistChartはライブのレートを引数に取るので、取得モードがLiveだとレートが変わるたびに呼ばれる。
+  そのたびに変わるのは今日の1行(ライブのカーブ)だけなので、昨日まで(DBのカーブ)の結果は
+  引数・今日の日付・DBの更新時刻をキーに覚えておき、今日の行だけを計算する。日付が変わる・
+  朝バッチでDBが変わるとキーが変わり、計算し直す。覚えるのは数値だけ(カーブは持たない)。
 """
 
 import datetime
-from typing import List, Optional
+from collections import OrderedDict
+from typing import Callable, Dict, List, Optional, Tuple
 
 import QuantLib as ql
 import xlwings as xw
@@ -96,39 +103,80 @@ def _specs_from_range(conventions) -> List[Optional[SwapSpec]]:
     return specs
 
 
-class _WithRealTimeLatest:
-    """ヒストリカルDBの日付に、今日(RealTimeシートのライブのレート)を最新日として加えたカーブの
-    供給元。今日のカーブはpricingシートと同じ market のカーブ一式を使う(DBに今日の引け値が
-    あっても、今日はライブのレートを優先する)。日付だけを求める呼び出しではカーブを作らない。"""
+class _DbBefore:
+    """ヒストリカルDBのカーブのうち、before より前の日付だけの供給元(before=None なら全部)。
+    今日をライブのレートで加えるときに、DBにある今日の引け値を除くために使う。"""
 
-    def __init__(self, store: HistoricalStore, real_time_range, today: datetime.date):
+    def __init__(self, store: HistoricalStore, before: Optional[datetime.date]):
         self._store = store
+        self._before = before
+
+    def dates(self) -> List[datetime.date]:
+        return [d for d in self._store.dates() if self._before is None or d < self._before]
+
+    def load(self, as_of_date: datetime.date, until=None):
+        return self._store.load(as_of_date, until=until)
+
+    def used_tenors(self):
+        return self._store.used_tenors()
+
+
+class _RealTimeToday:
+    """今日(RealTimeシートのライブのレート)だけの供給元。カーブはpricingシートと同じ market の
+    カーブ一式を使う(DBに今日の引け値があっても、今日はライブのレートを優先する)。日付だけを
+    求める呼び出しではカーブを作らない。"""
+
+    def __init__(self, real_time_range, today: datetime.date):
         self._real_time_range = real_time_range
         self._today = today
 
     def dates(self) -> List[datetime.date]:
-        return [d for d in self._store.dates() if d < self._today] + [self._today]
+        return [self._today]
 
     def load(self, as_of_date: datetime.date, until=None):
-        if as_of_date == self._today:
-            return udf_common._market(self._real_time_range, self._today).base
-        return self._store.load(as_of_date, until=until)
+        return udf_common._market(self._real_time_range, self._today).base
 
     def used_tenors(self):
-        used = self._store.used_tenors()
         live = udf_common._market(self._real_time_range, self._today).base_curve.used_tenors
-        used[self._today] = set(live)
-        return used
+        return {self._today: set(live)}
 
 
-def _curve_source(store: HistoricalStore, real_time_range, base: datetime.date, today: datetime.date):
-    """基準日が今日で今日が営業日なら、今日をRealTimeのライブのレートで加えた供給元。"""
-    if (
+def _live_today(real_time_range, base: datetime.date, today: datetime.date) -> bool:
+    """基準日が今日で今日が営業日なら、今日をRealTimeのライブのレートで最新日として加える。"""
+    return (
         real_time_range is not None and base == today
         and CALENDAR.isBusinessDay(ql.Date.from_date(today))
-    ):
-        return _WithRealTimeLatest(store, real_time_range, today)
-    return store
+    )
+
+
+# 昨日まで(DBのカーブ)の結果。キーは引数・今日の日付・DB(パス・更新時刻・サイズ)、値は数値の
+# タプルだけ。HistChartの呼び出し(3系列+日付軸+ヘッジ)より少し多めの件数を残す。
+_PAST_CACHE_SIZE = 8
+_past_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
+
+
+def _db_key(store: HistoricalStore) -> tuple:
+    stat = store.db_path.stat()
+    return (str(store.db_path), stat.st_mtime_ns, stat.st_size)
+
+
+def _past(key: tuple, compute: Callable[[], tuple]) -> tuple:
+    """昨日までの結果を、覚えていればそれを、なければ計算して覚えて返す。"""
+    if key in _past_cache:
+        _past_cache.move_to_end(key)
+        return _past_cache[key]
+    value = compute()
+    _past_cache[key] = value
+    while len(_past_cache) > _PAST_CACHE_SIZE:
+        _past_cache.popitem(last=False)
+    return value
+
+
+def _par_rates(series) -> tuple:
+    """historical_multi_rate_series の結果 → ((日付, (脚ごとのパーレート or None, ...)), ...)。"""
+    return tuple(
+        (d, tuple(leg.par_rate if leg is not None else None for leg in legs)) for d, legs in series
+    )
 
 
 @xw.func
@@ -152,27 +200,39 @@ def HistoricalRates(
         今日を最新日として加え、DBの引け値ではなくRealTimeのライブのレートで計算する
         (pricingシートのFairRateと同じカーブ)。日付の並びを揃えるため、日付軸だけを求める
         呼び出しにも同じ範囲を渡すこと。並び順(昇順)の変更はExcel側で行う。
+    昨日までの結果は覚えておき、ライブのレートが変わっても今日の行だけを計算する(モジュールのdocstring)。
     """
     specs = _specs_from_range(conventions)
     active = [s for s in specs if s is not None]
-    if active:  # 日付軸だけの呼び出しは評価日を切り替えないので、pricingのカーブはそのまま
-        market.release_curves()
     today = udf_common._today()
     base = udf_common._to_date(base_date) or today
+    first, last = udf_common._to_date(from_date), udf_common._to_date(to_date)
+    live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
-        curves = _curve_source(store, real_time_range, base, today)
-        series = historical_multi_rate_series(
-            active, mode, base_date=base, from_date=udf_common._to_date(from_date),
-            to_date=udf_common._to_date(to_date), fixings=db_fixings(store) if active else None,
-            curves=curves,
-        )
+        fixings = db_fixings(store) if active else None
+
+        def compute_past() -> tuple:
+            if active:  # 日付軸だけの呼び出しは評価日を切り替えないので、pricingのカーブはそのまま
+                market.release_curves()
+            return _par_rates(historical_multi_rate_series(
+                active, mode, base_date=base, from_date=first, to_date=last, fixings=fixings,
+                curves=_DbBefore(store, today if live else None),
+            ))
+
+        key = ("rates", tuple(active), str(mode), base, first, last, today if live else None, _db_key(store))
+        series = _past(key, compute_past)
+        if live:
+            series += _par_rates(historical_multi_rate_series(
+                active, mode, base_date=base, from_date=first, to_date=last, fixings=fixings,
+                curves=_RealTimeToday(real_time_range, today),
+            ))
     rows = [["Date", *_LEG_LABELS]]
     for as_of_date, legs in series:
         results = iter(legs)
         row = [as_of_date]
         for spec in specs + [None] * (_MAX_LEGS - len(specs)):
-            leg = next(results) if spec is not None else None
-            row.append(leg.par_rate if leg is not None else "")
+            rate = next(results) if spec is not None else None
+            row.append(rate if rate is not None else "")
         rows.append(row)
     return rows
 
@@ -204,8 +264,6 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
         RealTimeのライブのレート)。
     """
     labels = [v for v in _column(tickers) if not udf_common._is_blank(v)]
-    if labels:
-        market.release_curves()  # 評価日を日付ごとに切り替える前に、反応するカーブを手放す
     days = []
     for v in _column(dates):
         try:
@@ -214,10 +272,28 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
             days.append(None)
     today = udf_common._today()
     base = udf_common._to_date(base_date) or today
+    live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
-        rows = hedge_rate_rows(
-            labels, mode, days, base_date=base, fixings=db_fixings(store),
-            curves=_curve_source(store, real_time_range, base, today),
-        )
+        fixings = db_fixings(store)
+        past_days = tuple(sorted({d for d in days if d is not None and not (live and d == today)}))
+
+        def compute_past() -> tuple:
+            if labels:
+                market.release_curves()  # 評価日を日付ごとに切り替える前に、反応するカーブを手放す
+            rows = hedge_rate_rows(
+                labels, mode, past_days, base_date=base, fixings=fixings,
+                curves=_DbBefore(store, today if live else None),
+            )
+            return tuple(zip(past_days, (tuple(r) for r in rows)))
+
+        key = ("hedge", tuple(labels), str(mode), base, past_days, today if live else None, _db_key(store))
+        by_date: Dict[datetime.date, tuple] = dict(_past(key, compute_past))
+        if live and today in days:
+            (by_date[today],) = hedge_rate_rows(
+                labels, mode, [today], base_date=base, fixings=fixings,
+                curves=_RealTimeToday(real_time_range, today),
+            )
+    empty = [None] * len(labels)
+    rows = [list(by_date.get(d, empty)) for d in days]
     width = max(len(labels), 1)
     return [[v if v is not None else "" for v in row] or [""] * width for row in rows]

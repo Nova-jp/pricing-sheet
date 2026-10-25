@@ -10,6 +10,7 @@ import sys
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from types import MappingProxyType
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -113,6 +114,19 @@ class PastStartTest(unittest.TestCase):
                 self.assertEqual(registered.keys(), expected.keys())
                 for d, v in expected.items():
                     self.assertAlmostEqual(registered[d], v, places=12)
+
+    def test_same_market_fixings_are_registered_again_after_other_call(self) -> None:
+        """同じ Market.fixings(読み取り専用)の2回目は照合を省くが、間に別の内容を登録したあとは
+        登録し直すこと(省けるのは直前に揃えたのと同じオブジェクトのときだけ)。"""
+        index = self.boot.index
+        proxy = MappingProxyType(dict(FIXINGS))
+        for n, fixings in enumerate([proxy, proxy, {}, proxy, None, proxy]):
+            with self.subTest(step=n):
+                _set_fixing_history(index, fixings)
+                expected = sum(
+                    index.isValidFixingDate(ql.Date.from_date(d)) for d in (fixings or {})
+                )
+                self.assertEqual(len(index.timeSeries().dates()), expected)
 
     def test_fixing_registry_recovers_after_failed_registration(self) -> None:
         """登録の途中で例外が起きても、次の呼び出しで履歴が渡した内容に揃い直すこと

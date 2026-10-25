@@ -11,6 +11,7 @@
 """
 
 import datetime
+import os
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import morning_batch, market, udf_common  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
+from engine.swap_pricing.historical import udf as hist_udf  # noqa: E402
 from engine.common.conventions import business_days_start, forward_start_date, imm_code_to_date  # noqa: E402
 from engine.common.curve import bootstrap_curve, normalize_tenor, spot_date_for  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
@@ -443,6 +445,84 @@ class ReleaseCurvesTest(_HistoricalDbCase):
         pricing = self._call(lambda: udf.HistoricalRates([self.CONV_ROW], "ROLLING", None, None, None, self.rt))
         (after,) = market._cache.values()
         self.assertEqual(after.snapshot, pricing.snapshot)
+
+
+class HistoricalPastCacheTest(_HistoricalDbCase):
+    """HistoricalRates・HedgeHistoricalRates: 昨日まで(DBのカーブ)の結果は覚えておき、ライブのレートが
+    変わっても今日の行だけを計算する。日付が変わる・DBが変わると計算し直す。"""
+
+    TODAY = date(2026, 9, 29)  # 営業日、DBにない
+    CONV_ROW = ["", "10y", "", *CONV_ARGS]
+
+    def setUp(self):
+        super().setUp()
+        hist_udf._past_cache.clear()
+        # RealTimeをさらに+5bpしたもの(ライブのレートが動いた)
+        self.rt2 = [[f, t, v + 0.05 if isinstance(v, float) and t != "M1" else v] for f, t, v in self.rt]
+        spy = mock.patch.object(
+            hist_udf, "historical_multi_rate_series", wraps=hist_udf.historical_multi_rate_series,
+        )
+        hedge_spy = mock.patch.object(hist_udf, "hedge_rate_rows", wraps=hist_udf.hedge_rate_rows)
+        self.spy, self.hedge_spy = spy.start(), hedge_spy.start()
+        self.addCleanup(spy.stop)
+        self.addCleanup(hedge_spy.stop)
+
+    def _past_calls(self, spy):
+        return sum(isinstance(c.kwargs["curves"], hist_udf._DbBefore) for c in spy.call_args_list)
+
+    def _rates(self, rt, today=None):
+        with mock.patch.object(udf_common, "_today", lambda: today or self.TODAY):
+            return udf.HistoricalRates([self.CONV_ROW], "ROLLING", None, None, None, rt)
+
+    def _hedge(self, rt, dates):
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            return udf.HedgeHistoricalRates([["2Y"], ["10Y"]], "ROLLING", [[d] for d in dates], None, rt)
+
+    def test_live_change_recomputes_only_today(self):
+        first = self._rates(self.rt)
+        second = self._rates(self.rt2)
+        self.assertEqual(self._past_calls(self.spy), 1)
+        self.assertEqual(second[:-1], first[:-1])
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            fair = udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt2, None)
+        self.assertEqual(second[-1], [self.TODAY, fair, "", ""])
+
+    def test_same_result_as_without_cache(self):
+        self._rates(self.rt)
+        cached = self._rates(self.rt2)
+        hist_udf._past_cache.clear()
+        self.assertEqual(cached, self._rates(self.rt2))
+
+    def test_db_update_recomputes(self):
+        self._rates(self.rt)
+        stat = self.db.stat()
+        os.utime(self.db, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+        self._rates(self.rt)
+        self.assertEqual(self._past_calls(self.spy), 2)
+
+    def test_date_change_recomputes(self):
+        self._rates(self.rt)
+        self._rates(self.rt, today=date(2026, 9, 30))
+        self.assertEqual(self._past_calls(self.spy), 2)
+
+    def test_cache_hit_keeps_pricing_curves(self):
+        """覚えている結果を使うときは評価日を切り替えないので、pricingのカーブを手放さない。"""
+        self._rates(self.rt)
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt, None)
+        pricing = list(market._cache.values())
+        self._rates(self.rt)
+        self.assertEqual(list(market._cache.values()), pricing)
+
+    def test_hedge_live_change_recomputes_only_today(self):
+        dates = [self.TODAY] + DAYS[::-1]
+        first = self._hedge(self.rt, dates)
+        second = self._hedge(self.rt2, dates)
+        self.assertEqual(self._past_calls(self.hedge_spy), 1)
+        self.assertEqual(second[1:], first[1:])
+        self.assertNotEqual(second[0], first[0])
+        hist_udf._past_cache.clear()
+        self.assertEqual(second, self._hedge(self.rt2, dates))
 
 
 class HedgeHistoricalRatesUdfTest(_HistoricalDbCase):

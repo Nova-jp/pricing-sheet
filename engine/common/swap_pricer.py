@@ -41,6 +41,7 @@ JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュー
 """
 
 from datetime import date
+from types import MappingProxyType
 from typing import Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 import QuantLib as ql
@@ -113,6 +114,10 @@ def swap_dates(terms: SwapTerms) -> Tuple[date, date]:
 # この記録が履歴と一致している前提で差分だけを登録するため、TONARの履歴は_set_fixing_history
 # 以外から触らない(addFixings/clearFixingsを直接呼ばない)。
 _registered_fixings: Optional[Dict[date, float]] = None
+# 前回揃えたときに渡された Market.fixings(読み取り専用のMappingProxyType)。同じオブジェクトなら
+# 中身も同じなので照合を省く(ヒストリカルは同じ日の Market で複数の脚を続けて評価する)。
+# 参照を持ち続けるので、別のオブジェクトが同じidになることはない。
+_registered_source: Optional[Mapping[date, float]] = None
 
 
 def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Mapping[date, float]]) -> None:
@@ -124,13 +129,20 @@ def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Mapping[da
     変わった)ときは全部消して登録し直す(QuantLibに1件だけ消す機能はないため)。
     ヒストリカルは日付を進めるごとに前日までの実績を渡すので、毎回1日分の登録で済む。
     """
-    global _registered_fixings
+    global _registered_fixings, _registered_source
+    if (
+        isinstance(fixings, MappingProxyType) and fixings is _registered_source
+        and _registered_fixings is not None
+    ):
+        return
+    _registered_source = None
     target = dict(fixings) if fixings else {}
     prev = _registered_fixings
     # 登録済みの内容が全てそのまま残っていれば(日付が増えただけなら)差分だけでよい
     reset = prev is None or any(target.get(d) != v for d, v in prev.items())
     added = target if reset else {d: v for d, v in target.items() if d not in prev}
     if not reset and not added:
+        _registered_source = fixings if isinstance(fixings, MappingProxyType) else None
         return
     # 履歴に手を入れる前に記録を「未確認」にする。登録の途中で例外が起きても、記録が古いまま
     # 残って次の呼び出しが差分だけを足す(消えた分を入れ直さない)ことがないように。
@@ -142,6 +154,7 @@ def _set_fixing_history(index: "ql.OvernightIndex", fixings: Optional[Mapping[da
     if valid:
         index.addFixings([d for d, _ in valid], [v for _, v in valid], True)
     _registered_fixings = target
+    _registered_source = fixings if isinstance(fixings, MappingProxyType) else None
 
 
 def _required_fixing_dates(

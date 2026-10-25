@@ -25,6 +25,7 @@ from engine.swap_pricing.historical.pricer import (  # noqa: E402
     FIXED,
     ROLLING,
     SwapSpec,
+    _advance_business_days,
     historical_multi_rate_series,
     historical_swap_rate_series,
 )
@@ -157,6 +158,19 @@ class RollingTest(unittest.TestCase):
             _series(
                 ROLLING, start="M27", end="M38", base_date=BASE, curves=_rates(), conv=IMM_CONV,
             )
+
+
+class AdvanceBusinessDaysTest(unittest.TestCase):
+    def test_matches_calendar_advance(self):
+        """営業日の一覧で求めた移動が CALENDAR.advance と同じこと(営業日・休日の起点、
+        0・負・長い営業日数、一覧の範囲外の起点を含む)。"""
+        starts = [date(2025, 12, 26) + timedelta(days=k) for k in range(20)]  # 年末年始を含む
+        starts += [date(2026, 5, 1), date(2026, 5, 6), date(1990, 1, 4), date(2099, 12, 30)]
+        for d in starts:
+            for n in (0, 1, 2, 9, -1, -10, 245, 2450, 7350):
+                with self.subTest(d=d, n=n):
+                    expected = CALENDAR.advance(ql.Date.from_date(d), n, ql.Days).to_date()
+                    self.assertEqual(_advance_business_days(d, n), expected)
 
 
 class FixedTest(unittest.TestCase):
