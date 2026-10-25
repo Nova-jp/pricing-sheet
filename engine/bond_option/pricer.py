@@ -5,7 +5,8 @@ ITMバイライトのストライク。
 式は docs/bond_option.md の F6〜F11。ユーザーのプライサー(正)の4サンプルとプレミアム4桁まで一致。
 利回り・レポ・価格ボラは%、単価は額面100円あたりの円。
 BondOption.xlsmでは、先渡価格(F6)と期間はExcelの式で同じ計算をする(手で値を上書きしても動くように)。
-forward_price・option_term は、サンプルとの照合(テスト)とシートの式の確認に使う。
+forward_price(F6、実体は engine/common/bond.py。国債先物のベーシスと共用)・option_term は、
+サンプルとの照合(テスト)とシートの式の確認に使う。
 
 ■ QuantLibとの分担
   - 先渡複利・デュレーション(BondFunctions.bondYield/duration)、営業日数(ql.Japan())、
@@ -24,7 +25,7 @@ from typing import NamedTuple
 
 import QuantLib as ql
 
-from engine.common.bond import NO_LEAP, Jgb, accrued_interest, coupon_dates, ql_bond, truncate3
+from engine.common.bond import NO_LEAP, ForwardPrice, Jgb, forward_price, ql_bond, truncate3  # noqa: F401
 from engine.common.bond import compound_yield as bond_compound_yield
 from engine.common.conventions import CALENDAR
 
@@ -33,32 +34,10 @@ CALL = "CALL"
 PUT = "PUT"
 
 
-class ForwardPrice(NamedTuple):
-    clean: float
-    dirty: float
-
-
 class ForwardDuration(NamedTuple):
     compound_yield: float  # 先渡複利(%、小数3桁で切り捨て)
     dollar_duration: float  # DD = −dP/dy(額面100円、利回り1%あたり)
     modified_duration: float  # MD = DD / 先渡dirty × 100
-
-
-def forward_price(
-    bond: Jgb, spot_clean: float, spot_settle: date, forward_settle: date, repo: float,
-) -> ForwardPrice:
-    """F6: スポット単価をレポ(%、単利・暦日/365)で行使後の受渡日まで延ばす。
-    dirty = (P0 + AI(s0)) × (1 + r × 暦日(s0→se)/365) − Σ c/2 × (1 + r × 暦日(利払日→se)/365)
-    clean = dirty − AI(se)。丸めない。"""
-    if forward_settle < spot_settle:
-        raise ValueError(f"行使後の受渡日 {forward_settle} がスポット受渡日 {spot_settle} より前です")
-    r = repo / 100
-    dirty = (spot_clean + accrued_interest(bond, spot_settle)) * (
-        1 + r * (forward_settle - spot_settle).days / 365
-    )
-    for d in coupon_dates(bond, spot_settle, forward_settle):
-        dirty -= bond.coupon / 2 * (1 + r * (forward_settle - d).days / 365)
-    return ForwardPrice(clean=dirty - accrued_interest(bond, forward_settle), dirty=dirty)
 
 
 def _rate(compound_yield: float) -> ql.InterestRate:

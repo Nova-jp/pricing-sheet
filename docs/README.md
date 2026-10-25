@@ -32,6 +32,7 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
   - `test_hedge.py` — ヘッジの重ね表示用のテナー別パーレート(日付の並び、カーブに使っていないテナーの空欄、入力の確認)
   - `test_historical.py` — ヒストリカル計算(FIXED/ROLLINGの日付の決め方・営業日数の固定、先読みしないフィキシング、満期後の除外)
   - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
+  - `test_jgb_futures.py` — 長期国債先物(JPXの交換係数・受渡日との一致、ベーシス・CTD・レポの階段・つなぎ足、取得と朝バッチの差分取得)
   - `test_neon_source.py` — ASWスプレッド取得の対象テーブル・差分取得・接続の後始末(psycopg2をモック)
   - `test_bond_option.py` — 現物オプションの式(端数処理・日数・利払日・先渡・パリティ・ボラの補間・UDFの組み合わせ)。
     ユーザーのプライサーのサンプル(`data/`、コミットしない)があるときはプレミアムまでの一致も確かめる

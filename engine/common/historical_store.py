@@ -18,7 +18,10 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
-  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元は大和 =DWAT)
+  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元は大和 =DWAT。
+              過去分を埋めるときだけ、大和に無い日をみずほ・JCLで補う。jgb_source.fetch_close_history)
+  - fut_settles : 長期国債先物の限月ごとの清算値(日付×限月 "2026-12")。朝バッチが
+              engine/common/futures_source.py で取得し、ベーシス・つなぎ足(engine/common/jgb_futures.py)が読む
 
 ■ asw_quotesの差分取得(updated_atウォッチマーク)
   別のメタデータテーブルを持たず、ローカルのasw_quotesに保存済みのupdated_atの最大値
@@ -105,6 +108,12 @@ CREATE TABLE IF NOT EXISTS jgb_closes (
     code TEXT NOT NULL,
     simple_yield REAL NOT NULL,
     PRIMARY KEY (as_of_date, code)
+);
+CREATE TABLE IF NOT EXISTS fut_settles (
+    as_of_date TEXT NOT NULL,
+    contract TEXT NOT NULL,
+    settle REAL NOT NULL,
+    PRIMARY KEY (as_of_date, contract)
 );
 """
 
@@ -306,6 +315,15 @@ class HistoricalStore:
                 [(_iso(r.as_of_date), r.code, r.simple_yield) for r in rows],
             )
 
+    def save_fut_settles(self, rows: Iterable) -> None:
+        """先物の清算値(as_of_date, contract "2026-12", settle)をupsertする。"""
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO fut_settles (as_of_date, contract, settle) VALUES (?, ?, ?) "
+                "ON CONFLICT(as_of_date, contract) DO UPDATE SET settle=excluded.settle",
+                [(_iso(d), contract, settle) for d, contract, settle in rows],
+            )
+
     # --- 読み込み ---
 
     def jgb_bond(self, code: str) -> Optional[JgbBondRow]:
@@ -344,6 +362,32 @@ class HistoricalStore:
             )
             for r in rows
         ]
+
+    def jgb_closes_between(self, start: date, end: date, prefix: str = "") -> Dict[date, Dict[str, float]]:
+        """start〜end の引け値の単利を {日付: {銘柄コード: 単利}} で(prefix で銘柄を絞る。例 "JB")。"""
+        result: Dict[date, Dict[str, float]] = {}
+        with self._connect() as conn:
+            for d, code, y in conn.execute(
+                "SELECT as_of_date, code, simple_yield FROM jgb_closes "
+                "WHERE as_of_date BETWEEN ? AND ? AND code LIKE ?",
+                (_iso(start), _iso(end), f"{prefix}%"),
+            ):
+                result.setdefault(date.fromisoformat(d), {})[code] = y
+        return result
+
+    def fut_settles(self) -> Dict[str, Dict[date, float]]:
+        """{限月 "2026-12": {日付: 清算値}}。"""
+        result: Dict[str, Dict[date, float]] = {}
+        with self._connect() as conn:
+            for d, contract, settle in conn.execute("SELECT as_of_date, contract, settle FROM fut_settles"):
+                result.setdefault(contract, {})[date.fromisoformat(d)] = settle
+        return result
+
+    def fut_last_dates(self) -> Dict[str, date]:
+        """限月ごとの保存済みの最終日(差分取得の起点)。"""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT contract, MAX(as_of_date) FROM fut_settles GROUP BY contract").fetchall()
+        return {c: date.fromisoformat(d) for c, d in rows}
 
     def asw_quotes_max_updated_at(self) -> Optional[datetime]:
         """ローカルに保存済みのasw_quotesの最新updated_at。次回のNeon差分取得の基準にする

@@ -23,6 +23,9 @@
      (Neonに繋がらなくても①②は続行する)
   ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(大和 =DWAT)を取得
      (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
+     --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(大和、無い日はみずほ・JCLで補う)
+  ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
+     (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
         │
         ▼
 [data/historical.db(ローカルのSQLite。LSEG/Neon由来なのでコミットしない)]
@@ -139,8 +142,10 @@ engine/
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
-| `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日。現物オプションが使う([bond_option.md](bond_option.md)) |
-| `jgb_source.py` | LSEG(Python API `lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}DWAT`の`CF_YIELD`)を取得する。朝バッチの④が使う |
+| `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
+| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}DWAT`の`CF_YIELD`)を取得する(朝バッチの④)。過去分(`fetch_close_history`)は大和に無い日をみずほ・JCLで補う |
+| `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
+| `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
 | `udf_common.py` | pricing/historical/BOJ/PCAのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
 
@@ -171,6 +176,9 @@ engine/
 `tests/test_historical_store.py` / `tests/test_morning_batch.py`: 日次カーブDBの保存・復元の精度と、
 バッチ(テナー選択・欠損テナー・O/N・祝日除外・差分更新・ASW取得の失敗時の継続)のリグレッションテスト。
 LSEGデータの代わりに合成したブックを使う。ASWはNeonへの接続をモックして確認する(実際には繋がない)。
+
+`tests/test_jgb_futures.py`: 長期国債先物(JPXの交換係数・受渡日との一致、ベーシス・CTD・レポの階段・つなぎ足、
+取得部分と朝バッチの差分取得。LSEGはモック)。
 
 `tests/test_neon_source.py`: ASWスプレッド取得の対象テーブル・差分取得の条件(`updated_at > since`)・
 接続の後始末(成功・失敗どちらでもclose)のリグレッションテスト。psycopg2をモックし、実際のNeonには繋がない。
