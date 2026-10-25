@@ -24,7 +24,7 @@
   ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
      asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
      Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
-  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL)を取得し、
+  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(大和、=DWAT)を取得し、
      jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。LSEG Workspaceが
      起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
 

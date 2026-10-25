@@ -18,7 +18,7 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
-  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はJCL)
+  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元は大和 =DWAT)
 
 ■ asw_quotesの差分取得(updated_atウォッチマーク)
   別のメタデータテーブルを持たず、ローカルのasw_quotesに保存済みのupdated_atの最大値
