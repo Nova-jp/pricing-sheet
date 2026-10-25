@@ -6,6 +6,7 @@
      (このバッチは保存済みの値を読む。Excelで開いたままでもよい)
   2. python -m engine.common.morning_batch
      オプション: --xlsx パス / --config パス / --db パス / --rebuild(全日付を作り直す)
+     / --jgb-history-from 2020-01-01(10年債の引け値の過去分を埋める。初回・抜けた日があるときに1回)
 
 処理:
   ① historical_data.xlsx の Mid(日付×テナーのミッド)と Fixing(TONA実績)を読み、
@@ -27,6 +28,11 @@
   ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(大和、=DWAT)を取得し、
      jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。LSEG Workspaceが
      起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
+     --jgb-history-from を付けたときは、10年債(先物の受渡適格銘柄の候補)の引け値の過去分も取る
+     (大和、無い日はみずほ・JCLで補う。jgb_source.fetch_close_history)。
+  ⑤ LSEG(engine/common/futures_source.py)から長期国債先物の限月ごとの清算値を取得し、fut_settles に
+     保存する(2020年から。取り終えた限月は取らず、取引中の限月は保存済みの最終日から取り直す)。
+     失敗してもここだけスキップする。--skip-jgb で④と一緒に行わない。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -43,7 +49,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import jgb_source, neon_source
+from engine.common import futures_source, jgb_futures, jgb_source, neon_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
@@ -55,6 +61,7 @@ ON_TENOR = "O/N"
 _DATE_HEADER = "日付"
 _VOL_HEADER = "満期x原資産"
 VOL_SHEET = "Vol"
+FUTURES_HISTORY_START = date(2020, 1, 1)  # 先物の清算値を取り始める日(ユーザー指示)
 
 
 class CurveConfig(NamedTuple):
@@ -212,6 +219,47 @@ def sync_jgbs(store: HistoricalStore, log=print) -> None:
     log(f"JGB取得: 銘柄 {len(bonds)} / 引け値 {len(closes)}({', '.join(str(d) for d in dates)})")
 
 
+def sync_jgb_history(store: HistoricalStore, start: date, log=print, end: Optional[date] = None) -> None:
+    """10年債(jgb_bonds のうち JB で start 以降に償還)の start〜end の引け値の過去分を保存する。"""
+    end = end or date.today()
+    bonds = [
+        jgb_source.JgbRecord(r.code, r.ric, r.isin, r.coupon, r.maturity)
+        for r in store.jgb_master(end)
+        if r.code.startswith(jgb_futures.DELIVERABLE_PREFIX) and r.maturity >= start
+    ]
+    try:
+        closes = jgb_source.fetch_close_history(bonds, start, end)
+    except Exception as e:
+        log(f"引け値の過去分: 失敗のためスキップ ({e})")
+        return
+    store.save_jgb_closes(closes)
+    log(f"引け値の過去分: 10年債 {len(bonds)}銘柄 / {len(closes)}件({start}〜{end})")
+
+
+def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
+    """長期国債先物の限月ごとの清算値を差分で保存する。失敗してもバッチ全体は止めない。"""
+    today = today or date.today()
+    saved = store.fut_last_dates()
+    plan: Dict[jgb_futures.Contract, date] = {}
+    first = jgb_futures.front_contract(FUTURES_HISTORY_START)
+    final = jgb_futures.front_contract(today).next().next()  # 取引中は期近から3限月
+    for contract in jgb_futures.contracts_between(first, final):
+        last = saved.get(contract.label)
+        if last is not None and last >= jgb_futures.last_trade_date(contract):
+            continue  # 取り終えた限月
+        plan[contract] = last or FUTURES_HISTORY_START  # 保存済みの最終日から取り直す(清算値の訂正に備える)
+    try:
+        result = futures_source.fetch_settles(plan, today)
+    except Exception as e:
+        log(f"先物取得: 失敗のためスキップ ({e})")
+        return
+    store.save_fut_settles(result.settles)
+    contracts = sorted({label for _, label, _ in result.settles})
+    log(f"先物取得: 清算値 {len(result.settles)}件({', '.join(contracts)})")
+    for w in result.warnings:
+        log(f"  警告: {w}")
+
+
 def run(
     xlsx_path: Path = DEFAULT_XLSX,
     config_path: Path = DEFAULT_CONFIG,
@@ -219,6 +267,7 @@ def run(
     rebuild: bool = False,
     log=print,
     skip_jgb: bool = False,
+    jgb_history_from: Optional[date] = None,
 ) -> BatchSummary:
     config = load_config(config_path)
     builder = get_curve_builder(config.builder)
@@ -233,6 +282,9 @@ def run(
     sync_asw_quotes(store, log)
     if not skip_jgb:
         sync_jgbs(store, log)
+        if jgb_history_from is not None:
+            sync_jgb_history(store, jgb_history_from, log)
+        sync_futures(store, log)
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()
@@ -294,9 +346,17 @@ def main(argv=None) -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--db", type=Path, default=HISTORICAL_DB_PATH)
     parser.add_argument("--rebuild", action="store_true", help="入力が同じ日も含めて全日付を作り直す")
-    parser.add_argument("--skip-jgb", action="store_true", help="LSEGからのJGBの銘柄情報・引け値の取得を行わない")
+    parser.add_argument(
+        "--skip-jgb", action="store_true", help="LSEGからのJGBの銘柄情報・引け値と先物の清算値の取得を行わない",
+    )
+    parser.add_argument(
+        "--jgb-history-from", type=date.fromisoformat, metavar="YYYY-MM-DD",
+        help="10年債の引け値の過去分をこの日から取る(初回・抜けた日を埋めるとき)",
+    )
     args = parser.parse_args(argv)
-    summary = run(args.xlsx, args.config, args.db, args.rebuild, skip_jgb=args.skip_jgb)
+    summary = run(
+        args.xlsx, args.config, args.db, args.rebuild, skip_jgb=args.skip_jgb, jgb_history_from=args.jgb_history_from,
+    )
     return 1 if summary.failed else 0
 
 

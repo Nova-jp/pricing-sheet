@@ -111,6 +111,25 @@ def compound_yield(bond: Jgb, dirty: float, settle: date) -> float:
     return truncate3(y * 100)
 
 
+class ForwardPrice(NamedTuple):
+    clean: float
+    dirty: float
+
+
+def forward_price(bond: Jgb, spot_clean: float, spot_settle: date, forward_settle: date, repo: float) -> ForwardPrice:
+    """スポット単価をレポ(%、単利・暦日/365)で先の受渡日まで延ばす(JGBのレポの慣行)。
+    dirty = (P0 + AI(s0)) × (1 + r × 暦日(s0→se)/365) − Σ c/2 × (1 + r × 暦日(利払日→se)/365)
+    clean = dirty − AI(se)。丸めない。現物オプションの先渡価格(docs/bond_option.md の F6)と
+    国債先物のネットベーシス(engine/common/jgb_futures.py)が使う。"""
+    if forward_settle < spot_settle:
+        raise ValueError(f"先の受渡日 {forward_settle} がスポット受渡日 {spot_settle} より前です")
+    r = repo / 100
+    dirty = (spot_clean + accrued_interest(bond, spot_settle)) * (1 + r * (forward_settle - spot_settle).days / 365)
+    for d in coupon_dates(bond, spot_settle, forward_settle):
+        dirty -= bond.coupon / 2 * (1 + r * (forward_settle - d).days / 365)
+    return ForwardPrice(clean=dirty - accrued_interest(bond, forward_settle), dirty=dirty)
+
+
 def settlement_date(trade_date: date, days: int) -> date:
     """取引日・行使日の T+days(日本の営業日)。スポット受渡は T+1。"""
     return CALENDAR.advance(_qd(trade_date), int(days), ql.Days).to_date()
