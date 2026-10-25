@@ -18,9 +18,17 @@ RICを購読し続け、最新の値を data/live.db(engine/common/live_store.py
 
 ■ 行の形(ブック側は変えない。以前の LiveFeed.xlsm の PublishLive と同じ)
   - kind="ois": [Ticker, BIDとASKのミッド, 起算日(GV1_DATE), 満期日(GV2_DATE)]
-  - kind="vol": [銘柄, RIC, MID_IV_NOR]
+  - kind="vol": [銘柄, RIC, 営業日ベースのノーマルvol(bp/年)]
   銘柄の状態が異常(Suspect・存在しない等)か、BID・ASKのどちらかが無ければ値を空欄にする
   (黙って古い値・片側の値を使わない)。
+
+■ ボラ(kind="vol")はプレミアムから計算して書く
+  購読するのはTraditionのATMストラドルのフォワード・プレミアム(JPY{満期}{原資産}TOATM=TRDT の PRIMACT_1)。
+  書くたびに、curve で指定した kind="ois" のデータセットのライブのレートでカーブを組み
+  (テナー・構築方法は historical_curve.toml = 日次カーブDBと同じ)、engine/common/swaption.py で
+  営業日ベースのvolに換える(取引日 = 書く時刻の日付)。どちらかの値が変われば計算し直す。
+  カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。QuantLibの計算はこのプロセスの
+  メインのスレッドだけで行う(UDFサーバと取り合わない)。
 
 LSEGのライブラリ(lseg.data)は起動時にだけ読み込む(テストはLSEG無しで動くように、接続部分を差し替える)。
 """
@@ -32,20 +40,22 @@ import threading
 import time
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 from engine.common.live_store import FEED_OK, FEED_STOPPED, FeedStatus, LiveStore
 from engine.common.paths import LIVE_DATA_DIR, REPO_ROOT
+from engine.common.swaption_source import ric as swaption_ric
 
 DEFAULT_CONFIG = REPO_ROOT / "live_feed.toml"
+CURVE_CONFIG = REPO_ROOT / "historical_curve.toml"  # ボラの計算に使うカーブのテナー・構築方法
 LOG_PATH = LIVE_DATA_DIR / "live_feed.log"  # live.dbと同じ場所(メインの作業ツリー)
 
 # データセットの種類 → 購読するフィールド
 KIND_FIELDS: Dict[str, Tuple[str, ...]] = {
     "ois": ("BID", "ASK", "GV1_DATE", "GV2_DATE"),
-    "vol": ("MID_IV_NOR",),
+    "vol": ("PRIMACT_1",),  # ATMストラドルのフォワード・プレミアム(bp)。CF_LASTと同じ値
 }
 
 CONNECTING = "connecting"  # 起動直後・開き直している途中
@@ -70,6 +80,7 @@ class Dataset:
     name: str
     kind: str
     rows: Tuple[Tuple[str, str], ...]  # (ブックで引き当てる表記, RIC)
+    curve: Optional[str] = None  # kind="vol": カーブを組む kind="ois" のデータセットの名前
 
     @property
     def fields(self) -> Tuple[str, ...]:
@@ -119,6 +130,12 @@ def parse_config(raw: dict) -> FeedConfig:
     names = [d.name for d in datasets]
     if len(set(names)) != len(names):
         raise ValueError(f"datasets の name が重複しています: {names}")
+    kinds = {d.name: d.kind for d in datasets}
+    for d in datasets:
+        if d.kind == "vol" and kinds.get(d.curve) != "ois":
+            raise ValueError(
+                f'datasets {d.name!r}(vol)の curve には kind="ois" のデータセットの name を書いてください: {d.curve!r}'
+            )
     return FeedConfig(timing, tuple(datasets))
 
 
@@ -133,7 +150,7 @@ def _parse_dataset(raw: dict) -> Dataset:
         expiries, tenors = raw.get("expiries", []), raw.get("tenors", [])
         if not expiries or not tenors:
             raise ValueError(f"datasets {name!r}(vol)には expiries と tenors を並べてください")
-        rows = [(f"{e}x{t}", f"JPYTO{e}X{t}ATM=R") for e in expiries for t in tenors]
+        rows = [(f"{e}x{t}", swaption_ric(e, t)) for e in expiries for t in tenors]
     else:
         rows = raw.get("rows", [])
         if not rows or any(not isinstance(r, list) or len(r) != 2 for r in rows):
@@ -146,7 +163,8 @@ def _parse_dataset(raw: dict) -> Dataset:
         dup = sorted({v for v in values if values.count(v) > 1})
         if dup:
             raise ValueError(f"datasets {name!r} で{what}が重複しています: {dup}")
-    return Dataset(name, kind, tuple(rows))
+    curve = (str(raw.get("curve", "")).strip().lower() or None) if kind == "vol" else None
+    return Dataset(name, kind, tuple(rows), curve)
 
 
 # ── データセットごとの受信状態 ───────────────────────────────────────────────
@@ -211,8 +229,8 @@ class DatasetFeed:
 
     def _row(self, label, ric) -> list:
         f = None if ric in self._bad else self._fields.get(ric)
-        if self.dataset.kind == "vol":
-            return [label, ric, _number(f.get("MID_IV_NOR")) if f else None]
+        if self.dataset.kind == "vol":  # プレミアムのまま(書く前に LiveFeed がvolに換える)
+            return [label, ric, _number(f.get("PRIMACT_1")) if f else None]
         if not f:
             return [label, None, None, None]
         bid, ask = _number(f.get("BID")), _number(f.get("ASK"))
@@ -234,6 +252,39 @@ def _date(value) -> Optional[datetime]:
         return datetime.fromisoformat(str(value)[:10])
     except ValueError:
         return None
+
+
+# ── ボラの計算(プレミアム → 営業日ベースのvol) ─────────────────────────────
+
+class VolCalculator:
+    """kind="ois" の行でカーブを組み、kind="vol" の行のプレミアムをvolに換える。"""
+
+    def __init__(self, curve_config: Path = CURVE_CONFIG):
+        from engine.common.curve import get_curve_builder
+        from engine.common.morning_batch import load_config as load_curve_config
+
+        config = load_curve_config(curve_config)
+        self.tenors = config.tenors
+        self.builder = get_curve_builder(config.builder)
+
+    def rows(self, premium_rows: List[list], swap_rows: List[list], trade_date: date) -> List[list]:
+        """[銘柄, RIC, プレミアム] → [銘柄, RIC, vol]。カーブを組めなければ例外。"""
+        import QuantLib as ql
+
+        from engine.common.swaption import PremiumConverter
+
+        quotes = {str(r[0]).strip().upper(): r[1] for r in swap_rows if r and r[1] is not None}
+        selected = {t: quotes[t] for t in self.tenors if t in quotes}
+        if not any(t != "O/N" for t in selected):
+            raise ValueError("カーブを組むスワップのレートがありません")
+        result = self.builder(trade_date, selected)
+        ql.Settings.instance().evaluationDate = ql.Date.from_date(trade_date)
+        converter = PremiumConverter(result.curve, trade_date)
+        out = []
+        for label, ric, premium in premium_rows:
+            v = converter.convert(label, premium)
+            out.append([label, ric, v.vol if v is not None else None])
+        return out
 
 
 # ── LSEGとの接続 ─────────────────────────────────────────────────────────────
@@ -295,7 +346,8 @@ class LiveFeed:
     """購読の管理(開く・開き直す)と、data/live.db への書き込み(値・ハートビート)。"""
 
     def __init__(self, config: FeedConfig, store: Optional[LiveStore] = None,
-                 connect: Optional[Callable[["LiveFeed"], object]] = None, pid: Optional[int] = None):
+                 connect: Optional[Callable[["LiveFeed"], object]] = None, pid: Optional[int] = None,
+                 vol_calculator: Optional[VolCalculator] = None):
         self.config = config
         self.store = store or LiveStore()
         self.datasets: Dict[str, DatasetFeed] = {d.name: DatasetFeed(d) for d in config.datasets}
@@ -308,6 +360,9 @@ class LiveFeed:
         self._connecting = False
         self._last_write: Optional[datetime] = None
         self._last_heartbeat: Optional[datetime] = None
+        needs_vol = any(d.kind == "vol" for d in config.datasets)
+        self._vol_calculator = vol_calculator or (VolCalculator() if needs_vol else None)
+        self._vol_errors: Dict[str, str] = {}  # ボラを計算できなかった理由(データセットごと)
 
     # 接続の状態(LSEGのイベントのコールバックからも呼ばれる)
     def set_connection(self, state: str, message: str) -> None:
@@ -330,7 +385,9 @@ class LiveFeed:
         result = []
         for name, ds in self.datasets.items():
             st, msg = (state, "") if state else (conn_state, conn_message)
-            if st == FEED_OK:
+            if st == FEED_OK and name in self._vol_errors:
+                msg = f"ボラを計算できません(値は空欄): {self._vol_errors[name]}"
+            elif st == FEED_OK:
                 bad = ds.bad()
                 if ds.all_bad():
                     st, msg = SUSPECT, f"全{len(bad)}銘柄が異常(例 {next(iter(bad.items()))})"
@@ -354,14 +411,33 @@ class LiveFeed:
         # ハートビートの前には必ず値を書く(ok と書いた時点で、DBの値がそれより古くないように)
         if heartbeat_due or self._last_write is None or                 (now - self._last_write).total_seconds() >= timing.write_interval_sec:
             self._last_write = now
+            dirty = {name: ds.take_dirty() for name, ds in self.datasets.items()}
             for name, ds in self.datasets.items():
-                if ds.take_dirty():
+                if ds.dataset.kind != "vol" and dirty[name]:
                     self.store.publish(name, ds.rows(), now=now)
+            for name, ds in self.datasets.items():
+                if ds.dataset.kind == "vol" and (dirty[name] or dirty[ds.dataset.curve]):
+                    self.store.publish(name, self._vol_rows(name, ds, now), now=now)
         if heartbeat_due:
             self._last_heartbeat = now
             statuses = self.statuses(now)
             self.store.write_feed_status(statuses)
             self._watch(now, statuses)
+
+    def _vol_rows(self, name: str, ds: DatasetFeed, now: datetime) -> List[list]:
+        premiums = ds.rows()
+        try:
+            rows = self._vol_calculator.rows(premiums, self.datasets[ds.dataset.curve].rows(), now.date())
+        except Exception as e:  # カーブを組めない等。黙って古い値を使わず空欄にする
+            message = str(e)
+            if self._vol_errors.get(name) != message:
+                log.warning("%s: ボラを計算できません: %s", name, message)
+            self._vol_errors[name] = message
+            return [[label, ric, None] for label, ric, _ in premiums]
+        if name in self._vol_errors:
+            log.info("%s: ボラの計算が戻りました", name)
+            del self._vol_errors[name]
+        return rows
 
     def _watch(self, now: datetime, statuses: List[FeedStatus]) -> None:
         """正常でない状態が resubscribe_after_sec 続いたら、セッションと購読を開き直す。"""

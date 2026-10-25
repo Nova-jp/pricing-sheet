@@ -17,8 +17,10 @@ resubscribe_after_sec = 30
 # ── データセット(LiveQuotes の第1引数) ─────────────────────────────────────
 # kind = "ois": 行 = [Ticker, BIDとASKのミッド, 起算日(GV1_DATE), 満期日(GV2_DATE)]。
 #   起算日・満期日はある銘柄(RD・M1〜)だけ。読む側はTickerで引き当てる(MainシートA列と同じ表記)
-# kind = "vol": 行 = [銘柄("1Mx2Y"), RIC, 値(MID_IV_NOR、ノーマルvol bp/年)]。満期×原資産の全組み合わせ。
-#   読む側はRICで引き当てる(VolPCA・BondOption)
+# kind = "vol": 行 = [銘柄("1Mx2Y"), RIC, 値(営業日ベースのノーマルvol bp/年 = bp/日×√252)]。満期×原資産の全組み合わせ。
+#   購読するのはTraditionのATMストラドルのプレミアム(JPY{満期}{原資産}TOATM=TRDT の PRIMACT_1)で、
+#   curve のデータセットのライブのレートで組んだカーブ(historical_curve.toml と同じテナー)でvolに換えて書く。
+#   読む側は銘柄・RICで引き当てる(VolPCA・VolHV・BondOption)
 # BID・ASKのどちらかが無い、または銘柄の状態が異常(Suspect等)のときは、値を空欄にする(黙って古い値を使わない)
 
 [[datasets]]
@@ -75,6 +77,9 @@ rows = [
 [[datasets]]
 name = "vol"
 kind = "vol"
-# RICは JPYTO{満期}X{原資産}ATM=R。軸の表記はSwapAnalysisのVolPCA設定と同じにする
-expiries = ["1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "9Y", "10Y", "15Y", "20Y"]
+# カーブを組むデータセット(kind = "ois")
+curve = "swap"
+# 軸の表記はSwapAnalysisのVolPCA設定と同じにする。Traditionに6Y・9Y満期は無い(2Mはリアルタイムだけ、
+# 2Mx6Y・8Y・9Yも無い)。値の無い点は空欄のまま(読む側が補間する)
+expiries = ["1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "7Y", "10Y", "15Y", "20Y"]
 tenors = ["1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y", "15Y", "20Y"]

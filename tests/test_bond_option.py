@@ -30,6 +30,7 @@ from engine.common.bond import (  # noqa: E402
     simple_yield_from_price, truncate3, years_to_maturity,
 )
 from engine.common.historical_store import HistoricalStore  # noqa: E402
+from engine.common.swaption import business_days  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord, code_from_ric  # noqa: E402
 
 SAMPLES = REPO_ROOT / "data" / "bond_option_samples.toml"
@@ -193,7 +194,9 @@ class VolTest(unittest.TestCase):
 
     def test_variance_interpolation_in_expiry(self):
         expiry, maturity = date(2027, 4, 16), date(2032, 4, 16)  # 6M満期、残存5年
-        t, t1, t2 = 182 / 365, 31 / 365, 365 / 365  # うるう日除き/365
+        # 満期方向は営業日数(当日を含む)。格子の点はスワップションの満期日(1M=11/16、1Y=2027/10/18(10/16は土曜))
+        t = business_days(self.T0, expiry)
+        t1, t2 = business_days(self.T0, date(2026, 11, 16)), business_days(self.T0, date(2027, 10, 18))
         w = 60.0 ** 2 * t1 + (70.0 ** 2 * t2 - 60.0 ** 2 * t1) * (t - t1) / (t2 - t1)
         self.assertAlmostEqual(self._vol(expiry, maturity), math.sqrt(w / t), places=9)
 

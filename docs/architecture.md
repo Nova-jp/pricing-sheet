@@ -89,8 +89,11 @@
 データセットごとのRIC。
 - `"swap"`(kind=`ois`): O/N〜40Y・RD・M1〜M9。行=[Ticker, BID/ASKのミッド, 起算日`GV1_DATE`, 満期日`GV2_DATE`]
   (起算日・満期日は会合スワップだけ)。O/NはTradition `JP1DONI=TRDT`のミッド(=TONA)。
-- `"vol"`(kind=`vol`): 満期×原資産の格子。行=[銘柄`1Mx2Y`, RIC`JPYTO{満期}X{原資産}ATM=R`, `MID_IV_NOR`=ノーマルvol bp]。
-  `CF_LAST`/`PRIMACT_1`/`MID_IV`はシフト付きログノーマル%、`CF_BID`/`CF_ASK`は両者が混在しているので使わない。
+- `"vol"`(kind=`vol`): 満期×原資産の格子(満期は6Y・9Yを除く14本×原資産12本)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
+  営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
+  (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
+  (テナー・構築方法は`historical_curve.toml`)、`swaption.py`でvolに換える(取引日=書く時刻の日付。どちらかが
+  変われば計算し直す)。カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。2Mx6Y・8Y・9Yは値が無く空欄。
 - 銘柄の状態が異常(Suspect・存在しない等)か、BID・ASKのどちらかが無い行は値を空欄にする。
 読む側はTicker(volはRIC)で引き当てるので、行の並びがブックごとに違ってもよい(フィードに無いTickerは`#N/A`)。
 データセットごとの状態(`feed`テーブル): `ok`/`connecting`/`reconnecting`/`suspect`(全銘柄が異常)/`stopped`。
@@ -136,7 +139,7 @@ engine/
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存。`engine/pca/`も`HistoricalStore`をここから読む |
-| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行) |
+| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
@@ -146,6 +149,8 @@ engine/
 | `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}DWAT`の`CF_YIELD`)を取得する(朝バッチの④)。過去分(`fetch_close_history`)は大和に無い日をみずほ・JCLで補う |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
+| `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。満期日=取引日+満期(Following)、起算日=満期日+2営業日。朝バッチの⑦とフィードが使い、BondOptionの補間も同じ満期日・営業日数を使う |
+| `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・9Yはヒストリカルが無い)×原資産12本。朝バッチの⑥が使う |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
 | `udf_common.py` | pricing/historical/BOJ/PCAのどのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、評価日の解決、評価日時点のカーブ一式(`_market`)。各feature udfモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(テストでの差し替え方が1か所に集約できるため。理由は[decisions.md](decisions.md)) |
 
@@ -433,8 +438,10 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、
 | `engine/boj/meeting_curve.py` | BOJシート専用: O/N+会合スワップ(RD・M1〜)から、会合期間ごとにフォワード一定のカーブを組む。日付はLSEGの値をそのまま使い、決定日→翌営業日の夜は直前の期間(決定前)のフォワード。節目のDFを順に決めて`ql.DiscountCurve`に入れる(OISRateHelperを使わない理由は[decisions.md](decisions.md))。最後の会合期間より先は外挿しない |
 | `engine/boj/udf.py` | BOJシートのUDF: `BojImpliedRates`(会合スワップ+O/Nのカーブでのスポットのパーレート)、`BojSpotForwards`(メインのカーブでの会合期間のパーレート。PricingSheetの`FairRate`と同じ値を、`engine/common`の部品だけで出す) |
 
-ボラのヒストリカルは、朝のバッチ(`engine/common/morning_batch.py`)が`historical_data.xlsx`の
-Volシートを読んでDBの`vol_quotes`に取り込む(カーブには使わない)。
+ボラのヒストリカルは、朝のバッチ(`engine/common/morning_batch.py`)がTraditionのプレミアム(`swaption_premiums`)と
+その日のカーブから計算した営業日ベースのノーマルvol(`vol_quotes`、bp/年 = bp/日×√252)。カーブには使わない。
+ヒストリカルがあるのは満期1M〜20Yの13本(2M・6Y・9Yは無い)×原資産12本で、選んだ格子に無い点があると
+VolPCAはエラーになる(欠けた銘柄を代用しない)ので、VolPCAの満期の軸では2M・6Y・9Yを外す。
 
 PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
 - 推定: 推定の最終日(Window end。空欄=今日。DBの引け値だけを使うので、DBに今日の値がなければ直近の営業日まで)
@@ -616,6 +623,9 @@ Excel標準の関数だけで構成する。
 - 設定セルは名前付き範囲(`入力_終了日`、`実効開始日`、`リクエスト`など)で参照している。
 
 ### Implied Vol(Vol設定 / RawVol / Vol / VolMatrix)
+
+**2026-10-25から朝のバッチはこのシートを読まない**(ボラはTraditionのプレミアムから計算する。上の「分析ブック」と
+[decisions.md](decisions.md))。シートはブックに残っているが使っていない(消すのは後で。[roadmap.md](roadmap.md))。
 
 JPY TONAスワップションのATMノーマルvol(bp/年)のヒストリカル。LSEG計算系列
 `JPYTO{満期}X{原資産}ATM=R`(例 `JPYTO1YX10YATM=R`、チェーン`JPYTOSTNATM=R`、2022-03〜)を
