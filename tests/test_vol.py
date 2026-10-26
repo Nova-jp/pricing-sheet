@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -148,6 +149,25 @@ class VolHistoryUdfTest(unittest.TestCase):
     def test_no_labels(self):
         with self.assertRaises(ValueError):
             udf.VolHistory([None, ""])
+
+
+class VolFwdLiveUdfTest(unittest.TestCase):
+    def test_matches_par_rate(self):
+        base = DATES[-1]
+        boot = bootstrap_curve(base, SPOT_RATES)
+        market = Market(base, boot.curve, boot.index, {})
+        with mock.patch.object(udf_common, "_market", return_value=SimpleNamespace(base=market)):
+            rows = udf.VolFwdLive([LABELS[0], None, LABELS[1]], [["1", "1Y", 1.0]])
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[1], [""])  # 空欄の行は空欄のまま(行がずれない)
+        spot = spot_date_for(base)
+        for row, (e, t) in ((rows[0], ("1M", "10Y")), (rows[2], ("1Y", "2Y"))):
+            terms = SwapTerms(forward_start_date(spot, e), STANDARD, tenor=t)
+            self.assertAlmostEqual(row[0], par_rate(market, terms).target_fixrate, places=12)
+
+    def test_no_labels(self):
+        with self.assertRaises(ValueError):
+            udf.VolFwdLive([None, ""], [["1", "1Y", 1.0]])
 
 
 if __name__ == "__main__":

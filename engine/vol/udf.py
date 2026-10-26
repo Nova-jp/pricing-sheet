@@ -1,5 +1,6 @@
 """
-分析ブック(SwapAnalysis.xlsm)のVolHVシートのUDF。インプライドとヒストリカルのボラの比較。
+分析ブック(SwapAnalysis.xlsm)のVolHV・VolLevelシートのUDF。インプライドとヒストリカルのボラの比較(VolHV)、
+ボラの水準とFwdの水準の散布図による割高・割安(VolLevel。回帰・残差はExcelの数式)。
 
 ■ 設計方針(PCAのUDFと同じ)
   - QuantLibが要る計算(Fwdの日次変化)とDBの読み出しだけをUDFにし、窓の集計(2乗の累積の差)・
@@ -16,6 +17,7 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.historical_store import HistoricalStore
+from engine.common.swap_pricer import par_rate
 from engine.common.udf_common import _is_blank
 from engine.vol import hv
 
@@ -55,3 +57,21 @@ def VolHistory(labels) -> List[list]:
             row += ["" if iv[k] is None else iv[k], fwd[k], dfwd[k]]
         rows.append(row)
     return rows
+
+
+@xw.func
+@xw.arg("labels", ndim=1)
+@xw.arg("real_time_range", ndim=2)
+def VolFwdLive(labels, real_time_range) -> List[list]:
+    """
+    ライブのカーブ(今日)での、銘柄(「満期x原資産」)の原資産のFwdスワップレート(%、labels と同じ並びの縦1列。
+    空欄の行は空欄を返す)。契約は今日のスポット日+満期からの原資産で、VolHistoryのFwdの各日の決め方と同じ。
+    real_time_range: フラグ/Ticker/Value の範囲(シートのカーブ用の範囲の TAKE(…#,,3)。pricingと同じ引き方)。
+    """
+    cells = list(labels or [])
+    names = _labels(cells)
+    if not names:
+        raise ValueError("銘柄を1つ以上指定してください(例 1Yx10Y)")
+    market = udf_common._market(real_time_range, None).base
+    rates = iter([par_rate(market, t).target_fixrate for t in hv.live_terms(names, market.valuation_date)])
+    return [[""] if _is_blank(v) else [next(rates)] for v in cells]

@@ -13,4 +13,4 @@ from engine.common.live_udf import LiveInfo, LiveQuotes, LiveSnapshot  # noqa: F
 from engine.fut.udf import FutBasis, FutHistory, FutOverlay, FutRepoSteps  # noqa: F401
 from engine.fwd.udf import FwdHistory, FwdLive  # noqa: F401
 from engine.pca.udf import *  # noqa: F401,F403
-from engine.vol.udf import VolHistory  # noqa: F401
+from engine.vol.udf import VolFwdLive, VolHistory  # noqa: F401
