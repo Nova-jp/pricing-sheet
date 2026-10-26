@@ -9,6 +9,7 @@ JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib 
 - [roadmap.md](roadmap.md) — 保留中/次フェーズ以降に回した項目
 - [setup_windows.md](setup_windows.md) — 会社PC(Windows)でのセットアップ手順
 - [bond_option.md](bond_option.md) — 現物オプション・プライサー(BondOption.xlsm)の計算規則とブックの構成
+- [position.md](position.md) — ポジション・リスク管理(PositionSheet.xlsm、叩き台)の手法とブックの構成
 - `../OPERATIONS.md`(**gitignore対象、リポジトリ直下**) — 環境固有の運用値。このリポジトリは
   **GitHub上でPublic**のため、秘密情報・環境固有の値は絶対にコミットしない。
 
