@@ -68,7 +68,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:LZ(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -83,6 +83,7 @@
 | PCAGrid(SwapAnalysis) | CD4(PCAと同じ渡し方) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |
 | VolHV(SwapAnalysis) | BB3(`"vol"`、`IV (Live)`の`XLOOKUP`だけが使う) | なし |
+| VolLevel(SwapAnalysis) | AA3(`"vol"`)・AE3(`"swap"`) | AJ3(テナー表はこのシートのAP:AQ) |
 | BOJ(SwapAnalysis) | K3 | P3(テナー表はMainではなくこのシートのV:W) |
 
 フィードの設定は`live_feed.toml`(リポジトリ直下。調整する値はここにまとめる): 秒数(`[timing]`)と
@@ -119,7 +120,7 @@ engine/
   common/         # pricing・historical・boj・pcaのどこからも使う共有エンジン・データ層
   swap_pricing/    # PricingSheet.xlsm固有のUDF(pricing/historical/aswの3機能)
   pca/             # SwapAnalysis.xlsm固有のPCA分析
-  vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)
+  vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)・ボラとFwdの水準の散布図
   fwd/             # SwapAnalysis.xlsm固有のFwd(NyMy)の監視とヒストリカル(3方式)
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
@@ -428,7 +429,7 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
 
 pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
-(`VolHV`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)、Fwd(NyMy)の監視と
+(`VolHV`シート、下の節)、ボラの水準とFwdの水準の散布図による割高・割安(`VolLevel`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)、Fwd(NyMy)の監視と
 ヒストリカル(`FwdMonitor`シート、下の節)、長期国債先物のベーシス(`FutBasis`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
 スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し・Fwdの計算)はPythonのUDF、
 得点・復元(行列の積)・差分・寄与率・窓の集計などはExcelの数式。`SwapAnalysis.py`は
@@ -541,7 +542,7 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
 | ファイル | 役割 |
 |---|---|
 | `engine/vol/hv.py` | 日次カーブDBから、銘柄(満期x原資産)ごとのFwd(起算日=その日のスポット日+満期)と、その同じ契約の前の日付のカーブからの変化(bp)を計算する。評価は`engine/common/forward.py`の`ForwardPricer`(値は`swap_pricer.par_rate`と一致)。IVは`vol_quotes`から日付で突き合わせる |
-| `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。引数とDBの更新時刻ごとに1回だけ計算する(3銘柄・約460日で約1秒) |
+| `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。引数とDBの更新時刻ごとに1回だけ計算する(3銘柄・約460日で約1秒、30銘柄で約11秒)。`VolFwdLive(labels, real_time_range)`: ライブのカーブでの今日の契約のFwd(labelsと同じ並びの縦1列、空欄の行は空欄。VolLevelシート) |
 
 シートの構成(左から設定・結果・計算領域):
 - **設定(A〜D列)**: 1行目は取得モード(他のフロントシートと同じ)。足(B5:B7=満期x原資産、C5:C7=重み。
@@ -556,6 +557,30 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
   (`VHV_Date`)、AM:AU 足ごとのIV・HV・短い窓のHV(HVは`SCAN`で2乗の累積をとり、N行前との差/N×年の日数の
   平方根)、AV:AZ 合成(IV・HV・短い窓のHV・IV−HV・IV−短い窓のHV)、BB3 ライブのボラ、BF:BK From以降の
   グラフ用の列(`FILTER`)。足の列はUDFの見出し(`1Yx10Y IV`等)を`XMATCH`で引くので、足の間に空欄があってもよい。
+
+### ボラの水準とFwdの水準(`VolLevel`シート、`engine/vol/`)
+
+スワップションのIV(bp vol)と、その原資産のFwd(VolHVと同じ契約)の散布図に1次の回帰を当て、残差
+(IV−当てはめ)で割高・割安を見る(理由は[decisions.md](decisions.md)の「ボラの水準とFwdの水準」)。UDFは
+`VolHistory`(ヒストリカル)と`VolFwdLive`(ライブのFwd)だけで、回帰・残差・Z・パーセンタイルはExcelの数式。
+
+シートの構成(セルの文字・名前は英語、名前は`VLV_…`):
+- **取得モード(1行目)**: B1 `Live`/`Fixed`、D1・F1 volとswapの`LiveInfo`。
+- **Settings(A3:B8)**: ペア3つ(B4:B6、満期x原資産)、`From`(回帰と図の開始日、空欄=全期間。`VLV_From`)、
+  `Recent days (bd)`(図で色を変える直近の日数。`VLV_Recent`)。
+- **Summary(A11:D27)**: ペアごとの最新のIV・Fwd・残差・Z(DB)、ライブのIV・Fwd・当てはめ・残差・Z・残差の
+  パーセンタイル、傾き(Fwd 1%あたりのvol)・切片・R²・残差の標準偏差・日数。
+- **散布図(F3〜、ペアごとに1枚)**: History(灰)、Recent(橙)、Latest (DB)、Live(赤)、Fit(回帰直線、
+  ライブを含むFwdの範囲)。元データは畳んだ列にあるので「非表示の行と列のデータを表示」。
+- **Rich / cheap map(A31〜)**: `Grid value`(Z/Residual/Pctl、`VLV_GValue`)、`Grid point`(Live/DB、
+  `VLV_GPoint`)、満期(A36:A43)×原資産(B35:I35)、各8本まで。B36の`MAKEARRAY`が名前付きのLAMBDA
+  `VLV_Cell`(銘柄ごとの回帰と残差)を呼ぶ。色は条件付き書式の3色(赤=割高、青=割安。Zは±2、Residualは±5bp、
+  Pctlは0〜1)。
+- **計算領域(AA:LZ、列のグループで畳んである)**: AA3 ライブのvol(`VLV_LiveVol`)、AE3 ライブのレート、
+  AJ3 カーブ入力(AP:AQのテナーとフラグ)、AS3 `VolHistory`(ペア。`VLV_Data`、列は名前付きのLAMBDA`VLV_Col`で引く)、
+  BD4 `VolFwdLive`(ペア)、BF/BM/BT ペアごとの[Date, Fwd, IV, Resid, Hist, Recent](From以降でIVのある日)、
+  CA:CI 図の点(ライブ・最新・回帰直線の両端)、CK4 マップの銘柄、CL4 その`VolFwdLive`、CN3 その`VolHistory`
+  (`VLV_GData`)。
 
 ### Fwdの監視とヒストリカル(`FwdMonitor`シート、`engine/fwd/`)
 

@@ -46,6 +46,12 @@ def parse_label(label) -> Tuple[str, str]:
     return m.group(1), m.group(2)
 
 
+def live_terms(labels: Sequence[str], as_of_date: date) -> List[SwapTerms]:
+    """ライブ(今日のカーブ)で評価する、今日の契約(起算日=今日のスポット日+満期、原資産)。compute の各日の契約と同じ決め方。"""
+    spot = spot_date_for(as_of_date)
+    return [SwapTerms(forward_start_date(spot, e), STANDARD, tenor=t) for e, t in map(parse_label, labels)]
+
+
 @dataclass
 class VolSeries:
     """行=カーブのある日付(最初の日付は変化が無いので含めない)。列=銘柄。"""
@@ -71,10 +77,7 @@ def compute(
         return series
 
     # 日付ごとの、その日の契約(起算日=その日のスポット日+満期、原資産)
-    contracts: List[List[SwapTerms]] = []
-    for d in dates:
-        spot = spot_date_for(d)
-        contracts.append([SwapTerms(forward_start_date(spot, e), STANDARD, tenor=t) for e, t in pairs])
+    contracts = [live_terms(series.labels, d) for d in dates]
     ivs = [{k.upper(): v for k, v in vol_quotes.get(d, {}).items()} for d in dates]
 
     pricer = ForwardPricer()
