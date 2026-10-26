@@ -89,7 +89,7 @@
 データセットごとのRIC。
 - `"swap"`(kind=`ois`): O/N〜40Y・RD・M1〜M9。行=[Ticker, BID/ASKのミッド, 起算日`GV1_DATE`, 満期日`GV2_DATE`]
   (起算日・満期日は会合スワップだけ)。O/NはTradition `JP1DONI=TRDT`のミッド(=TONA)。
-- `"vol"`(kind=`vol`): 満期×原資産の格子(満期は6Y・9Yを除く14本×原資産12本)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
+- `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産12本。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
   営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
   (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
   (テナー・構築方法は`historical_curve.toml`)、`swaption.py`でvolに換える(取引日=書く時刻の日付。どちらかが
@@ -153,7 +153,7 @@ engine/
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。満期日=取引日+満期(Following)、起算日=満期日+2営業日。朝バッチの⑦とフィードが使い、BondOptionの補間も同じ満期日・営業日数を使う |
-| `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・9Yはヒストリカルが無い)×原資産12本。朝バッチの⑥が使う |
+| `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・8Y・9Yは使わない)×原資産12本。朝バッチの⑥が使う |
 | `history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ(PCA用。SwapAnalysis・PositionSheetが共有) |
 | `pca.py` | PCA: windowの選び方(`estimate`)、復元日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数(SwapAnalysis・PositionSheetが共有) |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
@@ -444,8 +444,8 @@ PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、
 
 ボラのヒストリカルは、朝のバッチ(`engine/common/morning_batch.py`)がTraditionのプレミアム(`swaption_premiums`)と
 その日のカーブから計算した営業日ベースのノーマルvol(`vol_quotes`、bp/年 = bp/日×√252)。カーブには使わない。
-ヒストリカルがあるのは満期1M〜20Yの13本(2M・6Y・9Yは無い)×原資産12本で、選んだ格子に無い点があると
-VolPCAはエラーになる(欠けた銘柄を代用しない)ので、VolPCAの満期の軸では2M・6Y・9Yを外す。
+満期はフィードと同じ1M〜20Yの13本(2M・6Y・8Y・9Yは市場にクオートが無いので使わない)×原資産12本。
+選んだ格子に無い点があるとVolPCAはエラーになる(欠けた銘柄を代用しない)。
 
 PCAの手順(標準的なPCA。理由は[decisions.md](decisions.md)):
 - 推定: 推定の最終日(Window end。空欄=今日。DBの引け値だけを使うので、DBに今日の値がなければ直近の営業日まで)

@@ -16,7 +16,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import live_feed  # noqa: E402
+from engine.common import live_feed, swaption_source  # noqa: E402
 from engine.common.live_feed import DatasetFeed, LiveFeed, load_config, parse_config  # noqa: E402
 from engine.common.live_store import FEED_OK, FEED_STOPPED, LiveStore  # noqa: E402
 
@@ -60,7 +60,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(swap.rows[0], ("O/N", "JP1DONI=TRDT"))
         self.assertEqual(swap.rows[33], ("40Y", "JP40YONI=TRDT"))
         self.assertEqual(swap.rows[34:36], (("RD", "JPBOJRDONI=TRDT"), ("M1", "JPBOJ1ONI=TRDT")))
-        self.assertEqual(len(vol.rows), 14 * 12)  # Traditionに無い6Y・9Y満期は除いた
+        self.assertEqual(len(vol.rows), 13 * 12)  # クオートの無い2M・6Y・8Y・9Y満期は使わない
+        self.assertEqual(sorted({r[0].split("x")[0] for r in vol.rows}), sorted(swaption_source.EXPIRIES))
         self.assertEqual(vol.rows[1], ("1Mx2Y", "JPY1M2YTOATM=TRDT"))
         self.assertEqual(vol.rows[-1], ("20Yx20Y", "JPY20Y20YTOATM=TRDT"))
         self.assertEqual(vol.curve, "swap")

@@ -79,7 +79,7 @@ name = "vol"
 kind = "vol"
 # カーブを組むデータセット(kind = "ois")
 curve = "swap"
-# 軸の表記はSwapAnalysisのVolPCA設定と同じにする。Traditionに6Y・9Y満期は無い(2Mはリアルタイムだけ、
-# 2Mx6Y・8Y・9Yも無い)。値の無い点は空欄のまま(読む側が補間する)
-expiries = ["1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "7Y", "10Y", "15Y", "20Y"]
+# 軸の表記はSwapAnalysisのVolPCA設定と同じにする。満期はヒストリカル(swaption_source.EXPIRIES)と同じ13本。
+# 2M・6Y・8Y・9Y満期は市場にクオートが無いので使わない(2Mは2021年で止まった値が残っている)。間は読む側が補間する
+expiries = ["1M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "7Y", "10Y", "15Y", "20Y"]
 tenors = ["1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y", "15Y", "20Y"]
