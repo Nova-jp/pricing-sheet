@@ -159,7 +159,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - 計算規則とシートの構成は[bond_option.md](bond_option.md)。PricingSheetと同じxlwings・venvで動く
   (VBAのxlwings参照は雛形に入っている)。初回とUDFの変更時は`BondOption.xlsm`を開いて「Restart UDF Server」→
   「Import Functions」(`BondOption.py`から`JgbForwardRisk`等を登録)。
-- JGBの銘柄情報・引け値(大和 =DWAT)は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
+- JGBの銘柄情報・引け値(JCL)は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
   LSEG Workspaceを起動・ログインしておく**(`requirements.txt`の`lseg-data`が必要。繋がらないとこの取得だけ
   スキップされ、「JGB取得: 失敗のためスキップ」と表示される)。カーブだけ作り直すときは`--skip-jgb`。
 - ボラはフィードの`"vol"`を読む(4.1のフィードを起動しておく)。B1が取得モード(Live/Fixed)。

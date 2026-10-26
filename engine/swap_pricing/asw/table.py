@@ -5,7 +5,7 @@ pricing表(pricing/table.py)と同じ作り: 列は見出し名で探し、flag=
 message列に閉じ込める。計算の定義は asw/pricer.py。
 
 ■ 1行の流れ
-  銘柄(JB380)→ DBの銘柄情報(利率・償還日)と評価日以前で直近の引け値(大和 =DWAT、単利)
+  銘柄(JB380)→ DBの銘柄情報(利率・償還日)と評価日以前で直近の引け値(JCL、単利)
   → 単利 = 引け値+スライド(bp)/100(yield overrideがあればその値)→ 単価・複利(スポット T+1)
   → MMS(起算日=start、空欄ならスポット T+2。満期日=償還日。規約は行の fix freq 等)
   → par-par ASW、目標delta(百万円)があればMMSのnotional(アニュイティデルタ基準、pricing表と同じ)

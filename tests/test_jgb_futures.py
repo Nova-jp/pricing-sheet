@@ -227,9 +227,9 @@ class SourceTest(unittest.TestCase):
     def test_close_history_fills_missing_days_from_other_sources(self):
         d1, d2, d3 = date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)
         data = {
-            "B_YLD_1:DWAT": {"JP03730067=DWAT": {d1: 2.71, d3: 2.6}, "JP03740067=DWAT": {d1: 2.75}},
-            "B_YLD_1:MZST": {"JP03730067=MZST": {d1: 9.9, d2: 2.695}, "JP03740067=MZST": {}},
-            "MID_YLD_1:JCL": {"JP03730067=JCL": {d2: 8.8}, "JP03740067=JCL": {d2: 2.74, d3: float("nan")}},
+            "MID_YLD_1:JCL": {"JP03730067=JCL": {d1: 2.71, d3: 2.6}, "JP03740067=JCL": {d1: 2.75}},
+            "B_YLD_1:DWAT": {"JP03730067=DWAT": {d1: 9.9, d2: 2.695}, "JP03740067=DWAT": {}},
+            "B_YLD_1:MZST": {"JP03730067=MZST": {d2: 8.8}, "JP03740067=MZST": {d2: 2.74, d3: float("nan")}},
         }
 
         def get_history(rics, fields, start, end):
@@ -240,15 +240,15 @@ class SourceTest(unittest.TestCase):
         ld.get_history.side_effect = get_history
         closes = jgb_source._fetch_close_history(ld, self.BONDS, d1, d3)
         self.assertEqual(closes, [
-            JgbClose(d1, "JB373", 2.71), JgbClose(d1, "JB374", 2.75),  # 大和を優先
-            JgbClose(d2, "JB373", 2.695), JgbClose(d2, "JB374", 2.74),  # 大和に無い日はみずほ→JCL
+            JgbClose(d1, "JB373", 2.71), JgbClose(d1, "JB374", 2.75),  # JCLを優先
+            JgbClose(d2, "JB373", 2.695), JgbClose(d2, "JB374", 2.74),  # JCLに無い日は大和→みずほ
             JgbClose(d3, "JB373", 2.6),
         ])
 
     def test_history_columns_single_ric(self):
-        df = FakeHistory({"B_YLD_1": {date(2026, 10, 23): 2.6}})
-        cols = jgb_source.history_columns(df, ["JP03730067=DWAT"], "B_YLD_1")
-        self.assertEqual(list(cols), ["JP03730067=DWAT"])
+        df = FakeHistory({"MID_YLD_1": {date(2026, 10, 23): 2.6}})
+        cols = jgb_source.history_columns(df, ["JP03730067=JCL"], "MID_YLD_1")
+        self.assertEqual(list(cols), ["JP03730067=JCL"])
 
     def test_fetch_settles_uses_listed_or_expired_ric_and_checks_dates(self):
         ld = mock.Mock()

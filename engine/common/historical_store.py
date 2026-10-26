@@ -21,8 +21,8 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
-  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元は大和 =DWAT。
-              過去分を埋めるときだけ、大和に無い日をみずほ・JCLで補う。jgb_source.fetch_close_history)
+  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はJCL。
+              過去分を埋めるときだけ、JCLに無い日を大和・みずほで補う。jgb_source.fetch_close_history)
   - fut_settles : 長期国債先物の限月ごとの清算値(日付×限月 "2026-12")。朝バッチが
               engine/common/futures_source.py で取得し、ベーシス・つなぎ足(engine/common/jgb_futures.py)が読む
 

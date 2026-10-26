@@ -56,7 +56,7 @@ T = `NETWORKDAYS(t0, te − 1, Holidays)/252`。QuantLibの`businessDaysBetween`
 | F10 プレミアム | Black式(F = 先渡clean、K = ストライク単価、標準偏差 = σP/100 × √T)。割引なし | 表UDF `PremiumTable`(`ql.blackFormula`) | `pricer.black_premium` |
 | F11 ITMバイライトのストライク | K + C(K) = スポット単価 を満たすK(Cはコールのプレミアム、F10)を⌊ ⌋₃ | 表UDF `ItmBuyWriteTable`(`ql.Brent`) | `pricer.itm_buy_write_strike` |
 
-ATM単利 = 引け値の単利(大和 =DWAT)+ ATMのスライド(bp)/100。
+ATM単利 = 引け値の単利(JCL)+ ATMのスライド(bp)/100。
 
 名前付きLAMBDA(ブックの名前の定義):
 - `JGB_YEARS(a, m)` = (m − a − (a, m]に含まれる2/29の数)/365(n、F1・F2の年数)
@@ -140,7 +140,7 @@ Kが0.003〜0.009円、プレミアムが0.12〜0.90銭ずれる)。理屈では
 ## データ(朝のバッチ)
 
 - `python -m engine.common.morning_batch`の④で、LSEG(Python API、`engine/common/jgb_source.py`)から
-  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、引け値(`{RIC}DWAT`のCF_YIELD、単利)を
+  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、引け値(`{RIC}JCL`のCF_CLOSE、単利)を
   `data/historical.db`の`jgb_bonds`・`jgb_closes`に保存する。シートはDBを読むだけ(理由は[decisions.md](decisions.md))。
 - 銘柄コード: 年限の記号 + 回号(2年 JN、5年 JS、10年 JB、20年 JL、30年 JX、40年 JU。例 JB380)。
   RICは`JP{回号4桁}00{種別}=`(種別 42/45/67/69/68/54)。
