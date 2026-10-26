@@ -34,6 +34,8 @@ RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
     "BondOption.xlsm": {},
+    # 会社のポジション・リスクを貼り付ける入力シート(5行目以降)。値は消し、数式(ピラーの並び等)だけ残す
+    "PositionSheet.xlsm": {"Delta": 5, "Gamma": 5, "Vega": 5, "Bonds": 5, "Trades": 5, "Others": 5},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
@@ -50,6 +52,8 @@ ALLOWED_PARTS = [re.compile(p) for p in (
     r"xl/styles\.xml",
     r"xl/sharedStrings\.xml",
     r"xl/metadata\.xml",
+    # 動的配列のセルのエラー値(#NAME?等)の種類だけを持つ部品(errorType等の整数。データは入らない)
+    r"xl/richData/(rdRichValueTypes|rdrichvaluestructure|rdrichvalue)\.xml",
     r"xl/calcChain\.xml",
     r"xl/vbaProject\.bin",
     r"xl/customProperty\d+\.bin",  # LSEGアドインの関数の呼び出し条件(RIC一覧・期間・出力範囲)
@@ -81,6 +85,7 @@ UDF_MODULES = (
     ROOT / "engine" / "pca" / "udf.py",
     ROOT / "engine" / "vol" / "udf.py",
     ROOT / "engine" / "bond_option" / "udf.py",
+    ROOT / "engine" / "position" / "udf.py",
     ROOT / "engine" / "common" / "live_udf.py",
 )
 

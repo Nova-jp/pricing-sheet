@@ -3,7 +3,8 @@
 JPY OIS(TONA)スワップのプライシングシート。Excel(UDF専用、VBAなし) +
 Python/QuantLib + LSEG Workspace(カーブ・プライシング本体の供給元)。ASWスプレッドのみ
 Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.md`)。現物オプションのブック
-`BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)も含む。
+`BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)と、ポジション・リスク管理の叩き台
+`PositionSheet.xlsm`(`engine/position/`、`docs/position.md`)も含む。
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
@@ -21,15 +22,17 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   (`engine/pca/`・`engine/vol/`・`engine/boj/`、PCA・IV vs HV・BOJ会合等、pricingとは別ブック)も含む。
   - `engine/common/` — pricing/historical/boj/pcaのどこからも使う共有エンジン・データ層
     (conventions/curve/swap_pricer/terms/market/market_data/risk/paths、historical_store/
-    morning_batch/neon_source、udf_common)
+    morning_batch/neon_source、udf_common、PCAの推定のhistory/pca)
   - `engine/swap_pricing/` — PricingSheet.xlsm固有のUDF(機能ごとに`pricing/`・`historical/`・
     `asw/`に分割、薄い再エクスポート層`udf.py`)
-  - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析(history/pca/udf)
+  - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析のUDF(推定は`engine/common/pca.py`)
   - `engine/vol/` — SwapAnalysis.xlsm固有のIV vs HV(hv/udf。FwdのHVはDBのカーブから)
   - `engine/boj/` — SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ(meeting_curve/udf)
   - 分析ブック(`pca/`・`vol/`・`boj/`)は`swap_pricing/`に依存させず、`common/`だけを使う
     (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
+  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(bonds/trades/forward/udf)。
+    `common/`だけを使う(PCAの推定は`engine/common/pca.py`・`history.py`)
 
 ## 設計方針(必ず守る)
 
@@ -43,6 +46,8 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   UDF実体が必要というxlwings(Windows)の制約のため(`udf.py`自体は薄い再エクスポート層)。
   VBAのRunPython/マクロボタンでUDFセルを静的値で上書きするような実装は絶対に作らない
   (過去に実際に事故が起きた設計)。
+  例外: PositionSheetのデータの取得・計算の開始のボタンはVBAで作ってよい(ユーザー了承。重い計算はPythonに任せ、
+  書き込み先は専用の領域にしてUDFのセルは上書きしない。`docs/decisions.md`)。
 - 配列を返すUDFに`@xw.ret(expand="table")`を使わない(旧式配列数式に書き換わり
   動的配列のスピルと衝突する)。配列をそのまま返しExcelのスピルに任せる。
 - 価格計算の値はQuantLibを正とし、手計算の再実装による検証ロジックは作らない。
