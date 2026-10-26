@@ -152,6 +152,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
   今日(DBの直近の引け値まで)、Recon dateの空欄はそのシートのライブの値(1行目の取得モードがLiveなら読み直す)。
 - PCAGridシート(スワップのPCAの条件比較)は、左端のテナー表・各ケースの推定の条件(3〜7行目。Window endの
   空欄=今日)・各段のk(D列)・A4のRecon date(全ケース共通。空欄=今日のライブの値)を入れてF9。
+  グラフの縦の補助線の年限はA58:A62(`Guide tenors`、空欄可)。
 
 ## 5.2 現物オプション(BondOption.xlsm)
 
