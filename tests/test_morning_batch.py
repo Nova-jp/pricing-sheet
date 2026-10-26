@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from datetime import date, datetime
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -79,6 +80,19 @@ class CurveBatchTest(unittest.TestCase):
         self.xlsx, self.config, self.db = tmp / "historical_data.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(self.xlsx)
         _write_config(self.config, ["O/N"] + TENORS)
+        # LSEG・Neonには接続しない。モックしていない取得は失敗扱い(バッチはその取得だけスキップする)。
+        # 個々のテストのmock.patchはこれより内側なので、そちらが優先される
+        offline = RuntimeError("テストではLSEG・Neonに接続しない")
+        for target, name in [
+            (morning_batch.neon_source, "fetch_asw_quotes"),
+            (morning_batch.jgb_source, "fetch_jgbs"),
+            (morning_batch.jgb_source, "fetch_close_history"),
+            (morning_batch.futures_source, "fetch_settles"),
+            (morning_batch.swaption_source, "fetch_premiums"),
+        ]:
+            patch = mock.patch.object(target, name, side_effect=offline)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def tearDown(self):
         self._tmp.cleanup()

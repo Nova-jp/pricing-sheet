@@ -57,6 +57,12 @@ def _pv(rates, params):
     ).pv
 
 
+
+def _run_batch(xlsx: Path, config: Path, db: Path) -> None:
+    """合成ブックから朝バッチでDBを作る。LSEG・Neonには接続しない(取得はtest_morning_batch等でモックして確かめる)。"""
+    with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]):
+        morning_batch.run(xlsx, config, db, log=lambda *_: None, skip_jgb=True, skip_vol=True)
+
 class CurveSetTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
@@ -227,7 +233,7 @@ class ValuationDateTest(unittest.TestCase):
         xlsx, config, self.db = tmp / "h.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
-        morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
+        _run_batch(xlsx, config, self.db)
         self.patch = mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db))
         self.patch.start()
 
@@ -353,7 +359,7 @@ class _HistoricalDbCase(unittest.TestCase):
         xlsx, config, self.db = tmp / "h.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(xlsx)
         _write_config(config, ["O/N"] + list(SPOT_RATES))
-        morning_batch.run(xlsx, config, self.db, log=lambda *_: None)
+        _run_batch(xlsx, config, self.db)
         self.patches = [mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db))]
         for p in self.patches:
             p.start()
