@@ -165,6 +165,16 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - 使い方: Optionシートの黄色の列(Bond・Type・Expiry・Settle lag・Repo・ATM/Strikeのスライド等)を入れてF9。
   評価日はB3(空欄=今日)。ATM単利は引け値+ATMのスライド。ボラはbp vol・ノーマルvolのどちらでも上書きできる。
 
+## 5.3 ポジション・リスク管理(PositionSheet.xlsm、叩き台)
+
+- 手法とシートの構成は[position.md](position.md)。PricingSheetと同じxlwings・venvで動く(VBAのxlwings参照は
+  雛形に入っている)。初回とUDFの変更時は`PositionSheet.xlsm`を開いて「Restart UDF Server」→「Import Functions」
+  (`PositionSheet.py`から`PosBondRisk`等を登録)。
+- PCA・前日の引け値・現物の銘柄情報はDBを読むので、毎朝のバッチ(上の5.)を先に実行しておく。ライブのレートは
+  フィード(4.1)の`"swap"`・`"vol"`。
+- 使い方: Setupでリスクの基準日(会社のリスクの日付)を入れ、Delta・Gamma・Vegaに会社のリスクを値で貼り付け、
+  Bondsに現物のポジション、Tradesに日中の取引を入れてF9。
+
 ## 6. コードを更新したとき(git pull後など)
 
 - **xlwingsリボンの「Restart UDF Server」を押す**。Excelの裏で動くPython(UDFサーバ)は

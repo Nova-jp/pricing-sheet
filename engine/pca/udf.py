@@ -29,8 +29,8 @@ from typing import List, Optional, Tuple
 
 import xlwings as xw
 
-from engine.pca import pca
-from engine.pca.history import UNIT_BP, load_history, normalize_label, parse_dataset
+from engine.common import pca
+from engine.common.history import UNIT_BP, load_history, normalize_label, parse_dataset
 from engine.common.historical_store import HistoricalStore
 from engine.common.udf_common import _is_blank, _to_date, _today
 

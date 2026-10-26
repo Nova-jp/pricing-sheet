@@ -40,7 +40,7 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
 import numpy as np
 import QuantLib as ql
 
-from engine.pca.history import History, normalize_label
+from engine.common.history import History, normalize_label
 from engine.common.conventions import CALENDAR
 
 LEVEL = "LEVEL"
