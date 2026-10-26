@@ -25,9 +25,10 @@ BondOption.xlsmでは、単利⇔単価・経過利子・受渡日はExcelの式
 """
 
 import math
+from bisect import bisect_right
 from datetime import date
 from functools import lru_cache
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Tuple
 
 import QuantLib as ql
 
@@ -96,9 +97,16 @@ def accrued_interest(bond: Jgb, settle: date) -> float:
     return ql.BondFunctions.accruedAmount(ql_bond(bond), _qd(settle))
 
 
+@lru_cache(maxsize=1024)
+def _schedule_dates(bond: Jgb) -> Tuple[date, ...]:
+    return tuple(d.to_date() for d in schedule(bond))
+
+
 def coupon_dates(bond: Jgb, after: date, until: date) -> List[date]:
-    """after < 利払日 ≤ until の利払日(名目の日付)。"""
-    return [d.to_date() for d in schedule(bond) if _qd(after) < d <= _qd(until)]
+    """after < 利払日 ≤ until の利払日(名目の日付)。スケジュールの日付の一覧を二分探索する
+    (毎回 ql.Schedule を走査すると、ヒストリカルのベーシスで計算時間の9割を占めたため)。"""
+    dates = _schedule_dates(bond)
+    return list(dates[bisect_right(dates, after):bisect_right(dates, until)])
 
 
 def compound_yield(bond: Jgb, dirty: float, settle: date) -> float:

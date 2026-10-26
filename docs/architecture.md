@@ -121,6 +121,7 @@ engine/
   pca/             # SwapAnalysis.xlsm固有のPCA分析
   vol/             # SwapAnalysis.xlsm固有のIV vs HV(Fwdの日次変化)
   fwd/             # SwapAnalysis.xlsm固有のFwd(NyMy)の監視とヒストリカル(3方式)
+  fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
 ```
@@ -419,15 +420,15 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
   par-par asw(bp)・adj_notional・message。W以外はAQ〜BDの出力を参照するだけ。
 - 計算(AF:BD、折りたたみ): AQ3の`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(入力の列だけを渡す)。
 
-## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`)
+## 分析ブック(`SwapAnalysis.xlsm`、`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`・`engine/fut/`)
 
 pricingとは切り分けた分析用のブック。スワップとボラ(スワップションATMノーマルvol)の
 PCA(主成分で復元した値と実績の差分、主成分ベクトル)と、ボラのインプライドとヒストリカルの比較
 (`VolHV`シート、下の節)、BOJ会合スワップとスポットのずれ(`BOJ`シート、下の節)、Fwd(NyMy)の監視と
-ヒストリカル(`FwdMonitor`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
+ヒストリカル(`FwdMonitor`シート、下の節)、長期国債先物のベーシス(`FutBasis`シート、下の節)。設計方針はPricingSheetと同じ(VBAなし、手動計算+F9、UDFは配列を返して
 スピルに任せる)。Excelの関数では難しい計算(固有値分解・DBの読み出し・Fwdの計算)はPythonのUDF、
 得点・復元(行列の積)・差分・寄与率・窓の集計などはExcelの数式。`SwapAnalysis.py`は
-`engine/pca/udf.py`・`engine/vol/udf.py`・`engine/boj/udf.py`・`engine/fwd/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
+`engine/pca/udf.py`・`engine/vol/udf.py`・`engine/boj/udf.py`・`engine/fwd/udf.py`・`engine/fut/udf.py`の再エクスポートだけ(xlwingsのブック名の制約)。
 `engine/swap_pricing/`(PricingSheetのUDF)は使わない。
 
 | ファイル | 役割 |
@@ -576,6 +577,30 @@ Fwd(NyMy、1y1y〜11y1y・15/20/25/30/35y1y、5y5y〜35y5yの23本)の今日の�
 - **計算領域(AA:GT、列のグループで畳んである)**: AA3 ライブのレート、AF3 カーブ入力(フラグ/Ticker/Value…、AL:AMのテナーと
   フラグ)、AO3/CK3/EG3 `FwdHistory`のCMT/FIXED/ROLLING(名前`FWM_HC`/`FWM_HF`/`FWM_HR`)、GC:GK ストリップ用、GM:GQ 比較チャート用、
   GS:GT ライブ。元データが畳んだ列にあるので、グラフは「非表示の行と列のデータを表示」にしてある。
+
+### 長期国債先物のベーシス(`FutBasis`シート、`engine/fut/`)
+
+期近のつなぎ足とCTDのベーシスのヒストリカル、限月を重ねたベーシス、1日分の銘柄ごとのベーシス。規則(限月・交換係数・
+ベーシス・CTD=ネットベーシス最小・レポの階段)は`engine/common/jgb_futures.py`、データは朝バッチの④⑤(10年債の引け値・
+先物の清算値)とTONA実績。理由は[decisions.md](decisions.md)の「国債先物」「FutBasisシート」。
+
+| ファイル | 役割 |
+|---|---|
+| `engine/fut/history.py` | DBの清算値・引け値・TONA実績を読み(`load`)、つなぎ足の各日のCTD(`front_history`)、限月ごとのCTDの値を取引最終日までの営業日数に並べた重ね合わせ(`overlay`)、1日分の表(`basis_on`。先物価格・レポ・単利を上書きできる)を計算する |
+| `engine/fut/udf.py` | `FutRepoSteps()`: TONA実績から作ったレポの段 [Start, Rate]。`FutHistory(steps)`: [Date, Contract, Settle, dSettle, Roll, Repo, CTD, CF, Yield, Price, Gross, Carry, Net, IRR](dSettleは同じ限月の変化、Rollは乗り換えの日=1。段より前の日はCTD以降が空欄)。`FutOverlay(contracts, field, steps)`: [BD, 限月…](BD=取引最終日までの営業日数の降順、fieldはNET/GROSS/CARRY/IRR)。`FutBasis(contract, as_of, futures_price, repo, yields)`: 受渡適格銘柄ごとの表と最後に[Futures, 価格, Repo, レポ]の行。stepsは[Start, Rate]の範囲(空欄=自動の段)。DBの読み出し・計算は引数とDBの更新時刻ごとに覚えておく(2020年〜の全期間で約1秒) |
+
+シートの構成(セルの文字・名前は英語、名前は`FUT_…`):
+- **Settings(A4:B10)**: Contract(`FUT_Contract`)、Date(空欄=DBの最終日。`FUT_Date`)、Futures price(空欄=DBの清算値)、
+  Repo(空欄=TONA)、Chart from(履歴のグラフの開始日)、Overlay field(NET/GROSS/CARRY/IRR)、10行目に重ねる6限月(`FUT_Overlay`)。
+- **銘柄ごとの表(A14〜)**: `FutBasis`と、Gross・Carry・Netの銭(M:O)。CTDの行は条件付き書式で色付き・太字。
+- **入力の表**: Q14 `FutRepoSteps`(自動の段)、T15:U34 手入力の段(`FUT_Steps`。1行でも入れればこれだけを使う)、
+  W15:X34 単利の上書き(`FUT_Yields`、銘柄ごとの表だけ)、Z15:AB54 段差の手入力(Date・dSettle・dNet(銭)。その日の自動の変化の代わりに使う)。
+- **グラフ(43行目〜)**: つなぎ足(清算値と、ロールの段差を除いた系列)、CTDのネットベーシス(銭、限月の乗り換えとレポの段が
+  変わった日の変化を0にした系列)、限月の重ね合わせ(横軸=取引最終日までの営業日数)。段差を除いた系列は最終日の値を起点に、
+  日々の変化を過去へ引いて作る(`SCAN`)。
+- **計算領域(AE:BU、畳んである)**: AE3 `FutHistory`(`FUT_H`)、AT:AY 段差の調整、BA:BE グラフ用(Chart from以降)、
+  BG3 `FutOverlay`、BO:BU 重ね合わせのグラフ用(空欄を`#N/A`に、銭に換算)。グラフは「非表示の行と列のデータを表示」。
+  注意: `VSTACK(NA(),…)`は全体が`#N/A`になるので、前日の値の列は`VSTACK("",…)`で作る。
 
 ### BOJ会合スワップとスポットのずれ(`BOJ`シート、`engine/boj/`)
 
