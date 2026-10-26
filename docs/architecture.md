@@ -21,9 +21,9 @@
      (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
   ③ engine/common/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
      (Neonに繋がらなくても①②は続行する)
-  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(大和 =DWAT)を取得
+  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCL)を取得
      (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
-     --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(大和、無い日はみずほ・JCLで補う)
+     --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(JCL、無い日は大和・みずほで補う)
   ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
      (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
         │
@@ -149,7 +149,7 @@ engine/
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
-| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}DWAT`の`CF_YIELD`)を取得する(朝バッチの④)。過去分(`fetch_close_history`)は大和に無い日をみずほ・JCLで補う |
+| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の`CF_CLOSE`)を取得する(朝バッチの④)。過去分(`fetch_close_history`)はJCLに無い日を大和・みずほで補う |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。満期日=取引日+満期(Following)、起算日=満期日+2営業日。朝バッチの⑦とフィードが使い、BondOptionの補間も同じ満期日・営業日数を使う |
@@ -419,7 +419,7 @@ pricingの行番号の代わりに銘柄を指定する。ROLLING/FIXEDの区別
   (単利%を直接入れる。slideより優先)、E delta(百万円/bp、入れるとadj_notional)、F start(空欄=スポット T+2。
   日付・`2bd`等はpricingと同じ)、G fix freq、H fix dcf、I float freq、J roll conv(既定`BWD`=償還日から遡る)、
   K pay/rec。G〜Kは既定でSA/act/365fixed/SA/BWD/PAYが入っている。
-- 表示(L〜Z): coupon・maturity・close(評価日以前で直近の引け値(大和))・close date・simple yield・settle(T+1)・price・
+- 表示(L〜Z): coupon・maturity・close(評価日以前で直近の引け値(JCL))・close date・simple yield・settle(T+1)・price・
   compound yield・start date・end date・swap rate(MMS)・**W ASW(bp)=(S−V)×100(シートの式)**・
   par-par asw(bp)・adj_notional・message。W以外はAQ〜BDの出力を参照するだけ。
 - 計算(AF:BD、折りたたみ): AQ3の`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(入力の列だけを渡す)。

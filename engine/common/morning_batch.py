@@ -24,11 +24,11 @@
   ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
      asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
      Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
-  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(大和、=DWAT)を取得し、
+  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL)を取得し、
      jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。LSEG Workspaceが
      起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
      --jgb-history-from を付けたときは、10年債(先物の受渡適格銘柄の候補)の引け値の過去分も取る
-     (大和、無い日はみずほ・JCLで補う。jgb_source.fetch_close_history)。
+     (JCL、無い日は大和・みずほで補う。jgb_source.fetch_close_history)。
   ⑤ LSEG(engine/common/futures_source.py)から長期国債先物の限月ごとの清算値を取得し、fut_settles に
      保存する(2020年から。取り終えた限月は取らず、取引中の限月は保存済みの最終日から取り直す)。
      失敗してもここだけスキップする。--skip-jgb で④と一緒に行わない。
