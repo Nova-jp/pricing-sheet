@@ -29,14 +29,18 @@ class ForwardPricer:
         ql.Settings.instance().evaluationDate = ql.Date.from_date(as_of_date)
         self.handle.linkTo(curve.currentLink())
 
-    def rate(self, terms: SwapTerms) -> float:
-        """Fwdスワップレート(%)。"""
+    def swap(self, terms: SwapTerms) -> ql.OvernightIndexedSwap:
+        """その取引条件のスワップ(初回だけ組む。評価は今つないでいるカーブ)。"""
         swap = self.swaps.get(terms)
         if swap is None:
             swap = _build_swap(self.index, terms, 1.0, PAY, 0.0)
             swap.setPricingEngine(self.engine)
             self.swaps[terms] = swap
-        return swap.fairRate() * 100.0
+        return swap
+
+    def rate(self, terms: SwapTerms) -> float:
+        """Fwdスワップレート(%)。"""
+        return self.swap(terms).fairRate() * 100.0
 
     def keep_only(self, terms: Iterable[SwapTerms]) -> None:
         keep = set(terms)

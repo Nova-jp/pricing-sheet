@@ -14,6 +14,13 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - vol_quotes : スワップションATMノーマルvol(営業日ベース、bp/年 = bp/日×√252)。朝バッチが swaption_premiums と
               その日のカーブから計算する(engine/common/swaption.py)。分析ブック(PCA・VolHV)が読む。カーブには使わない
   - vol_inputs : vol_quotes を計算した入力(その日のカーブの入力ハッシュとプレミアム)のハッシュ。同じなら計算し直さない
+  - swaption_forwards : スワップションの原資産(engine/common/swaption.underlying の契約)の、日付×銘柄ごとの
+              満期日・起算日・満期日(原資産)・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd
+              (forward_prev。最初の日付は NULL)。朝バッチが格子の全銘柄(プレミアムの有無によらない)について
+              その日と前の日付のカーブから計算する(engine/common/swaption_forward.py)。分析ブック(VolHV・VolLevel)が
+              読み、将来はベガのリスクの分解(Fwd→TONAのデルタ)にも使う。IVは vol_quotes と日付・銘柄で突き合わせる
+  - swaption_forward_inputs : swaption_forwards を計算した入力(計算方法・その日と前の日付のカーブの入力ハッシュ・
+              銘柄)のハッシュ。同じなら計算し直さない
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
   - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
@@ -91,6 +98,22 @@ CREATE TABLE IF NOT EXISTS vol_inputs (
     as_of_date TEXT PRIMARY KEY,
     input_hash TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS swaption_forwards (
+    as_of_date TEXT NOT NULL,
+    label TEXT NOT NULL,
+    expiry_date TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    days INTEGER NOT NULL,
+    forward REAL NOT NULL,
+    annuity REAL NOT NULL,
+    forward_prev REAL,
+    PRIMARY KEY (as_of_date, label)
+);
+CREATE TABLE IF NOT EXISTS swaption_forward_inputs (
+    as_of_date TEXT PRIMARY KEY,
+    input_hash TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS curves (
     as_of_date TEXT PRIMARY KEY,
     builder TEXT NOT NULL,
@@ -150,6 +173,19 @@ class AswQuoteRow(NamedTuple):
 class AswRate(NamedTuple):
     pa: float
     sa: float
+
+
+class SwaptionForwardRow(NamedTuple):
+    """swaption_forwards の1行(日付を除く)。"""
+
+    label: str
+    expiry_date: date
+    start_date: date
+    end_date: date
+    days: int
+    forward: float  # %
+    annuity: float  # 想定元本1あたり、年
+    forward_prev: Optional[float]  # 同じ契約の前の日付のカーブでのFwd(%)。最初の日付は None
 
 
 class JgbBondRow(NamedTuple):
@@ -310,6 +346,37 @@ class HistoricalStore:
             for d in stale:
                 conn.execute("DELETE FROM vol_quotes WHERE as_of_date = ?", (d,))
                 conn.execute("DELETE FROM vol_inputs WHERE as_of_date = ?", (d,))
+        return len(stale)
+
+    def save_swaption_forwards(
+        self, as_of_date: date, rows: Iterable[SwaptionForwardRow], input_hash: str,
+    ) -> None:
+        """その日の swaption_forwards を丸ごと置き換え、計算した入力のハッシュを記録する。"""
+        d = _iso(as_of_date)
+        with self._connect() as conn:
+            conn.execute("DELETE FROM swaption_forwards WHERE as_of_date = ?", (d,))
+            conn.executemany(
+                "INSERT INTO swaption_forwards (as_of_date, label, expiry_date, start_date, end_date, days, forward, "
+                "annuity, forward_prev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(d, r.label, _iso(r.expiry_date), _iso(r.start_date), _iso(r.end_date), r.days, r.forward,
+                  r.annuity, r.forward_prev) for r in rows],
+            )
+            conn.execute(
+                "INSERT INTO swaption_forward_inputs (as_of_date, input_hash) VALUES (?, ?) "
+                "ON CONFLICT(as_of_date) DO UPDATE SET input_hash=excluded.input_hash",
+                (d, input_hash),
+            )
+
+    def delete_swaption_forwards_except(self, keep: Iterable[date]) -> int:
+        """keep 以外の日付(カーブが無くなった日)の swaption_forwards・swaption_forward_inputs を消す。消した日数を返す。"""
+        keep_iso = {_iso(d) for d in keep}
+        with self._connect() as conn:
+            stale = [d for (d,) in conn.execute(
+                "SELECT as_of_date FROM swaption_forwards UNION SELECT as_of_date FROM swaption_forward_inputs")
+                if d not in keep_iso]
+            for d in stale:
+                conn.execute("DELETE FROM swaption_forwards WHERE as_of_date = ?", (d,))
+                conn.execute("DELETE FROM swaption_forward_inputs WHERE as_of_date = ?", (d,))
         return len(stale)
 
     def save_curve(
@@ -514,6 +581,29 @@ class HistoricalStore:
         with self._connect() as conn:
             rows = conn.execute("SELECT as_of_date, input_hash FROM vol_inputs").fetchall()
         return {date.fromisoformat(d): h for d, h in rows}
+
+    def swaption_forward_hashes(self) -> Dict[date, str]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT as_of_date, input_hash FROM swaption_forward_inputs").fetchall()
+        return {date.fromisoformat(d): h for d, h in rows}
+
+    def swaption_forwards(self, labels: Iterable[str]) -> Dict[date, Dict[str, SwaptionForwardRow]]:
+        """{日付: {銘柄: 行}}(labels の銘柄だけ。表記はDBのまま「1Yx10Y」)。"""
+        names = list(dict.fromkeys(labels))
+        if not names:
+            return {}
+        result: Dict[date, Dict[str, SwaptionForwardRow]] = {}
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT as_of_date, label, expiry_date, start_date, end_date, days, forward, annuity, forward_prev "
+                f"FROM swaption_forwards WHERE label IN ({','.join('?' * len(names))})",
+                names,
+            ).fetchall()
+        for d, label, e, s, m, days, fwd, ann, prev in rows:
+            result.setdefault(date.fromisoformat(d), {})[label] = SwaptionForwardRow(
+                label, date.fromisoformat(e), date.fromisoformat(s), date.fromisoformat(m), days, fwd, ann, prev,
+            )
+        return result
 
     def fixings(self) -> Dict[date, float]:
         with self._connect() as conn:

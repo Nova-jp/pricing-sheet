@@ -73,6 +73,32 @@ def vol_from_stdev(stdev: float, days: int) -> float:
     return stdev / math.sqrt(days) * math.sqrt(TRADING_DAYS)
 
 
+class Underlying(NamedTuple):
+    """取引日のスワップション(満期x原資産)の契約。volの換算・原資産のFwd(DBのswaption_forwards)・
+    ライブのFwdは全てこれを使う(契約の決め方をここ1か所にする)。"""
+
+    label: str  # 「満期x原資産」(例 1Yx10Y)
+    expiry: date  # 満期日
+    days: int  # 満期までの営業日数(当日を含む)
+    terms: SwapTerms  # 原資産のフォワード・スワップ(起算日=満期日+START_LAG_DAYS営業日、規約 STANDARD)
+
+
+def underlying(trade_date: date, label) -> Underlying:
+    """取引日 trade_date の契約。満期日 = 取引日+満期(翌営業日)、起算日 = 満期日の2営業日後
+    (スワップのスポットと同じT+2。現物の国債のT+1とは別)。"""
+    e, tail = parse_label(label)
+    expiry = expiry_date(trade_date, e)
+    start = CALENDAR.advance(ql.Date.from_date(expiry), START_LAG_DAYS, ql.Days).to_date()
+    return Underlying(
+        f"{e}x{tail}", expiry, business_days(trade_date, expiry), SwapTerms(start=start, convention=STANDARD, tenor=tail),
+    )
+
+
+def annuity(swap: ql.OvernightIndexedSwap, curve: ql.YieldTermStructureHandle) -> float:
+    """起算日へのフォワードの年金(想定元本1あたり、年)= 固定レッグのBPS / 起算日のDF。"""
+    return abs(swap.fixedLegBPS()) / 1e-4 / curve.discount(swap.startDate())
+
+
 class PremiumConverter:
     """1つのカーブ(取引日のもの)で、プレミアムをvolに換える。呼ぶ前後で評価日を取引日にしておく。"""
 
@@ -89,19 +115,15 @@ class PremiumConverter:
         premium = float(premium)
         if not math.isfinite(premium) or premium <= 0:
             return None
-        e, tail = parse_label(label)
-        expiry = expiry_date(self.trade_date, e)
-        days = business_days(self.trade_date, expiry)
-        if days <= 0:
+        u = underlying(self.trade_date, label)
+        if u.days <= 0:
             return None
-        start = CALENDAR.advance(ql.Date.from_date(expiry), START_LAG_DAYS, ql.Days)
-        swap = _build_swap(self.index, SwapTerms(start=start.to_date(), convention=STANDARD, tenor=tail), 1.0, PAY, 0.0)
+        swap = _build_swap(self.index, u.terms, 1.0, PAY, 0.0)
         swap.setPricingEngine(self.engine)
         forward = swap.fairRate()
-        annuity = abs(swap.fixedLegBPS()) / 1e-4 / self.curve.discount(start)
-        price = premium / 1e4 / 2 / annuity  # 片側(ペイヤー)の価格、レートの単位
+        ann = annuity(swap, self.curve)
+        price = premium / 1e4 / 2 / ann  # 片側(ペイヤー)の価格、レートの単位
         stdev = ql.bachelierBlackFormulaImpliedVol(ql.Option.Call, forward, forward, 1.0, price) * 1e4
         return SwaptionVol(
-            f"{e}x{tail}", expiry, start.to_date(), days, forward * 100, annuity, stdev,
-            vol_from_stdev(stdev, days),
+            u.label, u.expiry, u.terms.start, u.days, forward * 100, ann, stdev, vol_from_stdev(stdev, u.days),
         )
