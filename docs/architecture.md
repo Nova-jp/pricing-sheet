@@ -21,7 +21,8 @@
      (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
   ③ engine/common/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
      (Neonに繋がらなくても①②は続行する)
-  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCL)を取得
+  (①〜⑥のどれも、保存するのは昨日までの日付だけ。今日の値はブックがライブで見る)
+  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCLの履歴、直近10日分)を取得
      (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
      --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(JCL、無い日は大和・みずほで補う)
   ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
@@ -150,7 +151,7 @@ engine/
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
-| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の`CF_CLOSE`)を取得する(朝バッチの④)。過去分(`fetch_close_history`)はJCLに無い日を大和・みずほで補う |
+| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の履歴の単利、JCLに無い日は大和・みずほで補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`--jgb-history-from`のときは過去分も同じ取り方) |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。満期日=取引日+満期(Following)、起算日=満期日+2営業日。朝バッチの⑦とフィードが使い、BondOptionの補間も同じ満期日・営業日数を使う |

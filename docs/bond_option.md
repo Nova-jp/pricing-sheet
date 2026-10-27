@@ -140,7 +140,7 @@ Kが0.003〜0.009円、プレミアムが0.12〜0.90銭ずれる)。理屈では
 ## データ(朝のバッチ)
 
 - `python -m engine.common.morning_batch`の④で、LSEG(Python API、`engine/common/jgb_source.py`)から
-  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、引け値(`{RIC}JCL`のCF_CLOSE、単利)を
+  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、昨日までの引け値(`{RIC}JCL`の履歴の単利)を
   `data/historical.db`の`jgb_bonds`・`jgb_closes`に保存する。シートはDBを読むだけ(理由は[decisions.md](decisions.md))。
 - 銘柄コード: 年限の記号 + 回号(2年 JN、5年 JS、10年 JB、20年 JL、30年 JX、40年 JU。例 JB380)。
   RICは`JP{回号4桁}00{種別}=`(種別 42/45/67/69/68/54)。

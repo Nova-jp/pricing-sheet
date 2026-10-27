@@ -245,6 +245,16 @@ class SourceTest(unittest.TestCase):
             JgbClose(d3, "JB373", 2.6),
         ])
 
+    def test_close_history_drops_days_outside_the_range(self):
+        """期間の外の日(LSEGが返しても)は入れない。朝バッチは昨日までを指定する。"""
+        d1, d2 = date(2026, 10, 23), date(2026, 10, 26)
+        ld = mock.Mock()
+        ld.get_history.side_effect = lambda rics, fields, start, end: FakeHistory(
+            {r: ({d1: 2.6, d2: 2.58} if r.endswith("JCL") else {}) for r in rics}
+        )
+        closes = jgb_source._fetch_close_history(ld, self.BONDS[:1], d1, d1)
+        self.assertEqual(closes, [JgbClose(d1, "JB373", 2.6)])
+
     def test_history_columns_single_ric(self):
         df = FakeHistory({"MID_YLD_1": {date(2026, 10, 23): 2.6}})
         cols = jgb_source.history_columns(df, ["JP03730067=JCL"], "MID_YLD_1")
@@ -287,7 +297,7 @@ class BatchTest(unittest.TestCase):
         with mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fetched) as fetch:
             morning_batch.sync_futures(self.store, logs.append, today=date(2026, 10, 25))
         plan, end = fetch.call_args.args
-        self.assertEqual(end, date(2026, 10, 25))
+        self.assertEqual(end, date(2026, 10, 24))  # 昨日まで
         self.assertNotIn(jf.Contract(2026, 9), plan)  # 取引最終日まで取り終えた
         self.assertEqual(plan[jf.Contract(2026, 12)], date(2026, 10, 20))  # 保存済みの最終日から
         self.assertEqual(plan[jf.Contract(2020, 3)], morning_batch.FUTURES_HISTORY_START)
