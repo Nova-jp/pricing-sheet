@@ -72,7 +72,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:LZ(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -577,15 +577,23 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
   パーセンタイル、傾き(Fwd 1%あたりのvol)・切片・R²・残差の標準偏差・日数。
 - **散布図(F3〜、ペアごとに1枚)**: History(灰)、Recent(橙)、Latest (DB)、Live(赤)、Fit(回帰直線、
   ライブを含むFwdの範囲)。元データは畳んだ列にあるので「非表示の行と列のデータを表示」。
-- **Rich / cheap map(A31〜)**: `Grid value`(Z/Residual/Pctl、`VLV_GValue`)、`Grid point`(Live/DB、
-  `VLV_GPoint`)、満期(A36:A43)×原資産(B35:I35)、各8本まで。B36の`MAKEARRAY`が名前付きのLAMBDA
-  `VLV_Cell`(銘柄ごとの回帰と残差)を呼ぶ。色は条件付き書式の3色(赤=割高、青=割安。Zは±2、Residualは±5bp、
-  Pctlは0〜1)。
-- **計算領域(AA:LZ、列のグループで畳んである)**: AA3 ライブのvol(`VLV_LiveVol`)、AE3 ライブのレート、
+- **Rich / cheap map(A31〜)**: `Grid value`(Z/Residual/Pctl/dZ 1D/dZ 1W、`VLV_GValue`)、`Grid point`(Live/DB、
+  `VLV_GPoint`)、`Min R2`(`VLV_MinR2`)、全格子=満期13本(A36:A48)×原資産12本(B35:M35)。B36の`MAKEARRAY`は
+  計算領域の`VLV_GNow`を銘柄で引くだけ。色は条件付き書式の3色(赤=割高、青=割安。Z・dZは±2、Residualは±5bp、
+  Pctlは0〜1)で、R²が`Min R2`未満の格子は灰色(Fwdでvolを説明できていない。短い満期に多い)。
+  dZ 1D/1W = いまのZ − 1/5日前のZ(同じ当てはめ。Liveは最新のDBの日を1日前とする)。
+- **Rich / cheap ranking(A52〜)**: 格子の点のZの上位10(Rich)・下位10(Cheap)。R²が`Min R2`未満の銘柄は除く。
+  列はZ・残差(bp)・dZ 1D/1W・R²・IV・Fwd。dZはZと逆符号(0に戻る向き)が緑、同符号(離れる向き)が橙。
+  横の棒グラフは20銘柄のZ(上がRich)。
+- **計算領域(AA:ZZ、列のグループで畳んである)**: AA3 ライブのvol(`VLV_LiveVol`)、AE3 ライブのレート、
   AJ3 カーブ入力(AP:AQのテナーとフラグ)、AS3 `VolHistory`(ペア。`VLV_Data`、列は名前付きのLAMBDA`VLV_Col`で引く)、
   BD4 `VolFwdLive`(ペア)、BF/BM/BT ペアごとの[Date, Fwd, IV, Resid, Hist, Recent](From以降でIVのある日)、
   CA:CI 図の点(ライブ・最新・回帰直線の両端)、CK4 マップの銘柄、CL4 その`VolFwdLive`、CN3 その`VolHistory`
-  (`VLV_GData`)。
+  (`VLV_GData`、全格子156銘柄)、VA3 銘柄ごとの回帰(`REDUCE`で名前付きのLAMBDA`VLV_Stat`を156回。傾き・切片・R²・
+  残差のσ・日数・最新のDBのFwd/IV・k日前の残差・DBでのPctl。DBだけで決まるのでライブの更新では計算し直さない)、
+  VP3 格子の点での[Option, Fwd, IV, Resid, Z, dZ 1D, dZ 1W, R2, Pctl](`VLV_GNow`、Shift+F9のたびはここから先だけ。
+  ライブのPctlは`Grid value`がPctlのときだけ`VLV_Resids`で残差を作り直す)、WA36 R²の格子(灰色の判定)、
+  WP3 棒グラフ用。
 
 ### Fwdの監視とヒストリカル(`FwdMonitor`シート、`engine/fwd/`)
 
