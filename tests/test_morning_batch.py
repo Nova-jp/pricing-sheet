@@ -12,7 +12,7 @@ LSEGのデータはPublicリポジトリに置けないため、historical_data.
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -309,7 +309,40 @@ class CurveBatchTest(unittest.TestCase):
             self._run()
         with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]) as fetch:
             self._run()
-        fetch.assert_called_once_with(since=datetime(2026, 10, 9, 12, 30, 6))
+        # 保存済みの updated_at の最大から ASW_OVERLAP_DAYS 日前から取り直す
+        fetch.assert_called_once_with(
+            since=datetime(2026, 10, 9, 12, 30, 6) - timedelta(days=morning_batch.ASW_OVERLAP_DAYS),
+        )
+
+    def test_only_closes_until_yesterday_are_saved(self):
+        """どの取得も今日の値は保存しない(今日はブックがライブで見る)。"""
+        from engine.common.historical_store import AswQuoteRow
+        from engine.common.jgb_source import JgbClose, JgbRecord
+        from engine.common.swaption_source import PremiumQuote
+
+        today = DAYS[-1]  # 9/28 を今日として流す → 9/25 まで
+        asw = [
+            AswQuoteRow(DAYS[1], "000190054", 0.44, 0.48, datetime(2026, 9, 25, 18)),
+            AswQuoteRow(today, "000190054", 0.45, 0.49, datetime(2026, 9, 28, 18)),
+        ]
+        bonds = [JgbRecord("JB380", "JP03800067=", "", 1.7, date(2035, 9, 20))]
+        closes = [JgbClose(DAYS[1], "JB380", 2.94)]
+        premiums = [PremiumQuote(DAYS[1], "1Yx10Y", 455.0, 2.9), PremiumQuote(today, "1Yx10Y", 460.0, 2.9)]
+        fut = morning_batch.futures_source.FuturesFetch(
+            [(DAYS[1], "2026-12", 126.5), (today, "2026-12", 126.6)], [], [],
+        )
+        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=asw),                 mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, closes)) as jgbs,                 mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fut) as futs,                 mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=premiums) as prem:
+            summary = self._run(skip_jgb=False, skip_vol=False, today=today)
+        until = date(2026, 9, 27)
+        self.assertEqual(jgbs.call_args.args, (until - timedelta(days=morning_batch.CLOSE_LOOKBACK_DAYS), until))
+        self.assertEqual(futs.call_args.args[1], until)
+        self.assertEqual(prem.call_args.args[1], until)
+        self.assertEqual(summary.built, DAYS[:2])  # 9/28 のMidは取り込まない
+        store = HistoricalStore(self.db)
+        self.assertEqual(sorted(store.quotes()), DAYS[:2])
+        self.assertEqual(list(store.asw_quotes()), [DAYS[1]])
+        self.assertEqual(store.fut_settles()["2026-12"], {DAYS[1]: 126.5})
+        self.assertEqual(sorted(store.swaption_premiums()), [DAYS[1]])
 
     def test_neon_failure_does_not_abort_the_batch(self):
         from unittest import mock

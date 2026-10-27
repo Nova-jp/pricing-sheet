@@ -8,6 +8,11 @@
      オプション: --xlsx パス / --config パス / --db パス / --rebuild(全日付を作り直す)
      / --jgb-history-from 2020-01-01(10年債の引け値の過去分を埋める。初回・抜けた日があるときに1回)
 
+■ DBに入れるのは昨日までの引けだけ(2026-10-27、ユーザー指示)
+  どの取得も、実行した日の前日(until = 今日 − 1日)までの日付の値だけを保存する。今日の値はブックがライブで
+  見るので、DBに入れるとライブと二重になる(場が引けた後に流したときなど)。今日の引け値が欲しくなったら、
+  ブック側の機能としてその場でLSEGから取る(DBには入れない)。
+
 処理:
   ① historical_data.xlsx の Mid(日付×テナーのミッド)と Fixing(TONA実績)を読み、
      DBの quotes / fixings に取り込む(同じ日付は置き換え。過去に取り込んだ日付は残る)。
@@ -24,8 +29,9 @@
   ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
      asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
      Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
-  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL)を取得し、
-     jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。LSEG Workspaceが
+  ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL、無い日は大和・みずほで補う)を
+     取得し、jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。引け値は直近の
+     CLOSE_LOOKBACK_DAYS 日分を取り直す(朝バッチを流さなかった日の穴を埋め、配信元の訂正を拾う)。LSEG Workspaceが
      起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
      --jgb-history-from を付けたときは、10年債(先物の受渡適格銘柄の候補)の引け値の過去分も取る
      (JCL、無い日は大和・みずほで補う。jgb_source.fetch_close_history)。
@@ -69,6 +75,11 @@ _DATE_HEADER = "日付"
 FUTURES_HISTORY_START = date(2020, 1, 1)  # 先物の清算値を取り始める日(ユーザー指示)
 # プレミアムの差分取得で、前回の最終日より何日前から取り直すか(LSEG側の修正を拾うため)
 PREMIUM_OVERLAP_DAYS = 10
+# JGBの引け値を毎朝、昨日から何日前まで取り直すか
+CLOSE_LOOKBACK_DAYS = 10
+# ASWの差分取得で、保存済みの updated_at の最大より何日前から取り直すか。今日の行は保存しないので、
+# それより後に更新された昨日以前の行で差分の基準が進むと、今日の行を取りこぼす(保存はupsert)
+ASW_OVERLAP_DAYS = 3
 # volの計算方法の名前(式・営業日の数え方を変えたら変える。全日付を計算し直す)
 VOL_METHOD = "trdt-fwd-straddle/bd-incl-today/252"
 
@@ -95,6 +106,11 @@ def load_config(path: Path) -> CurveConfig:
     builder = str(raw.get("builder", "")).strip()
     get_curve_builder(builder)  # 未対応の名前はここでエラー
     return CurveConfig(builder=builder, tenors=tenors)
+
+
+def last_close_date(today: Optional[date] = None) -> date:
+    """DBに入れる最後の日付(今日の前日)。"""
+    return (today or date.today()) - timedelta(days=1)
 
 
 def _as_date(value) -> Optional[date]:
@@ -187,36 +203,43 @@ def input_hash(builder: str, selected: Dict[str, float]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def sync_asw_quotes(store: HistoricalStore, log=print) -> None:
-    """Neonから差分のASWスプレッドを取得してasw_quotesに保存する。
+def sync_asw_quotes(store: HistoricalStore, log=print, until: Optional[date] = None) -> None:
+    """Neonから差分のASWスプレッドを取得してasw_quotesに保存する(until まで。省略時は昨日まで)。
     Neonに繋がらない・取得に失敗した場合もバッチ全体は止めず、ここだけスキップする。"""
+    until = until or last_close_date()
     since = store.asw_quotes_max_updated_at()
+    if since is not None:
+        since -= timedelta(days=ASW_OVERLAP_DAYS)
     try:
         rows = neon_source.fetch_asw_quotes(since=since)
     except Exception as e:
         log(f"ASW取得: 失敗のためスキップ ({e})")
         return
+    rows = [r for r in rows if r.trade_date <= until]
     if rows:
         store.save_asw_quotes(rows)
     log(f"ASW取得: {len(rows)}行({'差分' if since else '全件'})")
 
 
-def sync_jgbs(store: HistoricalStore, log=print) -> None:
-    """LSEGからJGBの銘柄情報と直近の引け値を取得して保存する。失敗してもバッチ全体は止めない。"""
+def sync_jgbs(store: HistoricalStore, log=print, until: Optional[date] = None) -> None:
+    """LSEGからJGBの銘柄情報と、until(省略時は昨日)までの直近 CLOSE_LOOKBACK_DAYS 日分の引け値を取得して
+    保存する。失敗してもバッチ全体は止めない。"""
+    until = until or last_close_date()
     try:
-        bonds, closes = jgb_source.fetch_jgbs()
+        bonds, closes = jgb_source.fetch_jgbs(until - timedelta(days=CLOSE_LOOKBACK_DAYS), until)
     except Exception as e:
         log(f"JGB取得: 失敗のためスキップ ({e})")
         return
     store.save_jgb_bonds(bonds)
     store.save_jgb_closes(closes)
-    dates = sorted({c.as_of_date for c in closes})
-    log(f"JGB取得: 銘柄 {len(bonds)} / 引け値 {len(closes)}({', '.join(str(d) for d in dates)})")
+    latest = max((c.as_of_date for c in closes), default=None)
+    count = sum(1 for c in closes if c.as_of_date == latest)
+    log(f"JGB取得: 銘柄 {len(bonds)} / 引け値 {len(closes)}件(直近 {latest} は{count}銘柄)")
 
 
 def sync_jgb_history(store: HistoricalStore, start: date, log=print, end: Optional[date] = None) -> None:
-    """10年債(jgb_bonds のうち JB で start 以降に償還)の start〜end の引け値の過去分を保存する。"""
-    end = end or date.today()
+    """10年債(jgb_bonds のうち JB で start 以降に償還)の start〜end(省略時は昨日)の引け値の過去分を保存する。"""
+    end = end or last_close_date()
     bonds = [
         jgb_source.JgbRecord(r.code, r.ric, r.isin, r.coupon, r.maturity)
         for r in store.jgb_master(end)
@@ -232,8 +255,9 @@ def sync_jgb_history(store: HistoricalStore, start: date, log=print, end: Option
 
 
 def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
-    """長期国債先物の限月ごとの清算値を差分で保存する。失敗してもバッチ全体は止めない。"""
+    """長期国債先物の限月ごとの清算値を昨日まで差分で保存する。失敗してもバッチ全体は止めない。"""
     today = today or date.today()
+    until = last_close_date(today)
     saved = store.fut_last_dates()
     plan: Dict[jgb_futures.Contract, date] = {}
     first = jgb_futures.front_contract(FUTURES_HISTORY_START)
@@ -244,27 +268,29 @@ def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None
             continue  # 取り終えた限月
         plan[contract] = last or FUTURES_HISTORY_START  # 保存済みの最終日から取り直す(清算値の訂正に備える)
     try:
-        result = futures_source.fetch_settles(plan, today)
+        result = futures_source.fetch_settles(plan, until)
     except Exception as e:
         log(f"先物取得: 失敗のためスキップ ({e})")
         return
-    store.save_fut_settles(result.settles)
-    contracts = sorted({label for _, label, _ in result.settles})
-    log(f"先物取得: 清算値 {len(result.settles)}件({', '.join(contracts)})")
+    settles = [s for s in result.settles if s[0] <= until]
+    store.save_fut_settles(settles)
+    contracts = sorted({label for _, label, _ in settles})
+    log(f"先物取得: 清算値 {len(settles)}件({', '.join(contracts)})")
     for w in result.warnings:
         log(f"  警告: {w}")
 
 
 def sync_swaption_premiums(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
-    """LSEGからTraditionのスワップションATMプレミアムを差分で取得して保存する。失敗してもバッチ全体は止めない。"""
-    today = today or date.today()
+    """LSEGからTraditionのスワップションATMプレミアムを昨日まで差分で取得して保存する。失敗してもバッチ全体は止めない。"""
+    until = last_close_date(today)
     last = store.swaption_premiums_last_date()
     start = swaption_source.FIRST_DATE if last is None else last - timedelta(days=PREMIUM_OVERLAP_DAYS)
     try:
-        rows = swaption_source.fetch_premiums(start, today)
+        rows = swaption_source.fetch_premiums(start, until)
     except Exception as e:
         log(f"スワップションのプレミアム取得: 失敗のためスキップ ({e})")
         return
+    rows = [r for r in rows if r.as_of_date <= until]
     store.save_swaption_premiums(rows)
     dates = sorted({r.as_of_date for r in rows})
     span = f"{dates[0]}〜{dates[-1]}" if dates else "なし"
@@ -325,23 +351,28 @@ def run(
     skip_jgb: bool = False,
     jgb_history_from: Optional[date] = None,
     skip_vol: bool = False,
+    today: Optional[date] = None,
 ) -> BatchSummary:
     config = load_config(config_path)
     builder = get_curve_builder(config.builder)
     store = HistoricalStore(db_path)
+    today = today or date.today()
+    until = last_close_date(today)
 
     mid, fixings = read_historical_workbook(xlsx_path)
+    mid = {d: v for d, v in mid.items() if d <= until}
+    fixings = {d: v for d, v in fixings.items() if d <= until}
     store.save_quotes(mid)
     store.save_fixings(fixings)
-    log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分")
-    sync_asw_quotes(store, log)
+    log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分({until}まで)")
+    sync_asw_quotes(store, log, until)
     if not skip_jgb:
-        sync_jgbs(store, log)
+        sync_jgbs(store, log, until)
         if jgb_history_from is not None:
-            sync_jgb_history(store, jgb_history_from, log)
-        sync_futures(store, log)
+            sync_jgb_history(store, jgb_history_from, log, until)
+        sync_futures(store, log, today)
     if not skip_vol:
-        sync_swaption_premiums(store, log)
+        sync_swaption_premiums(store, log, today)
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()

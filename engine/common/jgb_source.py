@@ -8,12 +8,14 @@ LSEG(Python API、lseg.data)から JGB の銘柄情報と引け値を取得す�
 ■ 取得するもの
   - 銘柄一覧: 検索API(GOV_CORP_INSTRUMENTS)で年限ごとに現存銘柄を引く。チェーン 0#JPTSY= は
     10/20/30/40年債しか含まないため使わない。RIC・ISIN・利率・償還日。
-  - 引け値: {RIC}JCL(MULTI CONTRIBUTORS EOD)の CF_CLOSE(単利%、小数3桁)と VALUE_DT1(引けの日付)。
-    ユーザーと決めた配信元(docs/decisions.md。2026-10-25〜26の間だけ大和 =DWAT にしていた)。
+  - 引け値: ld.get_history の単利(小数3桁)。{RIC}JCL(MULTI CONTRIBUTORS EOD)の MID_YLD_1 を使い、
+    JCLに無い日だけ 大和(=DWAT の B_YLD_1)→ みずほ(=MZST の B_YLD_1)の順で補う。JCLはユーザーと決めた配信元
+    (docs/decisions.md。2026-10-25〜26の間だけ大和 =DWAT にしていた)。JCLの過去分は2021年9月からしか無く、
+    大和の過去分は営業日の約9%が本当に欠けている(JCLと照合済み)。
     日本相互証券(=BBCL、BB引け値)・日本証券業協会(=JSDA)は契約外で取れない。
-  - 引け値の過去分(fetch_close_history、先物のベーシスの過去分用): ld.get_history の単利。JCLの過去分は
-    2021年9月からしか無いので、JCL(MID_YLD_1)→ 大和(=DWAT の B_YLD_1)→ みずほ(=MZST の B_YLD_1)の順で、
-    無い日だけを補う(大和の過去分は営業日の約9%が本当に欠けている。JCLと照合済み)。
+  - 毎朝の取得(fetch_jgbs)も過去分(fetch_close_history、先物のベーシスの過去分用)も同じ取り方で、期間だけが違う。
+    スナップショットの CF_CLOSE は使わない(2026-10-27の朝、CF_CLOSE は前の営業日の引け 10/23 の値なのに
+    VALUE_DT1 は10/26で、値と日付が食い違っていた)。履歴なら値と日付が必ず対応する。
 
 ■ 銘柄コード
   RIC は JP{回号4桁}00{種別}=(種別 42=2年、45=5年、67=10年、69=20年、68=30年、54=40年)。
@@ -33,13 +35,9 @@ KINDS: Dict[str, Tuple[str, str]] = {
     "68": ("30Y", "JX"),
     "54": ("40Y", "JU"),
 }
-CLOSE_SOURCE = "JCL"
-CLOSE_FIELD = "CF_CLOSE"  # JCLでは単利(配信元によっては単価なので、配信元を変えるときは確かめる)
 _RIC = re.compile(r"^JP(\d{4})00(\d{2})=$")
-_CHUNK = 100  # get_data 1回あたりのRIC数
 
-
-# 過去分の配信元と単利のフィールド(先にあるものを優先する)
+# 引け値の配信元と単利のフィールド(先にあるものを優先する)
 HISTORY_SOURCES: Tuple[Tuple[str, str], ...] = (("JCL", "MID_YLD_1"), ("DWAT", "B_YLD_1"), ("MZST", "B_YLD_1"))
 _HISTORY_CHUNK = 50  # get_history 1回あたりのRIC数
 
@@ -116,21 +114,6 @@ def _search_bonds(ld, today: date) -> List[JgbRecord]:
     return sorted(records.values(), key=lambda r: (r.maturity, r.code))
 
 
-def _fetch_closes(ld, bonds: List[JgbRecord]) -> List[JgbClose]:
-    closes: List[JgbClose] = []
-    by_ric = {f"{b.ric}{CLOSE_SOURCE}": b.code for b in bonds}
-    rics = list(by_ric)
-    for i in range(0, len(rics), _CHUNK):
-        df = ld.get_data(rics[i:i + _CHUNK], [CLOSE_FIELD, "VALUE_DT1"])
-        for row in df.to_dict("records"):
-            code = by_ric.get(str(row.get("Instrument")))
-            value = _as_float(row.get(CLOSE_FIELD))
-            as_of = _as_date(row.get("VALUE_DT1"))
-            if code is not None and value is not None and as_of is not None:
-                closes.append(JgbClose(as_of, code, value))
-    return closes
-
-
 def history_columns(df, rics: List[str], field: str) -> Dict[str, object]:
     """ld.get_history の結果 → {RIC: 列}。RICが1つだと列名がフィールド名になるのをそろえる。"""
     columns = list(df.columns)
@@ -164,7 +147,8 @@ def _fetch_close_history(ld, bonds: List[JgbRecord], start: date, end: date) -> 
                 if code is None:
                     continue
                 for d, value in _history_values(column).items():
-                    best[(d, code)] = value
+                    if start <= d <= end:
+                        best[(d, code)] = value
     return [JgbClose(d, code, y) for (d, code), y in sorted(best.items())]
 
 
@@ -179,14 +163,14 @@ def fetch_close_history(bonds: List[JgbRecord], start: date, end: date) -> List[
         ld.close_session()
 
 
-def fetch_jgbs(today: Optional[date] = None) -> Tuple[List[JgbRecord], List[JgbClose]]:
-    """現存するJGBの銘柄情報と、各銘柄の直近の引け値(JCL)。"""
+def fetch_jgbs(start: date, end: date, today: Optional[date] = None) -> Tuple[List[JgbRecord], List[JgbClose]]:
+    """現存するJGBの銘柄情報と、全銘柄の start〜end の引け値の単利(fetch_close_history と同じ取り方)。"""
     import lseg.data as ld
 
     ld.open_session()
     try:
         bonds = _search_bonds(ld, today or date.today())
-        closes = _fetch_closes(ld, bonds)
+        closes = _fetch_close_history(ld, bonds, start, end)
     finally:
         ld.close_session()
     return bonds, closes
