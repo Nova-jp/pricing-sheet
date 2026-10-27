@@ -3,7 +3,8 @@
 ボラの水準とFwdの水準の散布図による割高・割安(VolLevel。回帰・残差はExcelの数式)。
 
 ■ 設計方針(PCAのUDFと同じ)
-  - QuantLibが要る計算(Fwdの日次変化)とDBの読み出しだけをUDFにし、窓の集計(2乗の累積の差)・
+  - DBの読み出し(原資産のFwdとその日次変化は朝バッチが swaption_forwards に計算済み)と、ライブのFwd
+    (QuantLib)だけをUDFにし、窓の集計(2乗の累積の差)・
     年率換算・ボラの差(カーブ・フライ)・パーセンタイルはExcelの数式で計算する。
     窓・年率の日数を変えてもUDFは再計算されない。
   - 計算方法は「手動」+F9。UDFは非volatile。配列はそのまま返してスピルに任せる。
@@ -30,7 +31,7 @@ def _labels(values) -> Tuple[str, ...]:
 def _compute_cached(labels: Tuple[str, ...], db_path: str, db_key: int) -> hv.VolSeries:
     store = HistoricalStore(db_path)
     with store:
-        return hv.compute(store, store.vol_quotes(), labels)
+        return hv.compute(store.swaption_forwards(hv.normalize(n) for n in labels), store.vol_quotes(), labels)
 
 
 @xw.func
@@ -40,9 +41,9 @@ def VolHistory(labels) -> List[list]:
     銘柄(「満期x原資産」、例 1Yx10Y)ごとのIVとFwdの日次変化。
     見出し行 [Date, 銘柄1 IV, 銘柄1 Fwd, 銘柄1 dF, 銘柄2 IV, …] + 日付ごとの行(昇順)。
       IV : DBのスワップションATMノーマルvol(bp/年)。DBに無い日は空文字(Excelで="" と判定できる)
-      Fwd: その日の起算日(スポット日+満期)・原資産のFwdスワップレート(%)
+      Fwd: その日の契約(満期日=その日+満期、起算日=満期日+2営業日)の原資産のFwdスワップレート(%)
       dF : 同じFwdの、前の日付のカーブからの変化(bp)。ロールダウンを含まない
-    行はカーブのある日付(最初の日付は変化が無いので含めない)。
+    行は朝バッチが原資産のFwdを計算した日付(最初の日付は変化が無いので含めない)。格子の外の銘柄はエラー。
     """
     names = _labels(labels)
     if not names:
@@ -65,7 +66,7 @@ def VolHistory(labels) -> List[list]:
 def VolFwdLive(labels, real_time_range) -> List[list]:
     """
     ライブのカーブ(今日)での、銘柄(「満期x原資産」)の原資産のFwdスワップレート(%、labels と同じ並びの縦1列。
-    空欄の行は空欄を返す)。契約は今日のスポット日+満期からの原資産で、VolHistoryのFwdの各日の決め方と同じ。
+    空欄の行は空欄を返す)。契約はVolHistoryのFwdの各日の決め方と同じ(swaption.underlying)。
     real_time_range: フラグ/Ticker/Value の範囲(シートのカーブ用の範囲の TAKE(…#,,3)。pricingと同じ引き方)。
     """
     cells = list(labels or [])

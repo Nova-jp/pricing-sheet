@@ -45,6 +45,10 @@
      vol_quotes に保存する(分析ブックのPCA・VolHV用。カーブには使わない)。入力(カーブの入力ハッシュ・
      プレミアム・計算方法)が前回と同じ日は計算し直さない。プレミアムのある最終日までで、プレミアムかカーブの
      無い日の vol_quotes は消す(以前のLSEG計算系列 =R の値を残さない)。プレミアムが1件も無ければ消さない。
+  ⑧ ②のカーブから、スワップションの原資産(⑦と同じ契約、engine/common/swaption_forward.py)の格子の全銘柄の
+     Fwd・年金と、同じ契約の前の日付のカーブでのFwdを計算し、swaption_forwards に保存する(分析ブックの
+     VolHV・VolLevelが読む)。入力(その日と前の日付のカーブの入力ハッシュ・銘柄・計算方法)が前回と同じ日は
+     計算し直さない。カーブの無くなった日の行は消す。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -61,7 +65,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import futures_source, jgb_futures, jgb_source, neon_source, swaption_source
+from engine.common import futures_source, jgb_futures, jgb_source, neon_source, swaption_forward, swaption_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
@@ -422,6 +426,7 @@ def run(
     for d, msg in sorted(failed.items()):
         log(f"  {d}: 失敗 {msg}")
     build_vols(store, rebuild, log)
+    swaption_forward.build(store, swaption_source.labels(), rebuild, log)
     return summary
 
 

@@ -32,7 +32,7 @@ from engine.common.terms import STANDARD, SwapTerms  # noqa: E402
 from engine.fwd import history, udf  # noqa: E402
 from engine.swap_pricing.historical.pricer import SwapSpec, historical_multi_rate_series  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
-from tests.test_vol import _BootstrapSource  # noqa: E402
+from tests.test_swaption_forward import BootstrapSource as _BootstrapSource  # noqa: E402
 
 DATES = [date(2026, 9, 24), date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29)]  # 営業日(土日をまたぐ)
 SHIFT_BP = {d: s for d, s in zip(DATES, [0.0, 3.0, -2.0, 5.0])}

@@ -234,6 +234,23 @@ class CurveBatchTest(unittest.TestCase):
         self.assertAlmostEqual(vols[as_of]["1Yx10Y"], expected, places=12)
         self.assertEqual(set(vols[as_of]), {"1Yx10Y", "1Mx1Y"})
 
+    def test_swaption_forwards_are_built_for_the_whole_grid(self):
+        import QuantLib as ql
+
+        from engine.common.swaption import PremiumConverter
+        from engine.common.swaption_source import labels
+
+        self._run()
+        store = HistoricalStore(self.db)
+        forwards = store.swaption_forwards(labels())
+        self.assertEqual(sorted(forwards), store.dates())  # プレミアムが無くてもカーブのある全日付
+        self.assertTrue(all(set(rows) == set(labels()) for rows in forwards.values()))
+        as_of = store.dates()[1]
+        ql.Settings.instance().evaluationDate = ql.Date.from_date(as_of)
+        v = PremiumConverter(store.load(as_of).curve, as_of).convert("1Yx10Y", 455.0)
+        self.assertAlmostEqual(forwards[as_of]["1Yx10Y"].forward, v.forward, places=12)
+        self.assertAlmostEqual(forwards[as_of]["1Yx10Y"].annuity, v.annuity, places=12)
+
     def test_second_run_fetches_from_overlap_and_skips_unchanged_days(self):
         from datetime import timedelta
         from unittest import mock

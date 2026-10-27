@@ -27,6 +27,9 @@
      --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(JCL、無い日は大和・みずほで補う)
   ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
      (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
+  ⑥⑦ LSEGからスワップションのプレミアムを差分取得し、その日のカーブで営業日ベースのvolにする(vol_quotes)
+  ⑧ スワップションの原資産(⑦と同じ契約)の格子の全銘柄のFwd・年金・前の日付のカーブでのFwdを計算(swaption_forwards)
+     (入力が変わった日だけ。VolHV・VolLevelが読む。engine/common/swaption_forward.py)
         │
         ▼
 [data/historical.db(ローカルのSQLite。LSEG/Neon由来なのでコミットしない)]
@@ -143,8 +146,8 @@ engine/
 | `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。取引条件(`SwapTerms`)と市場データ(`Market`)を受け取る。評価の前提(評価日・実績の登録・満期済み判定・実績の確認)は`_prepare_swap`に集約し、`price_swap`(パーレート・アニュイティ・PV)と`par_rate`(パーレートだけ、ヒストリカル用)が共通で通る。過去起算のスワップは、取引条件から必要な日を判断して`Market`の実績を登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
 | `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
-| `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
-| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない) |
+| `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)・スワップションのvol(`vol_quotes`)と原資産のFwd(`swaption_forwards`)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
+| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`swaption_forward.py`) |
 | `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
@@ -154,7 +157,8 @@ engine/
 | `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の履歴の単利、JCLに無い日は大和・みずほで補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`--jgb-history-from`のときは過去分も同じ取り方) |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則と理由はモジュールのdocstringと[decisions.md](decisions.md) |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
-| `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。満期日=取引日+満期(Following)、起算日=満期日+2営業日。朝バッチの⑦とフィードが使い、BondOptionの補間も同じ満期日・営業日数を使う |
+| `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。契約は`underlying`の1か所(満期日=取引日+満期(Following)、起算日=満期日+2営業日=スワップのスポットと同じT+2)。朝バッチの⑦⑧・フィード・`VolFwdLive`が使い、BondOptionの補間も同じ満期日・営業日数を使う |
+| `swaption_forward.py` | スワップションの原資産のFwd(DBの`swaption_forwards`)を日次カーブから計算する(朝バッチの⑧)。日付×格子の全銘柄ごとに、契約(`swaption.underlying`)の日付・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd(`forward_prev`、日次変化=ロールダウンを含まない)。入力(計算方法・その日と前の日付のカーブの入力ハッシュ・銘柄)が変わった日だけ計算する(全日付で約1分、以後は1日0.1秒程度) |
 | `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・8Y・9Yは使わない)×原資産12本。朝バッチの⑥が使う |
 | `history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ(PCA用。SwapAnalysis・PositionSheetが共有) |
 | `pca.py` | PCA: windowの選び方(`estimate`)、復元日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数(SwapAnalysis・PositionSheetが共有) |
@@ -542,8 +546,8 @@ PCAの差分(実績−復元、bp)を「主成分数k × 推定の条件」の�
 
 | ファイル | 役割 |
 |---|---|
-| `engine/vol/hv.py` | 日次カーブDBから、銘柄(満期x原資産)ごとのFwd(起算日=その日のスポット日+満期)と、その同じ契約の前の日付のカーブからの変化(bp)を計算する。評価は`engine/common/forward.py`の`ForwardPricer`(値は`swap_pricer.par_rate`と一致)。IVは`vol_quotes`から日付で突き合わせる |
-| `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。引数とDBの更新時刻ごとに1回だけ計算する(3銘柄・約460日で約1秒、30銘柄で約11秒)。`VolFwdLive(labels, real_time_range)`: ライブのカーブでの今日の契約のFwd(labelsと同じ並びの縦1列、空欄の行は空欄。VolLevelシート) |
+| `engine/vol/hv.py` | DBの`swaption_forwards`(朝バッチの⑧が計算済み)から、銘柄(満期x原資産)ごとのFwd(volの換算と同じ契約、`swaption.underlying`)と、その同じ契約の前の日付のカーブからの変化(bp)=`forward − forward_prev`の系列を作る(QuantLibを使わない)。IVは`vol_quotes`から日付で突き合わせる。格子の外の銘柄はエラー |
+| `engine/vol/udf.py` | `VolHistory(labels)`: [Date, 銘柄ごとに IV/Fwd/dF] の表(最初のカーブの日付は変化が無いので除く。IVが無い日は空文字)。DBを読むだけで、引数とDBの更新時刻ごとに1回だけ作る(全格子156銘柄・約480日で約0.5秒)。`VolFwdLive(labels, real_time_range)`: ライブのカーブでの今日の契約のFwd(labelsと同じ並びの縦1列、空欄の行は空欄。VolLevelシート) |
 
 シートの構成(左から設定・結果・計算領域):
 - **設定(A〜D列)**: 1行目は取得モード(他のフロントシートと同じ)。足(B5:B7=満期x原資産、C5:C7=重み。
