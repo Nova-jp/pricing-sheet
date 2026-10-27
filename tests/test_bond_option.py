@@ -339,15 +339,26 @@ class UserSamplesTest(unittest.TestCase):
                 self.assertAlmostEqual(fwd.clean, s["bs_fwd_price"], delta=0.0005)
                 if "premium" not in s:
                     continue
-                strike = price_from_simple_yield(b, atm + s.get("strike_slide", 0) / 100, te)
-                self.assertEqual(strike, s["bs_strike"])
-                self.assertEqual(simple_yield_from_price(b, strike, se), s["strike_simple_yield_display"])
+                # ストライクは se 起点(客先の値が正、test_customer_forward_quotes)。プライサーの bs_strike は te 起点で
+                # se起点の値と合わない(ユーザーが後日検証するので残す)。プレミアムの照合にはプライサーのKをそのまま使う。
+                strike = s["bs_strike"]
                 md = pricer.forward_duration(b, fwd.dirty, se).modified_duration
                 swap_vol = s.get("swap_vol", self.SWAP_VOLS.get(s["id"]))
                 price_vol = swap_vol * math.sqrt(252) * md / 100
                 self.assertAlmostEqual(price_vol, s["bs_price_vol"], delta=2e-5)
                 premium = pricer.black_premium(s["type"], fwd.clean, strike, price_vol, pricer.option_term(t0, te))
                 self.assertEqual(round(premium * 100, 4), s["premium"])
+
+    def test_customer_forward_quotes(self):
+        """客先の先渡の単利⇔単価(正)。受渡日 = エンドのT+1営業日を起点に換算する(ストライクと同じ規則)。"""
+        data = tomllib.loads(SAMPLES.read_text(encoding="utf-8"))
+        bonds = {b["code"]: Jgb(b["coupon"], b["maturity"]) for b in data["bond"]}
+        for q in data["forward_quote"]:
+            b, se = bonds[q["bond"]], settlement_date(q["end"], q["settle_lag"])
+            for y, price in q["quotes"]:
+                with self.subTest(end=q["end"], y=y):
+                    self.assertEqual(price_from_simple_yield(b, y, se), price)
+                    self.assertEqual(simple_yield_from_price(b, price, se), y)
 
 
 if __name__ == "__main__":
