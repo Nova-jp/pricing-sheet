@@ -81,6 +81,14 @@ QuantLib・固有値分解・DBの読み出しだけ。合計・射影・換算�
 
 PCAの推定(`engine/common/pca.py`・`history.py`)は、SwapAnalysisと共有するため`engine/pca/`から`common/`へ移した。
 
+UDFの実体は次の3つのモジュール(`udf.py`はExcelの範囲を型に直して呼ぶだけ)。
+
+| モジュール | 中身 |
+|---|---|
+| `bonds.py` | 現物の行ごとのリスク(`bond_risks`)。単利からスポット受渡(T+1)の単価を出し、OISの基準カーブに対するZスプレッド(連続複利で一定)を解いて、ピラーを1本ずつ動かしたカーブ(`market.CurveSet.bumped`)で単価を出し直す。JGBの規約は`engine/common/bond.py` |
+| `trades.py` | 日中の取引の行ごとのリスク(`trade_risks`)。規約は標準のOIS(`terms.STANDARD`)、起算日は空欄=スポット・日付・期間(スポットからの先日付)、期間はtenorか満期日。デルタは`risk.bucketed_deltas` |
+| `forward.py` | パー→フォワードの換算行列 J(`forward_jacobian`)。作り方は下の「フォワードの換算行列の作り方」 |
+
 ### フォワードの換算行列の作り方
 
 基準カーブの暦日ごとのDFで`ql.DiscountCurve`を作り、区間 [a, b] にかかる日のDFに exp(−1bp×区間内の年数) を

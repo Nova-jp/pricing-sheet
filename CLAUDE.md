@@ -19,16 +19,17 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 - `engine/`(`common/`・`swap_pricing/`・`pca/`の3つの並列パッケージ)、`PricingSheet.py`、
   `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`tests/`、`docs/`、
   `tools/`、`templates/`が本プロジェクト。分析ブック`SwapAnalysis.xlsm`・`SwapAnalysis.py`
-  (`engine/pca/`・`engine/vol/`・`engine/boj/`、PCA・IV vs HV・BOJ会合等、pricingとは別ブック)も含む。
+  (`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`・`engine/fut/`、PCA・IV vs HV・BOJ会合・
+  Fwdの監視・国債先物のベーシス等、pricingとは別ブック)も含む。
   - `engine/common/` — pricing/historical/boj/pcaのどこからも使う共有エンジン・データ層
-    (conventions/curve/swap_pricer/terms/market/market_data/risk/paths、historical_store/
-    morning_batch/neon_source、udf_common、PCAの推定のhistory/pca)
   - `engine/swap_pricing/` — PricingSheet.xlsm固有のUDF(機能ごとに`pricing/`・`historical/`・
     `asw/`に分割、薄い再エクスポート層`udf.py`)
   - `engine/pca/` — SwapAnalysis.xlsm固有のPCA分析のUDF(推定は`engine/common/pca.py`)
   - `engine/vol/` — SwapAnalysis.xlsm固有のIV vs HV(hv/udf。FwdのHVはDBのカーブから)
   - `engine/boj/` — SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ(meeting_curve/udf)
-  - 分析ブック(`pca/`・`vol/`・`boj/`)は`swap_pricing/`に依存させず、`common/`だけを使う
+  - `engine/fwd/` — SwapAnalysis.xlsm固有のFwdの監視(FwdMonitor。history/udf)
+  - `engine/fut/` — SwapAnalysis.xlsm固有の長期国債先物のベーシス(FutBasis。history/udf)。先物の規約は`engine/common/jgb_futures.py`
+  - 分析ブック(`pca/`・`vol/`・`boj/`・`fwd/`・`fut/`)は`swap_pricing/`に依存させず、`common/`だけを使う
     (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
   - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(bonds/trades/forward/udf)。
@@ -37,8 +38,7 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 ## 設計方針(必ず守る)
 
 - **UDF専用、VBAなし**。QuantLibが必要な計算(パーレート/PV/デルタ/
-  リスクの合算(RiskGrid)/ヒストリカル)だけをUDFにする(機能ごとに`pricing/udf.py`・
-  `historical/udf.py`・`asw/udf.py`等に分かれ、共有部分は`udf_common.py`)。
+  リスクの合算(RiskGrid)/ヒストリカル)だけをUDFにする。
   カーブのスプレッド・フライ・合計のような四則演算はExcel自身の数式に
   任せる。「高度な計算が必要そうなら、勝手にUDF化・複雑化せず先に相談する」。
 - `PricingSheet.py`は`engine/swap_pricing/udf.py`の再エクスポート専用
