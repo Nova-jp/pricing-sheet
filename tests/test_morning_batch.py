@@ -309,7 +309,7 @@ class CurveBatchTest(unittest.TestCase):
         rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
         with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows) as fetch:
             summary = self._run()
-        fetch.assert_called_once_with(since=None)  # 初回は差分の基準が無い=全件
+        self.assertIsNone(fetch.call_args.kwargs["since"])  # 初回は差分の基準が無い=全件
         self.assertEqual(summary.built, DAYS)  # ASW取り込みはカーブ構築に影響しない
         self.assertEqual(
             HistoricalStore(self.db).asw_quotes(),
@@ -327,8 +327,10 @@ class CurveBatchTest(unittest.TestCase):
         with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]) as fetch:
             self._run()
         # 保存済みの updated_at の最大から ASW_OVERLAP_DAYS 日前から取り直す
-        fetch.assert_called_once_with(
-            since=datetime(2026, 10, 9, 12, 30, 6) - timedelta(days=morning_batch.ASW_OVERLAP_DAYS),
+        fetch.assert_called_once()
+        self.assertEqual(
+            fetch.call_args.kwargs["since"],
+            datetime(2026, 10, 9, 12, 30, 6) - timedelta(days=morning_batch.ASW_OVERLAP_DAYS),
         )
 
     def test_only_closes_until_yesterday_are_saved(self):

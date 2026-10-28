@@ -9,6 +9,8 @@ engine.common.neon_source のリグレッションテスト。
     python -m unittest tests.test_neon_source -v
 """
 
+import io
+import json
 import sys
 import unittest
 from datetime import datetime
@@ -85,6 +87,101 @@ class FetchAswQuotesTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 neon_source.fetch_asw_quotes(connection_string="postgres://dummy")
         conn.close.assert_called_once()
+
+
+_HTTP_BODY = {
+    "fields": [{"name": n} for n in
+               ("trade_date", "bond_code", "asw_act365_pa", "asw_act365_sa", "updated_at")],
+    "rows": [{
+        "trade_date": "2026-10-09", "bond_code": "000190054", "asw_act365_pa": 0.448,
+        "asw_act365_sa": 0.4804, "updated_at": "2026-10-09 12:30:06.89817",
+    }],
+}
+_CONN_STR = "postgresql://user:pw@ep-dummy-pooler.example.neon.tech/db?sslmode=require"
+
+
+def _mock_urlopen(body=_HTTP_BODY):
+    res = mock.MagicMock()
+    res.read.return_value = json.dumps(body).encode()
+    res.__enter__.return_value = res
+    return mock.MagicMock(return_value=res)
+
+
+class HttpsFallbackTest(unittest.TestCase):
+    """5432番に繋がらないときはHTTPS(https://<ホスト>/sql)で同じSELECTを投げる。"""
+
+    def _fetch(self, since=None, urlopen=None, log=None):
+        urlopen = urlopen or _mock_urlopen()
+        refused = mock.MagicMock(side_effect=neon_source.psycopg2.OperationalError("timeout expired"))
+        with mock.patch.object(neon_source.psycopg2, "connect", refused), \
+                mock.patch.object(neon_source.urllib.request, "urlopen", urlopen):
+            result = neon_source.fetch_asw_quotes(since=since, connection_string=_CONN_STR, log=log)
+        return result, urlopen.call_args[0][0]
+
+    def test_posts_same_select_to_sql_endpoint(self):
+        _, req = self._fetch()
+        self.assertEqual(req.full_url, "https://ep-dummy-pooler.example.neon.tech/sql")
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(req.get_header("Neon-connection-string"), _CONN_STR)
+        payload = json.loads(req.data)
+        self.assertIn('public."ASW_data"', payload["query"])
+        self.assertNotIn("WHERE", payload["query"])
+        self.assertEqual(payload["params"], [])
+
+    def test_since_becomes_positional_param(self):
+        _, req = self._fetch(since=datetime(2026, 10, 9, 12, 30, 6))
+        payload = json.loads(req.data)
+        self.assertIn("updated_at > $1", payload["query"])
+        self.assertEqual(payload["params"], ["2026-10-09 12:30:06"])
+
+    def test_rows_are_converted_to_same_types_as_postgres(self):
+        result, _ = self._fetch()
+        self.assertEqual(result, [
+            AswQuoteRow(
+                datetime(2026, 10, 9).date(), "000190054", 0.448, 0.4804,
+                datetime(2026, 10, 9, 12, 30, 6, 898170),
+            ),
+        ])
+
+    def test_pages_by_primary_key(self):
+        """レスポンスの上限(64MB)を超えないよう、(trade_date, bond_code) の続きから取る。"""
+        row = _HTTP_BODY["rows"][0]
+        pages = [[row], [dict(row, bond_code="000200054")], []]
+        responses = []
+        for rows in pages:
+            res = mock.MagicMock()
+            res.read.return_value = json.dumps({"rows": rows}).encode()
+            res.__enter__.return_value = res
+            responses.append(res)
+        urlopen = mock.MagicMock(side_effect=responses)
+        with mock.patch.object(neon_source, "_HTTP_PAGE_ROWS", 1):
+            result, _ = self._fetch(since=datetime(2026, 10, 9), urlopen=urlopen)
+        self.assertEqual([r.bond_code for r in result], ["000190054", "000200054"])
+        self.assertEqual(urlopen.call_count, 3)
+        payload = json.loads(urlopen.call_args_list[2][0][0].data)
+        self.assertIn("updated_at > $1 AND (trade_date, bond_code) > ($2, $3)", payload["query"])
+        self.assertIn("ORDER BY trade_date, bond_code LIMIT 1", payload["query"])
+        self.assertEqual(payload["params"], ["2026-10-09 00:00:00", "2026-10-09", "000200054"])
+
+    def test_logs_fallback(self):
+        log = mock.MagicMock()
+        self._fetch(log=log)
+        self.assertIn("HTTPS", log.call_args[0][0])
+
+    def test_http_error_carries_neon_message(self):
+        err = neon_source.urllib.error.HTTPError(
+            "https://x/sql", 400, "Bad Request", {}, io.BytesIO(b'{"message":"password authentication failed"}'),
+        )
+        with self.assertRaisesRegex(RuntimeError, "password authentication failed"):
+            self._fetch(urlopen=mock.MagicMock(side_effect=err))
+
+    def test_postgres_used_when_reachable(self):
+        connect, _ = _mock_connect()
+        urlopen = _mock_urlopen()
+        with mock.patch.object(neon_source.psycopg2, "connect", connect), \
+                mock.patch.object(neon_source.urllib.request, "urlopen", urlopen):
+            neon_source.fetch_asw_quotes(connection_string=_CONN_STR)
+        urlopen.assert_not_called()
 
 
 if __name__ == "__main__":
