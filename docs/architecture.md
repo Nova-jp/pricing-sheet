@@ -11,7 +11,7 @@
 ```
 [Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]       [Neon(Postgres、他プロジェクトと共用)]
   LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する                      public."ASW_data"(JGB銘柄別ASW、他プロジェクトのテーブルは触れない)
-  - Midシート: 日付×テナーのミッド(JP{テナー}ONI=TRDT、リアルタイムのフィードと同じ系列)
+  - Midシート: 日付×テナーのミッド(1M〜40YはJP{テナー}ONIPE=TRDTの引けの確定値。1W・会合スワップはJP…ONI=TRDT)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
         │                                                                              │
         ▼  朝に手動実行: python -m engine.common.morning_batch                          │ SELECTのみ、updated_atで差分取得
@@ -685,8 +685,9 @@ Excel標準の関数だけで構成する。
 
 - **設定**: 終了日(空欄なら今日)/取得営業日数(既定500)/開始日(任意)/
   銘柄グループ/並び順/フィールド(`MID_PRICE`)を入力。RIC一覧とリクエスト文字列は数式で組み立てる。
-- **銘柄**: グループ・表示名・RIC・使用(○/×)。RICは`JP{テナー}ONI=TRDT`と
-  `JPBOJ{n}ONI=TRDT`(リアルタイムのフィードと同じ系列)。
+- **銘柄**: グループ・表示名・RIC・使用(○/×)。RICは1M〜40Yが`JP{テナー}ONIPE=TRDT`(15時ごろの引けの確定値)、
+  1Wと会合スワップが`JP1WONI=TRDT`・`JPBOJ{n}ONI=TRDT`(ONIPEの系列が無い。リアルタイムのフィードと同じ系列)。
+  理由は[decisions.md](decisions.md)の「データ供給元」。
 - **Raw**: `RDP.HistoricalPricing(RIC一覧,"MID_PRICE",リクエスト,,"CH:In;Fd",$A$3)`
   を1本だけ置く。出力は銘柄ごとに`Timestamp / Mid Price Close / Mid Price`の3列ブロックで、
   日付は銘柄ごとに異なる(同じ日付の行に揃っていない)。
