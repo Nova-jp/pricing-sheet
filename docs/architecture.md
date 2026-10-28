@@ -148,7 +148,7 @@ engine/
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)・スワップションのvol(`vol_quotes`)と原資産のFwd(`swaption_forwards`)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`swaption_forward.py`) |
-| `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる |
+| `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる。5432番に繋がらなければHTTPS(443番、`https://<ホスト>/sql`)で10万行ずつ取る |
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
@@ -197,7 +197,7 @@ LSEGデータの代わりに合成したブックを使う。ASWはNeonへの接
 取得部分と朝バッチの差分取得。LSEGはモック)。
 
 `tests/test_neon_source.py`: ASWスプレッド取得の対象テーブル・差分取得の条件(`updated_at > since`)・
-接続の後始末(成功・失敗どちらでもclose)のリグレッションテスト。psycopg2をモックし、実際のNeonには繋がない。
+接続の後始末(成功・失敗どちらでもclose)・HTTPSへの切り替えとページ分けのリグレッションテスト。psycopg2と`urlopen`をモックし、実際のNeonには繋がない。
 
 `tests/test_asw_pricer.py`: ASWPricerのUDF(`AswPricingTable`)のリグレッションテスト。銘柄・引け値・スライドの読み方、
 受渡日・MMSの起算日/満期日の決め方、roll conv=BWD(償還日から遡る日程)、PA/SA、par-par・adj_notionalの列、行ごとのエラー。

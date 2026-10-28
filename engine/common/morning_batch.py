@@ -215,7 +215,7 @@ def sync_asw_quotes(store: HistoricalStore, log=print, until: Optional[date] = N
     if since is not None:
         since -= timedelta(days=ASW_OVERLAP_DAYS)
     try:
-        rows = neon_source.fetch_asw_quotes(since=since)
+        rows = neon_source.fetch_asw_quotes(since=since, log=log)
     except Exception as e:
         log(f"ASW取得: 失敗のためスキップ ({e})")
         return
