@@ -76,15 +76,15 @@ ASWシート(ヒストリカルチャート)は2026-10-12に実装済み(archite
 ## 14. 現物オプション(BondOption)のコードレビューの指摘(2026-10-19、feature/bond-option `7701a08`)
 
 `/code-review high`の指摘10件と、UDFの読み直しの指摘。再現の確認はClaudeが行った。プライサー(正)と比べた
-数値はサンプル由来なので、ローカルの`data/bond_option_spec.md`にだけ書く。状態: 一部対応(2026-10-19の構成の見直しで#7・UDFの入力・UDFの名前を解消。残りは未対応、ユーザーの判断待ちを含む)。
+数値はサンプル由来なので、ローカルの`data/bond_option_spec.md`にだけ書く。状態: 一部対応(2026-10-19の構成の見直しで#7・UDFの入力・UDFの名前を解消、PR #46で#3を解消。残りは未対応、ユーザーの判断待ちを含む)。
 
 ### 直す(再現済み)
 - **#1 LSEGの欠損の日付(NaT)が通る**(`engine/common/jgb_source.py`の`_as_date`)。pandasのTimestampは
   datetimeのサブクラスで、NaT.date()がNaTを返す。償還日の欠損ならJGB取得全体が失敗し、引けの日付の欠損なら
   DBに'NaT'が入って`sync_jgbs`の日付の並べ替えで例外になり、朝のバッチがカーブを作る前に止まる。以後
   その銘柄の`JgbClose`は毎回失敗する。→ NaTを欠損として扱う。
-- **#3 テストが実際にLSEGへ接続する**(`tests/test_market_risk.py`の2か所が`morning_batch.run()`を
-  `skip_jgb`なしで呼ぶ)。→ `run()`の既定は取得しない(コマンドから実行したときだけ取得する)。
+- ~~**#3 テストが実際にLSEGへ接続する**~~ → PR #46で解消(`run()`の既定は変えず、テストの側で
+  `skip_jgb`・`skip_vol`を付け、LSEG・Neonの取得を差し替えた。`tests/test_market_risk.py`・`tests/test_morning_batch.py`)。
 - ~~**#7 UDFが呼ばれるたびにDBを開き直す**~~ → 2026-10-19の構成の見直しで解消(銘柄の一覧を`JgbMaster`で
   1回だけ読み、行はXLOOKUPで引く。`_jgb`は利率・償還日のセルを受け取るだけになった)。
 - **#9 値の変換(数値・日付か欠損か)が3か所に重複**(`jgb_source`・`morning_batch`・`bond_option/vol`)。
