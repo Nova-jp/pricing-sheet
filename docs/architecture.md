@@ -72,7 +72,7 @@
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:AV(PricingTableの出力を含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:BG(PricingTableの出力・LCHのレートを含む)、ASWPricer AF:BD(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -81,6 +81,7 @@
 |---|---|---|
 | Main | H3 | M3 |
 | pricing | AF4 | AK4 |
+| pricing(LCH) | AX4(`"swap_lch"`) | BC4 |
 | HistChart | AJ3 | AO3 |
 | ASWPricer | AF4 | AK4 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
@@ -94,6 +95,9 @@
 データセットごとのRIC。
 - `"swap"`(kind=`ois`): O/N〜40Y・RD・M1〜M9。行=[Ticker, BID/ASKのミッド, 起算日`GV1_DATE`, 満期日`GV2_DATE`]
   (起算日・満期日は会合スワップだけ)。O/NはTradition `JP1DONI=TRDT`のミッド(=TONA)。
+- `"swap_lch"`(kind=`ois`): LCH清算の円OIS(TraditionのLCHのアウトライト`JPY{テナー}OISL=TRDT`)。O/N〜40Y
+  (Tickerは`"swap"`と同じ表記。12M/24M/36Mは`JPY1Y/2Y/3YOISL=TRDT`、1Wはスポット・ウィーク`JPYSWOISL=TRDT`、
+  O/Nは`JPY1DOISL=TRDT`。会合スワップは無い)。pricingシートのindex=LCHの行だけが使う(下の「pricingシート」)。
 - `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産12本。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
   営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
   (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
@@ -144,7 +148,7 @@ engine/
 | `terms.py` | 取引条件の型(3段): `SwapConvention`(規約: fix freq/fix dcf/float freq/roll conv。作るときに値を確認)⊂`SwapTerms`(規約+起算日+tenor/end=1本の具体的なスワップ。パーレートの計算単位)⊂`SwapParams`(取引条件+想定元本・PAY/REC・固定金利。PV・デルタの計算単位)。標準の規約`STANDARD`。Excelの行を型に直すのは各feature udfモジュール(`pricing/udf.py`等)の入口だけ |
 | `market_data.py` | 評価日時点の市場データ一式の型`Market`(評価日・カーブ・TONA指標・TONA実績)。実績は作るときに「評価日より前」だけに切る(先読みの排除はここだけ)。QuantLib以外に依存しない |
 | `swap_pricer.py` | `ql.MakeOIS`(→`ql.OvernightIndexedSwap`)によるPV・パーレート計算。取引条件(`SwapTerms`)と市場データ(`Market`)を受け取る。評価の前提(評価日・実績の登録・満期済み判定・実績の確認)は`_prepare_swap`に集約し、`price_swap`(パーレート・アニュイティ・PV)と`par_rate`(パーレートだけ、ヒストリカル用)が共通で通る。過去起算のスワップは、取引条件から必要な日を判断して`Market`の実績を登録(不足時はエラー)。評価日は呼び出しごとに設定し直す。`swap_dates`はカーブなしで同じビルダーのスケジュールから起算日・満期日(休日調整後)を返す(ヒストリカルのROLLINGで営業日数を数えるのに使う) |
-| `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
+| `market.py` | 評価日のマーケット(今日=RealTime、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB。清算機関(JSCC/LCH)ごとのスナップショット)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは清算機関ごとに最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)・スワップションのvol(`vol_quotes`)と原資産のFwd(`swaption_forwards`)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
 | `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`swaption_forward.py`) |
@@ -284,13 +288,19 @@ spred・flyはExcel数式(1行上/下のtarget fixrateの単純な四則演算)�
 (シート見出しは太字13pt、表の見出しは太字、入力セル(A〜E・G〜O・S列)は薄黄色)。
 
 target fixrate(P)・adj_notional(F)・PV(T)・delta(bump)(U)・delta(annuity)(V)・message(W)は、
-右の計算用の領域のAQ3`=PricingTable(HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE($AK$4#,,3),評価日)`
+右の計算用の領域のAQ3`=PricingTable(HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE($AK$4#,,3),評価日,TAKE($BC$4#,,3))`
 (AQ:AV、見出し行+100行)が表全体を1回で計算し、左の列は`=AQ4`のようにその行のセルを参照するだけ
 (2026-10-19。理由は[decisions.md](decisions.md))。計算するのはflag=1の行だけで、PV・delta系は
 notionalのある行、adj_notionalはdelta(目標delta)のある行だけ。1行の入力の誤りでは表全体を
 エラーにせず、その行の値を空欄にしてmessageに理由を出す。PricingTableには出力の列(F・P等)を
 渡さない(循環参照になる)ので、入力の列だけを`HSTACK`で渡す(列は見出し名で探す)。
-計算用の領域(ライブのレート〜PricingTable、AF:AV)は列のグループで折りたたんである。
+計算用の領域(ライブのレート〜PricingTable〜LCHのレート、AF:BG)は列のグループで折りたたんである。
+
+index列(M列、プルダウン`JSCC`/`LCH`、空欄=JSCC)で、行ごとに使うカーブを選ぶ(2026-10-29〜)。`LCH`の行は
+LCHのカーブ(AX4のライブのレート`"swap_lch"`→BC4のカーブ用の範囲。採否フラグ・TickerはJSCCと同じMainのA:B列)で
+同じ計算をする。LCHのカーブは評価日が今日のときだけで(LCHのレートの履歴はDBに無い)、過去の評価日・LCHのレートが
+読めないときはLCHの行だけがmessageのエラーになる(JSCCの行は計算される)。HistChart等のヒストリカルはJSCCのまま。
+理由は[decisions.md](decisions.md)の「LCHのカーブ」。
 
 start/end列には日付のほか、IMMコード(月記号H/M/U/Z+2桁年、例: `M27`)も入力できる
 (`engine/common/conventions.py`の`imm_code_to_date`で第3水曜に変換)。start列にはテナー
@@ -305,9 +315,10 @@ STD等で計算したい行はドロップダウンで上書きする(UDFはroll
 
 評価日の引数はすべて名前`評価日`(Mainシート)を参照する(`TODAY()`は使わない)。
 
-列Y以降: リスクの合算。Y3の`=RiskGrid(pricing!$A$3:$S$103, TAKE($AK$4#,,3), 評価日)`が、
+列Y以降: リスクの合算。Y3の`=RiskGrid(pricing!$A$3:$S$103, TAKE($AK$4#,,3), 評価日, TAKE($BC$4#,,3))`が、
 risk_flag=1の全行のテナー別デルタ(1bpあたり、百万円。0.1bpのバンプを10倍)の合計を
 Mainのテナーの並びでTicker/Deltaの2列にスピルする(カーブに使っていないテナーは空欄)。
+index=LCHの行はLCHのカーブのテナーを動かしたデルタを、同じTickerの行に足す(清算機関を分けずにテナーごとの合計)。
 AC3が全テナーの合計、AC4が参考として行ごとのdelta(U列、全テナーを動かしたときの1bpあたり)のrisk_flag=1の合計。
 pricing表の列は見出し名で探すので、列を移動しても壊れない(見出し行=3行目から渡すこと)。
 数式の先頭に`@`を付けないこと(付くと先頭の1セルしか表示されない)。

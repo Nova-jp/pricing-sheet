@@ -10,12 +10,15 @@ xlwingsのUDFは1セルごとにExcelとの往復(1回約170ms)がかかり、�
   - target fixrate: 常に
   - PV・delta(bump)・delta(annuity): notionalがある行だけ
   - adj_notional: delta(目標delta)がある行だけ
+■ カーブ
+  index列(JSCC/LCH、空欄=JSCC)で行ごとに清算機関のカーブを選ぶ(udf_common._curves_by_index)。
+  LCHのカーブが組めない(評価日が過去・LCHのレートが無い等)ときは、LCHの行だけをmessageのエラーにする。
 ■ エラー
   1行の入力の誤りで表全体をエラーにしない。計算できなかった列は空欄にし、理由をmessage列に出す。
   評価日のカーブが組めない等、全行に関わるエラーは呼び出し元(UDF)でそのままエラーにする。
 """
 
-from typing import Dict, List, Sequence
+from typing import Callable, Dict, List, Sequence
 
 from engine.common import udf_common
 from engine.swap_pricing.pricing import measures
@@ -24,7 +27,7 @@ from engine.swap_pricing.pricing.row import swap_params, swap_terms
 # 表から読む列(見出し名、小文字)。列の位置ではなく見出しで探すので、列を移動しても壊れない
 INPUT_COLUMNS = (
     "flag", "notional", "delta", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
-    "float freq", "roll conv", "pay/rec",
+    "float freq", "roll conv", "pay/rec", "index",
 )
 # 返す列(1行目は見出し)
 OUTPUT_HEADER = ("target fixrate", "PV", "delta(bump)", "delta(annuity)", "adj_notional", "message")
@@ -47,13 +50,15 @@ def columns(header: Sequence, names: Sequence[str]) -> Dict[str, int]:
     return {c: labels.index(c) for c in names}
 
 
-def price_row(row: Sequence, col: Dict[str, int], curves) -> list:
-    """1行分の結果 [target fixrate, PV, delta(bump), delta(annuity), adj_notional, message]。"""
+def price_row(row: Sequence, col: Dict[str, int], curves_for: Callable) -> list:
+    """1行分の結果 [target fixrate, PV, delta(bump), delta(annuity), adj_notional, message]。
+    curves_for: index列の値 → その清算機関のカーブ一式。"""
     get = lambda name: row[col[name]]  # noqa: E731
     result = [""] * len(OUTPUT_HEADER)
     if not is_flagged(get("flag")):
         return result
     try:
+        curves = curves_for(get("index"))
         terms = swap_terms(
             *(get(c) for c in ("start", "tenor", "end", "fix freq", "fix dcf", "float freq", "roll conv")),
             curves,
@@ -85,11 +90,11 @@ def price_row(row: Sequence, col: Dict[str, int], curves) -> list:
     return result
 
 
-def price_table(table: Sequence[Sequence], curves) -> List[list]:
-    """table: 見出し行+取引の行。見出し行+行ごとの結果(行の並びは入力と同じ)を返す。"""
+def price_table(table: Sequence[Sequence], curves_for: Callable) -> List[list]:
+    """table: 見出し行+取引の行。curves_for: index列の値 → カーブ一式(udf_common._curves_by_index)。見出し行+行ごとの結果(行の並びは入力と同じ)を返す。"""
     rows = [list(r) if r is not None else [] for r in (table or [])]
     if not rows:
         raise ValueError("pricing表が空です")
     col = columns(rows[0], INPUT_COLUMNS)
     width = len(rows[0])
-    return [list(OUTPUT_HEADER)] + [price_row(r + [None] * (width - len(r)), col, curves) for r in rows[1:]]
+    return [list(OUTPUT_HEADER)] + [price_row(r + [None] * (width - len(r)), col, curves_for) for r in rows[1:]]

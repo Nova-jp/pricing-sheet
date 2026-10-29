@@ -24,18 +24,23 @@
   未使用のテナーは対象外)。以前は行ごと・UDFごとにバンプしたカーブを作り直していた
   (SwapDeltaで1行2回、行ごとのバケットデルタで1行42回のブートストラップ)。
 
-■ 生きているカーブを増やさない(キャッシュは最新の1組だけ)
+■ 生きているカーブを増やさない(キャッシュは清算機関ごとに最新の1組だけ)
   QuantLibのテナー指定のヘルパーは評価日(グローバル設定)を監視していて、評価日が変わるたびに
   自分の日付を作り直す。生きているカーブが多いと、評価日を日付ごとに切り替えるヒストリカル計算が
   その分だけ遅くなる(テナー別のカーブ34本が残っていると、全期間の1系列が約10分かかった)。
-  そのため、テナー別のカーブは持たず、キャッシュも最新のスナップショット1組だけにする。
+  そのため、テナー別のカーブは持たず、キャッシュも最新のスナップショット1組だけにする(清算機関ごと)。
   全UDFが同じRealTimeの範囲と評価日を渡すので、古い組が使われることはない。
+
+■ 清算機関ごとのカーブ(JSCC・LCH)
+  pricing表のindex列で行ごとにカーブを選ぶ(2026-10-28〜)。LCHとJSCCは変動側が同じTONAで規約も同じ
+  なので、違うのは元のレート(LCHはTraditionのLCHのアウトライト、live_feed.tomlの"swap_lch")だけで、
+  同じbootstrap_curveでもう1本引く。キャッシュは清算機関ごとに最新の1組(MarketSnapshot.curve)。
+  LCHのレートの履歴はDBに無いので、LCHは評価日が今日のときだけ(udf_common._live_market)。
 
   QuantLibのカーブは評価日(グローバル設定)に連動しており、ヒストリカル計算などで評価日が
   切り替わった後の最初の利用時には再計算される(値は同じ。price_swapが入口で評価日を戻す)。
 """
 
-from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import date
 from typing import Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple
@@ -50,7 +55,21 @@ from engine.common.market_data import Market
 # (docs/decisions.mdの「デルタのバンプ幅」)
 BUMP_BP = 0.1
 ON_LABEL = "o/n"
-_CACHE_SIZE = 1  # 最新のスナップショットだけ保持する(モジュールのdocstring参照)
+
+# 清算機関(pricing表のindex列の値)。空欄はJSCC
+JSCC = "JSCC"
+LCH = "LCH"
+CLEARING_HOUSES = (JSCC, LCH)
+
+
+def clearing_house(value) -> str:
+    """index列の値 → 清算機関の名前(JSCC/LCH)。空欄はJSCC。それ以外はエラー。"""
+    if value is None or str(value).strip() == "":
+        return JSCC
+    name = str(value).strip().upper()
+    if name not in CLEARING_HOUSES:
+        raise ValueError(f"indexは{'/'.join(CLEARING_HOUSES)}のどれかにしてください: {value!r}")
+    return name
 
 
 class MarketSnapshot(NamedTuple):
@@ -58,6 +77,7 @@ class MarketSnapshot(NamedTuple):
     quotes: Tuple[Tuple[str, float], ...]  # (テナーのラベル(小文字), レート%)。キャッシュのキーにする
     source: str  # "RealTime" / "DB"
     fixings: Tuple[Tuple[date, float], ...] = ()  # TONA実績(評価日より前)。キャッシュのキーにも入る
+    curve: str = JSCC  # 清算機関(JSCC/LCH)。キャッシュはこれごとに最新の1組
 
 
 def _before(fixings: Dict[date, float], valuation_date: date) -> Tuple[Tuple[date, float], ...]:
@@ -81,11 +101,12 @@ def db_fixings(store: HistoricalStore) -> Dict[date, float]:
 
 def realtime_snapshot(
     valuation_date: date, rates: Dict[str, float], fixings: Optional[Dict[date, float]] = None,
+    curve: str = JSCC,
 ) -> MarketSnapshot:
     """rates: RealTimeシートでフラグ≠0のテナーのレート(udf._rates_from_range の結果)。
-    fixings: TONA実績(通常は db_fixings)。過去起算の計算にだけ使う。"""
+    fixings: TONA実績(通常は db_fixings)。過去起算の計算にだけ使う。curve: 清算機関(JSCC/LCH)。"""
     return MarketSnapshot(
-        valuation_date, tuple(sorted(rates.items())), "RealTime", _before(fixings or {}, valuation_date),
+        valuation_date, tuple(sorted(rates.items())), "RealTime", _before(fixings or {}, valuation_date), curve,
     )
 
 
@@ -157,18 +178,18 @@ class CurveSet:
             quote.setValue(original)
 
 
-_cache: "OrderedDict[MarketSnapshot, CurveSet]" = OrderedDict()
+_cache: Dict[str, CurveSet] = {}  # 清算機関 → 最新のスナップショットのカーブ一式
 
 
 def curve_set(snapshot: MarketSnapshot) -> CurveSet:
-    """スナップショットのカーブ一式(同じ内容なら使い回す)。"""
-    if snapshot in _cache:
-        _cache.move_to_end(snapshot)
-        return _cache[snapshot]
+    """スナップショットのカーブ一式(同じ内容なら使い回す)。清算機関ごとに最新の1組だけ持つ
+    (JSCCとLCHを交互に使っても作り直さない。古い組は同じ清算機関の新しい組で置き換える)。"""
+    cached = _cache.get(snapshot.curve)
+    if cached is not None and cached.snapshot == snapshot:
+        return cached
+    _cache.pop(snapshot.curve, None)  # 新しい組を作る前に手放す(生きているカーブを増やさない)
     result = CurveSet(snapshot)
-    _cache[snapshot] = result
-    while len(_cache) > _CACHE_SIZE:
-        _cache.popitem(last=False)
+    _cache[snapshot.curve] = result
     return result
 
 

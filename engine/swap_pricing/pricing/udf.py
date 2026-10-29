@@ -30,7 +30,8 @@ def _params(
 @xw.func
 @xw.arg("pricing_table", ndim=2)
 @xw.arg("real_time_range", ndim=2)
-def PricingTable(pricing_table, real_time_range, valuation_date=None) -> List[list]:
+@xw.arg("lch_range", ndim=2)
+def PricingTable(pricing_table, real_time_range, valuation_date=None, lch_range=None) -> List[list]:
     """
     pricing表の全行のtarget fixrate・PV・delta(bump)・delta(annuity)・adj_notional・messageを1回で返す
     (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はpricing/table.py)。
@@ -38,10 +39,13 @@ def PricingTable(pricing_table, real_time_range, valuation_date=None) -> List[li
     pricing_table: 見出し行から最終行まで。出力の列(target fixrate・adj_notional等)を含めると循環参照に
         なるので、入力の列だけをHSTACKで渡す(例: HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103))。
         列は見出し名で探す(flag, notional, delta, start, tenor, end, fix rate, fix freq, fix dcf,
-        float freq, roll conv, pay/rec)。
+        float freq, roll conv, pay/rec, index)。
+    real_time_range: JSCCのカーブ用の範囲(フラグ/Ticker/Value)。
+    lch_range: LCHのカーブ用の範囲(同じ形、LiveQuotes("swap_lch"))。index列がLCHの行だけが使う。
+        LCHは評価日が今日のときだけ(過去の評価日ではLCHの行がmessageのエラーになる)。
     """
-    curves = udf_common._market(real_time_range, valuation_date)
-    return table.price_table(pricing_table, curves)
+    curves_for = udf_common._curves_by_index(real_time_range, lch_range, valuation_date)
+    return table.price_table(pricing_table, curves_for)
 
 
 @xw.func
@@ -124,23 +128,26 @@ def NotionalForDelta(
 # RiskGrid が pricing表から読む列(見出し名)
 _RISK_COLUMNS = (
     "risk_flag", "notional", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
-    "float freq", "roll conv", "pay/rec",
+    "float freq", "roll conv", "pay/rec", "index",
 )
 
 
 @xw.func
 @xw.arg("pricing_table", ndim=2)
 @xw.arg("real_time_range", ndim=2)
-def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
+@xw.arg("lch_range", ndim=2)
+def RiskGrid(pricing_table, real_time_range, valuation_date=None, lch_range=None) -> List[list]:
     """
     risk_flag=1 の全行について、テナーごとに動かしたときのデルタ(1bpあたり、百万円単位)の合計を、
     RealTimeシートのテナー行の並びで返す(Ticker/Deltaの2列、1行目は見出し)。
 
     pricing_table: pricingシートの見出し行(1行目)から最終行まで(例: pricing!$A$1:$T$201)。
         列は見出し名で探す(risk_flag, notional, start, tenor, end, fix rate, fix freq,
-        fix dcf, float freq, roll conv, pay/rec)。
+        fix dcf, float freq, roll conv, pay/rec, index)。
     バンプするのはカーブに使っているテナーだけで、それ以外の行(フラグ0、会合スワップ等)は空欄。
     合計値(全テナーの和)はExcelのSUMで出す。
+    index列がLCHの行は、LCHのカーブ(lch_range)のテナーを動かしたデルタを、同じTickerの行に足す
+    (JSCCとLCHのデルタはテナーごとの合計。どちらのカーブも同じTONAのレートのため)。
     """
     rows = [list(r) if r is not None else [] for r in (pricing_table or [])]
     if not rows:
@@ -151,13 +158,14 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
         raise ValueError(f"pricing表に見出しがありません: {', '.join(missing)}")
     col = {c: header.index(c) for c in _RISK_COLUMNS}
 
-    curves = udf_common._market(real_time_range, valuation_date)
-    positions = []
+    curves_for = udf_common._curves_by_index(real_time_range, lch_range, valuation_date)
+    groups = {}  # 清算機関 → (カーブ一式, [ポジション])
     for n, row in enumerate(rows[1:], start=2):
         row = row + [None] * (len(header) - len(row))
         if not _is_flagged(row[col["risk_flag"]]):
             continue
         try:
+            curves = curves_for(row[col["index"]])
             params = resolve_params(curves, _params(
                 *(row[col[c]] for c in ("start", "tenor", "end", "fix freq", "fix dcf",
                                         "float freq", "roll conv", "notional",
@@ -167,13 +175,16 @@ def RiskGrid(pricing_table, real_time_range, valuation_date=None) -> List[list]:
             price(curves.base, params)  # 計算できない行は、ここで行番号つきのエラーにする
         except Exception as e:
             raise ValueError(f"pricing表の{n}行目(risk_flag=1)を計算できません: {e}") from e
-        positions.append(params)
+        groups.setdefault(curves.snapshot.curve, (curves, []))[1].append(params)
 
-    # テナーごとにクォートを1回だけ動かし、その間に全行を評価する(risk.bucketed_deltas)
-    totals = {label: 0.0 for label in curves.bump_labels}
-    for deltas in bucketed_deltas(curves, positions):
-        for label, value in deltas.items():
-            totals[label] += value
+    # 清算機関ごとに、テナーごとにクォートを1回だけ動かし、その間に全行を評価する(risk.bucketed_deltas)
+    totals = {label: 0.0 for label in curves_for(None).bump_labels}
+    for curves, positions in groups.values():
+        for label in curves.bump_labels:
+            totals.setdefault(label, 0.0)
+        for deltas in bucketed_deltas(curves, positions):
+            for label, value in deltas.items():
+                totals[label] += value
 
     result = [["Ticker", "Delta"]]
     for ticker, _, _ in udf_common._realtime_rows(real_time_range):
