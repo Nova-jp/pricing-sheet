@@ -6,11 +6,11 @@
 
 ## 2. LCH / TIBORなど他インデックスへの対応
 
-現状はJSCC TONA(円OIS)のみ対応。「次フェーズ」として明示的に保留。
-対応する場合、`curve.py`の`bootstrap_curve()`と`swap_pricer.py`の
-インデックス生成部分(`ql.Tonar()`固定)を、インデックス種別を引数に
-取る形に一般化する必要がある。RealTimeシートの`index`列(現状JSCC固定の
-ドロップダウン)も選択肢を増やす必要がある。
+LCH TONAは2026-10-29にライブ(評価日が今日)のpricing表・RiskGridだけ対応した(同じTONAなので指標は一般化せず、
+LCHのレートでカーブをもう1本引く。[decisions.md](decisions.md)の「LCHのカーブ」)。残りは:
+- LCHのヒストリカル(過去の評価日・HistChart): LCHのレートの履歴(historical_data.xlsxのMidシートの列、DBのカーブを
+  清算機関ごとに持つ形)が要る。ユーザー指示で今は作らない。
+- TIBOR等の別の指標: こちらは`swap_pricer.py`の指標(`ql.Tonar()`固定)を引数に取る形への一般化が要る(未着手)。
 
 
 ## 4. RiskGridの計算時間(今回は触らない、ユーザー指示 2026-10-19)

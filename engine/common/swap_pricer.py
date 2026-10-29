@@ -2,7 +2,7 @@
 金利スワップのプライシングエンジン。QuantLibの ql.MakeOIS(→ql.OvernightIndexedSwap)を使用。
 
 前提: ディスカウントカーブとフォーキャストカーブが同一(単一カーブ、
-JSCC TONA OISのみ対応)。固定脚・変動脚は独立したスケジュール
+TONA OISのみ対応。JSCC・LCHはカーブが違うだけで、ここは同じ)。固定脚・変動脚は独立したスケジュール
 (freq/roll conventionが異なってよい)で構築する。
 
 ■ スワップ構築はQuantLib純正のビルダー(ql.MakeOIS)に一本化

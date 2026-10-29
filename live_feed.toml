@@ -1,7 +1,7 @@
 # リアルタイムのフィード(python -m engine.common.live_feed)の設定。
 # 変更したらフィードを再起動する(Ctrl+Cで止めて起動し直す)。ブック側(xlwingsのUDFサーバ)の再起動は要らない。
 # フィードはLSEG Workspaceのデスクトップセッションでここに並べたRICを購読し続け、data/live.db に書く。
-# ブックはShift+F9のたびに LiveQuotes("swap") / LiveQuotes("vol") でそれを読むだけ(docs/architecture.md)。
+# ブックはShift+F9のたびに LiveQuotes("swap") / LiveQuotes("swap_lch") / LiveQuotes("vol") でそれを読むだけ(docs/architecture.md)。
 
 [timing]
 # 値が変わったとき data/live.db に書く間隔(秒)。読む値の遅れは最大でほぼこれだけ
@@ -72,6 +72,49 @@ rows = [
     ["M7", "JPBOJ7ONI=TRDT"],
     ["M8", "JPBOJ8ONI=TRDT"],
     ["M9", "JPBOJ9ONI=TRDT"],
+]
+
+[[datasets]]
+name = "swap_lch"
+kind = "ois"
+# LCH清算の円OIS(TraditionのLCHのアウトライト)。PricingSheetのpricing表でindex=LCHの行のカーブに使う。
+# Tickerは"swap"と同じ表記(MainシートA列で引き当てる)。12M/24M/36Mは1Y/2Y/3YのRIC、1Wはスポット・ウィーク(SW)。
+# 会合スワップ(RD・M1〜)は無い
+rows = [
+    ["O/N", "JPY1DOISL=TRDT"],
+    ["1W", "JPYSWOISL=TRDT"],
+    ["1M", "JPY1MOISL=TRDT"],
+    ["2M", "JPY2MOISL=TRDT"],
+    ["3M", "JPY3MOISL=TRDT"],
+    ["4M", "JPY4MOISL=TRDT"],
+    ["5M", "JPY5MOISL=TRDT"],
+    ["6M", "JPY6MOISL=TRDT"],
+    ["7M", "JPY7MOISL=TRDT"],
+    ["8M", "JPY8MOISL=TRDT"],
+    ["9M", "JPY9MOISL=TRDT"],
+    ["10M", "JPY10MOISL=TRDT"],
+    ["11M", "JPY11MOISL=TRDT"],
+    ["12M", "JPY1YOISL=TRDT"],
+    ["15M", "JPY15MOISL=TRDT"],
+    ["18M", "JPY18MOISL=TRDT"],
+    ["21M", "JPY21MOISL=TRDT"],
+    ["24M", "JPY2YOISL=TRDT"],
+    ["36M", "JPY3YOISL=TRDT"],
+    ["4Y", "JPY4YOISL=TRDT"],
+    ["5Y", "JPY5YOISL=TRDT"],
+    ["6Y", "JPY6YOISL=TRDT"],
+    ["7Y", "JPY7YOISL=TRDT"],
+    ["8Y", "JPY8YOISL=TRDT"],
+    ["9Y", "JPY9YOISL=TRDT"],
+    ["10Y", "JPY10YOISL=TRDT"],
+    ["11Y", "JPY11YOISL=TRDT"],
+    ["12Y", "JPY12YOISL=TRDT"],
+    ["15Y", "JPY15YOISL=TRDT"],
+    ["20Y", "JPY20YOISL=TRDT"],
+    ["25Y", "JPY25YOISL=TRDT"],
+    ["30Y", "JPY30YOISL=TRDT"],
+    ["35Y", "JPY35YOISL=TRDT"],
+    ["40Y", "JPY40YOISL=TRDT"],
 ]
 
 [[datasets]]

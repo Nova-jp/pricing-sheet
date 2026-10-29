@@ -12,11 +12,11 @@ UDFの各機能(swap_pricing/のpricing・historical・asw、boj/udf.py、vol/ud
 """
 
 import datetime
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 from engine.common.conventions import imm_code_to_date, is_imm_code
 from engine.common.historical_store import HistoricalStore
-from engine.common.market import CurveSet, curve_set, db_fixings, db_snapshot, realtime_snapshot
+from engine.common.market import LCH, CurveSet, clearing_house, curve_set, db_fixings, db_snapshot, realtime_snapshot
 
 _EXCEL_EPOCH = datetime.date(1899, 12, 30)  # Excelのシリアル値1900-01-01=1、1900うるう年バグ込み
 
@@ -125,3 +125,36 @@ def _market(real_time_range, valuation_date) -> CurveSet:
         with _historical_store() as store:
             snapshot = db_snapshot(valuation_date, labels, store)
     return curve_set(snapshot)
+
+
+def _live_market(real_time_range, valuation_date, curve: str) -> CurveSet:
+    """ライブのレートだけで引く清算機関のカーブ一式(LCH)。ヒストリカルDBにそのレートの履歴が無いので、
+    評価日が今日のときだけ(過去の評価日はエラー。JSCCのDBのレートで黙って代用しない)。"""
+    valuation_date = _resolve_valuation_date(valuation_date)
+    if valuation_date != _today():
+        raise ValueError(f"{curve}のカーブは評価日が今日のときだけ使えます(評価日 {valuation_date})")
+    if not real_time_range:
+        raise ValueError(f"{curve}のライブのレートの範囲が渡されていません")
+    return curve_set(realtime_snapshot(valuation_date, _rates_from_range(real_time_range), _db_fixings(), curve))
+
+
+def _curves_by_index(real_time_range, lch_range, valuation_date) -> Callable[[object], CurveSet]:
+    """pricing表のindex列の値 → その清算機関のカーブ一式、を返す関数。JSCC(空欄も)は今の_market、
+    LCHは_live_market(使う行があるときだけ組む)。組めなかったときは、それを使う行ごとに同じエラーにする。"""
+    jscc = _market(real_time_range, valuation_date)
+    built: Dict[str, object] = {}
+
+    def get(index) -> CurveSet:
+        name = clearing_house(index)
+        if name != LCH:
+            return jscc
+        if name not in built:
+            try:
+                built[name] = _live_market(lch_range, valuation_date, name)
+            except Exception as e:  # noqa: BLE001 その行のエラーとして返す
+                built[name] = e
+        if isinstance(built[name], Exception):
+            raise built[name]
+        return built[name]
+
+    return get
