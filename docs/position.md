@@ -14,26 +14,22 @@
   会社の列名・dataset名・基準日(SODの黄色のセル)は雛形では消す(`tools/template.py`の`RECEIVE_AREAS`の範囲指定。
   会社のデータの一部なのでPublicのリポジトリに入れない)。
 - **項目の名前・順番が変わっても直すのはSODシートだけ**: SODシートの対応表で「こちらの項目名(固定)→生シートの
-  列名(黄色の入力セル、プルダウン)」を持ち、列は見出しの名前で探す。管理シート(Delta・Gamma・Vega)は
+  列名(黄色の入力セル、プルダウン)」を持ち、列は見出しの名前で探す。管理シート(Position)は
   SODの項目名だけを見るので、会社のファイルの形が変わっても触らない。
-- **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。Delta・GammaのCheck列で会社の
-  `Total`との差を出す。
+- **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。
 - **グリッドのピラーはマーケットの基準(ライブのカーブの34本)**。日中の取引を同じピラーで測るため。会社のピラーに
   無い月(4M・5M・15M等)の`Original`の列は空欄。テナーは年数に直して突き合わせる(会社の`1Y`=こちらの`12M`、
   `1.5Y`=`18M`)。
 - **VBAは貼り付けのような操作だけ**。四則演算を超える処理(ピラー名の変換・集計・リスク計算)はExcelの数式か
   Python。叩き台では貼り付けは手で行う(VBAのボタンは必要になったら作る)。
-- 日中の取引は再計算の負担を抑えるため、Tradesシートで表全体を1回のUDFで計算する(同じ入力なら前の結果を返す)。
+- 日中の取引は再計算の負担を抑えるため、Positionシートの取引の表全体を1回のUDFで計算する(同じ入力なら前の結果を返す)。
   計算するのはF9のとき(手動計算)。
 
 ## ブックの構成
 
 | シート | 中身 |
 |---|---|
-| Delta | ピラー × Original(Swap・Bond・Total)/ Intraday(Done)/ Total / What-if / Check。単位は百万円/bp |
-| Gamma | 同じ形(百万円/bp²) |
-| Vega | 満期 × 原資産のOriginalのグリッド(行・列の合計)。日中のスワップションは未対応 |
-| Trades | 今日の取引の入力(Status・Product・Start・Tenor/End・Code・Notional・Side・Rate)と、行ごとの要約、ピラーごとの合計(Done・What-if) |
+| Position | ユーザーが手で書いたSheet1の配置に合わせた1枚。上段に横へ Delta(original Swap・Bond / intraday Swap・Bond、百万円/bp)、Gamma(original Swap / intraday Swap、百万円/bp²)、vega(満期 × 原資産、original)。下段(41行目〜)に今日の取引の入力(Status・Product・Start・Tenor/End・Code・Notional・Side・Rate・Note)と行ごとの要約。intradayの列はStatusがDoneの取引だけ。日中のスワップションのベガは未対応 |
 | SOD | 基準日、dataset・キーの列名、項目の対応表(状態・生の合計・グリッドの合計・差)、チェック、抽出の表(ピラー × 項目) |
 | Raw_IR / Raw_IRVOL | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
 | Setup | 評価日、Live/Fixed、ピラー(34本)、ライブのレート・vol、カーブの範囲 |
@@ -54,8 +50,7 @@
 | `POS_IRKeys` / `POS_VolKeys` | 生シートの行ごとのキー(対象のdatasetの行だけ。ベガは「満期の年数x原資産の年数」) |
 | `POS_PickIR` / `POS_PickVol` | ピラー × 列名、満期 × 原資産の値(無ければ空欄) |
 | `POS_RawName` | こちらの項目名 → 生シートの列名(SODの対応表) |
-| `POS_Sod` | SODの抽出の表から項目の列を取る(Delta・Gammaが使う) |
-| `POS_IntradayDone` / `POS_IntradayWhatIf` | Tradesシートのピラーごとの合計 |
+| `POS_Sod` | SODの抽出の表から項目の列を取る(Positionのoriginalの列が使う) |
 
 ## 日中の取引(`engine/position/intraday.py`)
 
