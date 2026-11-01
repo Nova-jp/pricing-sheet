@@ -32,7 +32,7 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   - 分析ブック(`pca/`・`vol/`・`boj/`・`fwd/`・`fut/`)は`swap_pricing/`に依存させず、`common/`だけを使う
     (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(pricer/vol/udf)。JGBの規約は`engine/common/bond.py`
-  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(bonds/trades/forward/udf)。
+  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/trades/forward/udf)。
     `common/`だけを使う(PCAの推定は`engine/common/pca.py`・`history.py`)
 
 ## 設計方針(必ず守る)
