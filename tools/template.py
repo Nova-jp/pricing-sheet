@@ -320,6 +320,25 @@ def _workbooks_outside_templates() -> List[str]:
     return [n for n in names if n.lower().endswith((".xlsx", ".xlsm", ".xls")) and not n.startswith("templates/")]
 
 
+def notebook_has_outputs(text: str) -> bool:
+    """ノートブック(.ipynb のJSON)のコードセルに出力か実行番号が残っているか。出力にはDBの値(LSEG等)が入る。"""
+    import json
+    cells = json.loads(text).get("cells", [])
+    return any(c.get("outputs") or c.get("execution_count") is not None for c in cells if c.get("cell_type") == "code")
+
+
+def _notebooks_with_outputs() -> List[str]:
+    """git管理下(インデックス=次にコミットされる中身)のノートブックのうち、出力が残っているもの。"""
+    names = _git("ls-files", "-z").stdout.decode("utf-8", "replace").split("\0")
+    out = []
+    for n in names:
+        if n.lower().endswith(".ipynb"):
+            shown = _git("show", f":{n}")
+            if shown.returncode == 0 and notebook_has_outputs(shown.stdout.decode("utf-8")):
+                out.append(n)
+    return out
+
+
 def _write(path: Path, parts: Parts, source: Path) -> None:
     with zipfile.ZipFile(source) as zin:
         infos = {info.filename: info for info in zin.infolist()}
@@ -375,6 +394,10 @@ def check_all(staged: bool = False) -> int:
     outside = _workbooks_outside_templates()
     if outside:
         print(f"NG 作業用のブックがgitに入っています(コミットしてよいのは templates/ だけ): {outside}")
+        status = 1
+    with_outputs = _notebooks_with_outputs()
+    if with_outputs:
+        print(f"NG ノートブックに出力が残っています(データが入る。出力を消してからコミットする): {with_outputs}")
         status = 1
     return status
 

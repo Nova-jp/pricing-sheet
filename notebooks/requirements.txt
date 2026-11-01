@@ -1,0 +1,5 @@
+# notebooks/ のノートブックを動かすのに追加で要るもの(本体は ../requirements.txt。scipy・pandasも使う)
+scipy
+pandas
+matplotlib
+jupyterlab

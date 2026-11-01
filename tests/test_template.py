@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tools.template import array_udf_names, check_template, make_template  # noqa: E402
+from tools.template import array_udf_names, check_template, make_template, notebook_has_outputs  # noqa: E402
 
 WORKBOOK = (
     '<workbook xmlns:mc="m" xmlns:x15ac="a"><fileVersion/>'
@@ -213,3 +213,19 @@ class ArrayUdfNamesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NotebookOutputsTest(unittest.TestCase):
+    def _nb(self, *cells):
+        import json
+        return json.dumps({"cells": list(cells), "nbformat": 4})
+
+    def test_clean_notebook_passes(self):
+        nb = self._nb({"cell_type": "markdown", "source": "x"},
+                      {"cell_type": "code", "source": "1", "outputs": [], "execution_count": None})
+        self.assertFalse(notebook_has_outputs(nb))
+
+    def test_outputs_or_execution_count_fail(self):
+        out = {"cell_type": "code", "source": "1", "outputs": [{"output_type": "stream", "text": "2.5"}], "execution_count": 1}
+        self.assertTrue(notebook_has_outputs(self._nb(out)))
+        self.assertTrue(notebook_has_outputs(self._nb({"cell_type": "code", "source": "1", "outputs": [], "execution_count": 3})))
