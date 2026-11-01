@@ -29,10 +29,33 @@
 
 | シート | 中身 |
 |---|---|
-| Position | ユーザーが手で書いたSheet1の配置に合わせた1枚。上段に横へ Delta(original Swap・Bond / intraday Swap・Bond、百万円/bp)、Gamma(original Swap / intraday Swap、百万円/bp²)、vega(満期 × 原資産、original)。下段(41行目〜)に今日の取引の入力(Status・Product・Start・Tenor/End・Code・Notional・Side・Rate・Note)と行ごとの要約。intradayの列はStatusがDoneの取引だけ。日中のスワップションのベガは未対応 |
+| Position | 管理の1枚。上段の左(B:L)に**今のポジション(Now)**、右(N:W)に**基準日の引けのポジション(Close、会社の値そのもの)**、その右(Y:AK)にベガ(満期 × 原資産、Close)。下段(41行目〜)に今日の取引の入力(Status・Product・Start・Tenor/End・Code・Notional・Side・Rate・Note)と行ごとの要約。下の「Positionシートの上段」 |
 | SOD | 基準日、dataset・キーの列名、項目の対応表(状態・生の合計・グリッドの合計・差)、チェック、抽出の表(ピラー × 項目) |
 | Raw_IR / Raw_IRVOL | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
 | Setup | 評価日、Live/Fixed、ピラー(34本)、ライブのレート・vol、カーブの範囲 |
+
+### Positionシートの上段(2026-11-01、ユーザーと決定)
+
+日中の分(intraday)を別の列に出さず、左に「今の」ポジションを1つにまとめて見せる。引けのポジションは右に別に置く。
+どちらもピラー(34本)× Delta(Swap・Bond・Total)・Gamma(Swap・Bond・Total)、38行目に合計。
+
+| 列 | Now(左) | Close(右) |
+|---|---|---|
+| レート | `Move (bp)` = 今のレート − 基準日の引け(DB)。評価日が空欄ならライブ(Setupのカーブの値)、過去日ならDBのその日の引け | `Rate (%)` = DBの基準日(SODの`Base date`)の引け(`PosCloseRates`) |
+| Delta Swap / Bond | SOD + SODのガンマ × Move + 今日のDoneの取引 | SODの値 |
+| Γ x Move | SODのガンマ(Swap+Bond)× Move(デルタの変化のうちガンマの分。Delta Totalに含まれている) | ― |
+| Gamma Swap / Bond | SOD + 今日のDoneの取引 | SODの値 |
+| Total | Swap + Bond | Swap + Bond(両方空欄なら空欄) |
+
+- **棒グラフ**: Delta Total・Gamma Totalの右の列(G・L・S・W)に条件付き書式のデータバー(数値は隠す)。
+  軸はセルの中央、プラスは右へ青、マイナスは左へ赤。合計の行は含めない。
+- **ガンマ × Move は四則演算なのでExcelの数式**(UDFにしない)。Moveはピラーごとの動きに、そのピラーのガンマを
+  掛ける(対角のガンマとして扱う)。会社のガンマの定義が「パラレルに1bp動いたときのデルタの変化」なら近似になる
+  (下の「前提・未確認」)。現物のデルタ・ガンマもスワップのカーブの動きで動かす(現物のスプレッドの変化は入れない)。
+- 日中の取引はStatusが`Done`のものだけを足す(名前`POS_Intraday` = `PosIntradayGrid(…,"Done")`の見出しを除いたもの)。
+  日中の取引は今のカーブで計算しているので、ガンマ × Moveの調整はSODの分だけ。
+- エラーは隠さない: 引け値・ライブのレート・日中のUDFがエラーなら、Nowの列もエラーになる(0にして黙って続けない)。
+  ピラーにレートが無い(DBの1W等)ときだけMoveは空欄で、ガンマの分は0。
 
 ### SODシートのチェック
 
@@ -50,7 +73,8 @@
 | `POS_IRKeys` / `POS_VolKeys` | 生シートの行ごとのキー(対象のdatasetの行だけ。ベガは「満期の年数x原資産の年数」) |
 | `POS_PickIR` / `POS_PickVol` | ピラー × 列名、満期 × 原資産の値(無ければ空欄) |
 | `POS_RawName` | こちらの項目名 → 生シートの列名(SODの対応表) |
-| `POS_Sod` | SODの抽出の表から項目の列を取る(Positionのoriginalの列が使う) |
+| `POS_Sod` | SODの抽出の表から項目の列を取る(PositionのNow・Closeの列が使う) |
+| `POS_Intraday` | 今日のDoneの取引のピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond](`PosIntradayGrid`、見出しなし) |
 
 ## 日中の取引(`engine/position/intraday.py`)
 
@@ -73,8 +97,11 @@
   ガンマは対角(現物ではパラレルとかなり違う。実DBの残存8年の現物で、対角の和+0.004、パラレル+0.006)。
 - 会社のファイルの日中の取引の列(前営業日の日中の取引)が、合計の列に含まれているか。今は合計・derivative・bondの列だけを使う。
 - 会社のベガの単位と、満期・原資産の範囲(サンプルは5Yx10Yの1行だけ。グリッドは満期13本×原資産12本)。
-- 生シートのレート(前営業日の引け、SODの`Rate`)とライブのレートの差から、SODのリスクの今の推定(デルタ+ガンマ×Δr)と
-  損益の目安を出す列は、レートの単位を確かめてから入れる。
+- Nowのガンマ × Moveの基準のレートは、会社のファイルのレート(SODの`Rate`、単位が未確認)ではなくDBの基準日の引け
+  (ONIPE等、こちらのカーブの引け値)を使っている。会社のカーブの引けとは少しずれうる。損益の目安(½ガンマ × Move²
+  等)の列はまだ無い。
+- 今の雛形のブック(worktree)のRaw_IR・Raw_IRVOLは見た目の確認用のダミー値(基準日2026-10-26、評価日2026-10-27)。
+  受信領域なので雛形では消える。
 
 ## 前の叩き台(2026-10-25)
 
