@@ -123,6 +123,15 @@ class MakeTemplateTest(unittest.TestCase):
         self.assertNotIn('r="A3"', raw)
         self.assertNotIn('r="A4"', raw)
 
+    def test_receive_area_can_be_a_range(self):
+        out = make_template(_book(), {"Raw": "B1:B3"})
+        raw = _text(out, "xl/worksheets/sheet2.xml")
+        self.assertIn('<c r="A3" t="s"><v>3</v></c>', raw)  # 範囲の外の値は残す
+        self.assertIn('<c r="A4"><v>46290</v></c>', raw)
+        self.assertIn('<c r="B3" s="1"/>', raw)  # 範囲の中の値は消す(書式は残す)
+        calc = _text(out, "xl/worksheets/sheet1.xml")
+        self.assertIn('<c r="B1"><v>42</v></c>', calc)  # 他のシートは対象外
+
     def test_unreferenced_shared_strings_are_blanked(self):
         sst = _text(self.out, "xl/sharedStrings.xml")
         self.assertEqual(sst.count("<si>"), 4)  # 番号がずれないよう要素の数は保つ

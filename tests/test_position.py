@@ -5,6 +5,8 @@
 - 日中の取引: スポットの10Y Payerのデルタは10Yのピラーだけに乗り、空行・エラーの行も行数を保つ
 - フォワードの換算行列: 各ピラーのパーレートは自分より先の区間で動かず、全区間の和はほぼ1。O/Nは独立
 - PCA: 使わないピラー(フラグ0)の主成分ベクトルは0の行で返る
+- 日中の取引(OIS・現物)のデルタ・ガンマ: デルタは既存のスワップ・現物の計算と一致し、レシーブ・現物のロングは
+  ガンマがプラス。グリッドはStatusで足し分け、エラーの行は行ごとのMessageに出して足さない
 
 実行方法:
     python -m unittest tests.test_position -v
@@ -27,7 +29,7 @@ from engine.common import bond, market, udf_common  # noqa: E402
 from engine.common.conventions import CALENDAR  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
-from engine.position import bonds, forward, trades, udf  # noqa: E402
+from engine.position import bonds, forward, intraday, trades, udf  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402
 
@@ -190,6 +192,88 @@ class PcaUdfTest(unittest.TestCase):
         self.assertGreater(eigen[1][1], eigen[2][1])
         self.assertEqual(window["Samples"], 40)
         self.assertEqual(window["End"], days[-1])
+
+
+class IntradayTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = HistoricalStore(Path(self.tmp.name) / "historical.db")
+        self.store.save_jgb_bonds([JgbRecord("JB999", "JP09990067=", "XX", 1.7, date(2035, 9, 20))])
+        self.store.save_jgb_closes([JgbClose(FRIDAY, "JB999", 1.700)])
+        self.curves = _curves()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_deltas_match_existing_and_gamma_sign(self):
+        swap = trades.Trade(None, "10Y", 10_000.0, "REC")
+        bond_pos = bonds.BondPosition("JB999", 100.0, yield_override=1.8)
+        with self.store:
+            out = intraday.intraday_risks(self.curves, self.store, [
+                intraday.IntradayTrade(intraday.DONE, intraday.OIS, swap=swap),
+                intraday.IntradayTrade(intraday.DONE, intraday.BOND, bond=bond_pos),
+            ])
+            ref_bond = bonds.bond_risks(self.curves, self.store, [bond_pos])[0]
+        ref_swap = trades.trade_risks(self.curves, [swap])[0]
+        for got, ref in ((out[0].deltas, ref_swap.deltas), (out[1].deltas, ref_bond.deltas)):
+            self.assertEqual(set(got), set(ref))
+            for k in ref:
+                self.assertAlmostEqual(got[k], ref[k], delta=1e-6, msg=k)  # ブートストラップの解き直しの誤差(1e-8程度)
+        self.assertAlmostEqual(out[0].rate, ref_swap.fix_rate)
+        self.assertEqual(out[1].rate, 1.8)
+        self.assertIsNone(out[1].pv)
+        self.assertGreater(out[0].gammas["10y"], 0)  # レシーブはガンマがプラス
+        self.assertGreater(sum(out[1].gammas.values()), 0)  # 現物のロングもプラス
+        # 10Yのスワップのガンマ: 1bpの中心差分(スワップは補間の影響を受けない)とほぼ一致
+        params = trades.trade_params(self.curves, swap)
+        pv = [0.0, 0.0]
+        for n, h in enumerate((1.0, -1.0)):
+            with self.curves.bumped("10y", h):
+                pv[n] = trades.price(self.curves.base, params).pv
+        base = trades.price(self.curves.base, params).pv
+        self.assertAlmostEqual(out[0].gammas["10y"], pv[0] - 2 * base + pv[1], delta=abs(out[0].gammas["10y"]) * 0.01)
+
+    def _udf(self, func, table, *args):
+        with mock.patch.object(udf_common, "_historical_store", lambda: self.store),                 mock.patch.object(udf_common, "_db_fixings", lambda: {}),                 mock.patch.object(udf_common, "_today", lambda: FRIDAY):
+            udf._intraday_cache.clear()
+            return func(table, PILLARS, _rt_range(), None, *args)
+
+    def test_udf_rows_and_grid(self):
+        table = [
+            ["Done", "OIS", None, "10Y", None, 10_000, "Pay", None],
+            ["What-if", "ois", None, "5Y", None, 10_000, "Rec", 2.0],
+            ["Done", "Bond", None, None, "JB999", 100, "Sell", None],
+            [None] * 8,
+            ["Maybe", "OIS", None, "2Y", None, 1, "Pay", None],
+            ["Done", "Bond", None, None, None, 1, "Buy", None],
+            ["Done", "Bond", None, None, "JB999", 1, "Pay", None],
+        ]
+        rows = self._udf(udf.PosIntradayRisk, table)
+        self.assertEqual(rows[0], udf.INTRADAY_HEADER)
+        self.assertEqual(len(rows), len(table) + 1)
+        msg = udf.INTRADAY_HEADER.index("Message")
+        dv01 = udf.INTRADAY_HEADER.index("DV01")
+        self.assertGreater(rows[1][dv01], 0)
+        self.assertGreater(rows[3][dv01], 0)  # 現物の売り(ショート)はプラス
+        self.assertEqual(rows[3][udf.INTRADAY_HEADER.index("PV")], "")
+        self.assertEqual(rows[4], [""] * len(udf.INTRADAY_HEADER))
+        for n, word in ((5, "Status"), (6, "Code"), (7, "Buy")):
+            self.assertIn(word, rows[n][msg])
+        done = self._udf(udf.PosIntradayGrid, table)
+        whatif = self._udf(udf.PosIntradayGrid, table, "What-if")
+        both = self._udf(udf.PosIntradayGrid, table, "All")
+        self.assertEqual(done[0], udf.GRID_HEADER)
+        self.assertEqual(len(done), len(PILLARS) + 1)
+        col = {name: i for i, name in enumerate(udf.GRID_HEADER)}
+        swap_done = sum(r[col["Delta Swap"]] for r in done[1:])
+        self.assertAlmostEqual(swap_done, rows[1][dv01], places=6)
+        self.assertAlmostEqual(sum(r[col["Delta Bond"]] for r in done[1:]), rows[3][dv01], places=6)
+        self.assertEqual(sum(abs(r[col["Delta Bond"]]) for r in whatif[1:]), 0.0)
+        for a, b, c in zip(done[1:], whatif[1:], both[1:]):
+            for i in range(len(udf.GRID_HEADER)):
+                self.assertAlmostEqual(a[i] + b[i], c[i], places=6)
+        with self.assertRaises(ValueError):
+            self._udf(udf.PosIntradayGrid, table, "Pending")
 
 
 if __name__ == "__main__":

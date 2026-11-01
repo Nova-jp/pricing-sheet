@@ -48,7 +48,8 @@ def _clean_price(qb: ql.Bond, curve: ql.YieldTermStructure, z: float, settle: ql
     return ql.BondFunctions.cleanPrice(qb, curve, z, bond.ACCRUAL, _COMPOUNDING, _FREQUENCY, settle)
 
 
-class _Prepared(NamedTuple):
+class PreparedBond(NamedTuple):
+    """Zスプレッドを解いた銘柄(ピラーを動かしたカーブで評価し直すための一式)。"""
     risk: BondRisk
     qb: ql.Bond
     settle: ql.Date
@@ -56,8 +57,12 @@ class _Prepared(NamedTuple):
     base: float
     face: float
 
+    def value(self, curve: ql.YieldTermStructure) -> float:
+        """そのカーブ(Zスプレッド固定)でのポジションの価値(百万円、単価×額面。経過利子は含まない)。"""
+        return _clean_price(self.qb, curve, self.z, self.settle) / 100.0 * self.face
 
-def _prepare(curves: CurveSet, store, position: BondPosition) -> _Prepared:
+
+def prepare_bond(curves: CurveSet, store, position: BondPosition) -> PreparedBond:
     code = position.code.strip().upper()
     info = store.jgb_bond(code)
     if info is None:
@@ -82,7 +87,7 @@ def _prepare(curves: CurveSet, store, position: BondPosition) -> _Prepared:
         qb, ql.BondPrice(clean, ql.BondPrice.Clean), curve, bond.ACCRUAL, _COMPOUNDING, _FREQUENCY, qsettle,
     )
     risk = BondRisk(code, info.coupon, info.maturity, simple_yield, close_date, clean, z * 1e4, {})
-    return _Prepared(risk, qb, qsettle, z, _clean_price(qb, curve, z, qsettle), position.face)
+    return PreparedBond(risk, qb, qsettle, z, _clean_price(qb, curve, z, qsettle), position.face)
 
 
 def bond_risks(curves: CurveSet, store, positions: Sequence[Optional[BondPosition]]) -> List[object]:
@@ -94,14 +99,14 @@ def bond_risks(curves: CurveSet, store, positions: Sequence[Optional[BondPositio
             results.append(None)
             continue
         try:
-            results.append(_prepare(curves, store, p))
+            results.append(prepare_bond(curves, store, p))
         except Exception as e:  # 行ごとにメッセージを出して他の行は続ける
             results.append(e)
-    prepared = [r for r in results if isinstance(r, _Prepared)]
+    prepared = [r for r in results if isinstance(r, PreparedBond)]
     curve = curves.base.curve.currentLink()
     for label in curves.bump_labels:
         with curves.bumped(label):
             for r in prepared:
                 bumped = _clean_price(r.qb, curve, r.z, r.settle)
                 r.risk.deltas[label] = per_bp((bumped - r.base) / 100.0 * r.face)
-    return [r.risk if isinstance(r, _Prepared) else r for r in results]
+    return [r.risk if isinstance(r, PreparedBond) else r for r in results]

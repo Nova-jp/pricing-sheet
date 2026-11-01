@@ -133,7 +133,7 @@ engine/
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
-  position/        # PositionSheet.xlsm固有のポジション・リスク管理(叩き台。現物・日中の取引のデルタ、フォワードの換算、PCA)
+  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ)
 ```
 
 現物オプション(`BondOption.xlsm`)の計算規則・ブックの構成は[bond_option.md](bond_option.md)。

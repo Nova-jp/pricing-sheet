@@ -163,15 +163,16 @@ class CurveSet:
         return self._parallel
 
     @contextmanager
-    def bumped(self, label: str) -> Iterator[Market]:
-        """with文の中だけ、そのテナーのクォートをBUMP_BPだけ動かした基準カーブの市場データ。抜けると(例外でも)
-        元の値に戻す。中で base を使う他の計算をしないこと(同じカーブを書き換えているため)。"""
+    def bumped(self, label: str, bp: float = BUMP_BP) -> Iterator[Market]:
+        """with文の中だけ、そのテナーのクォートをbp(既定BUMP_BP。ガンマは±の別の幅)だけ動かした基準カーブの
+        市場データ。抜けると(例外でも)元の値に戻す。中で base を使う他の計算をしないこと(同じカーブを
+        書き換えているため)。"""
         if label not in self.bump_labels:
             raise ValueError(f"カーブに使っていないテナーはバンプできません: {label}")
         quote = self.base_curve.quotes[normalize_tenor(label)]
         original = quote.value()
-        # parallel()(=_bumped)と同じ値の計算: %でBUMP_BPを足してから小数に直す
-        quote.setValue((self._quotes[label] + BUMP_BP / 100.0) / 100.0)
+        # parallel()(=_bumped)と同じ値の計算: %でbpを足してから小数に直す
+        quote.setValue((self._quotes[label] + bp / 100.0) / 100.0)
         try:
             yield self.base
         finally:

@@ -7,7 +7,7 @@
 場所ごとに消すのではなく、規則で一律に消す(LSEGのデータはほぼ全て数式の計算結果として入るため):
 - 数式のセルの計算結果(キャッシュ値)を消す。数式と、手入力の値(コンベンション・フラグ等)は残す
 - スピル範囲(t="array" の ref)のうち先頭以外のセルの値を消す(スピル結果は値のセルとして保存される)
-- RECEIVE_AREAS に宣言した受信領域(LSEGアドインが値として書き込む範囲)を消す
+- RECEIVE_AREAS に宣言した受信領域(LSEGアドインが値として書き込む範囲・会社のデータの貼り付け先)を消す
 - グラフのキャッシュ、外部リンクのキャッシュ、RTDのキャッシュ(volatileDependencies)を消す
 - ローカルの絶対パスと、作成者・更新者の名前を消す。開いたときに全再計算する設定にする
 
@@ -24,18 +24,21 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = ROOT / "templates"
 
-# 雛形にするブック → {シート名: その行以降を消す行番号}(LSEGアドインが値として書き込む受信領域)
-RECEIVE_AREAS: Dict[str, Dict[str, int]] = {
+# 雛形にするブック → {シート名: その行以降を消す行番号、または値を消す範囲("B4:B34")}
+# (LSEGアドインが値として書き込む受信領域・会社のデータを貼る・入れる場所)
+Area = Union[int, str]
+RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
     "BondOption.xlsm": {},
-    # 会社のポジション・リスクを貼り付ける入力シート(5行目以降)。値は消し、数式(ピラーの並び等)だけ残す
-    "PositionSheet.xlsm": {"Delta": 5, "Gamma": 5, "Vega": 5, "Bonds": 5, "Trades": 5, "Others": 5},
+    # 会社のリスクのシートをそのまま貼る生シート(全行)、会社の列名・dataset名・基準日の入力(SODの黄色のセル)、
+    # 日中の取引の入力(5行目以降)。値は消し、数式だけ残す
+    "PositionSheet.xlsm": {"Raw_IR": 1, "Raw_IRVOL": 1, "SOD": "B4:B34", "Trades": 5},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
@@ -123,7 +126,17 @@ def _spill_cells(xml: str) -> Set[Tuple[int, int]]:
     return cells
 
 
-def clean_sheet(xml: str, clear_from_row: Optional[int] = None) -> str:
+def _in_area(area: Optional[Area], row: int, col: int) -> bool:
+    """受信領域(行番号=その行以降、範囲の文字列=その範囲)に入るか。"""
+    if area is None:
+        return False
+    if isinstance(area, int):
+        return row >= area
+    r1, r2, c1, c2 = _range_bounds(area)
+    return r1 <= row <= r2 and c1 <= col <= c2
+
+
+def clean_sheet(xml: str, area: Optional[Area] = None) -> str:
     """シートのセルから計算結果・スピル結果・受信領域の値を消す(数式と手入力の値は残す)。"""
     spill = _spill_cells(xml)
 
@@ -138,7 +151,7 @@ def clean_sheet(xml: str, clear_from_row: Optional[int] = None) -> str:
             # 計算結果(v)と値の型(t)・値のメタデータ(vm)を消し、数式だけ残す
             attrs = re.sub(r'\s(t|vm)="[^"]*"', "", attrs)
             return f'<c r="{letters}{row_text}"{attrs}>{f.group(0)}</c>'
-        if (clear_from_row is not None and row >= clear_from_row) or in_spill(row, col):
+        if _in_area(area, row, col) or in_spill(row, col):
             style = re.search(r'\ss="[^"]*"', attrs)
             return f'<c r="{letters}{row_text}"{style.group(0)}/>' if style else ""
         return m.group(0)
@@ -213,14 +226,14 @@ def _sheet_paths(parts: Dict[str, bytes]) -> Dict[str, str]:
     return {name: targets[rid] for name, rid in re.findall(r'<sheet name="([^"]+)"[^>]*r:id="([^"]+)"', workbook)}
 
 
-def make_template(parts: Parts, receive_areas: Dict[str, int]) -> Parts:
+def make_template(parts: Parts, receive_areas: Dict[str, Area]) -> Parts:
     """ブックの部品の並び → 雛形の部品の並び(順序は保つ)。"""
     contents = dict(parts)
     sheet_paths = _sheet_paths(contents)
     unknown = set(receive_areas) - set(sheet_paths)
     if unknown:
         raise ValueError(f"受信領域に宣言したシートがありません: {sorted(unknown)}")
-    clear_rows = {sheet_paths[s]: row for s, row in receive_areas.items()}
+    clear_areas = {sheet_paths[s]: area for s, area in receive_areas.items()}
 
     cleaned: Dict[str, str] = {}
     for name, data in parts:
@@ -228,7 +241,7 @@ def make_template(parts: Parts, receive_areas: Dict[str, int]) -> Parts:
             continue
         xml = data.decode("utf-8")
         if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name):
-            xml = clean_sheet(xml, clear_rows.get(name))
+            xml = clean_sheet(xml, clear_areas.get(name))
         elif re.fullmatch(r"xl/charts/chart\d+\.xml", name):
             xml = clean_chart(xml)
         elif re.fullmatch(r"xl/externalLinks/externalLink\d+\.xml", name):
@@ -260,7 +273,7 @@ def array_udf_names(modules=UDF_MODULES) -> Set[str]:
     return names
 
 
-def check_template(parts: Parts, receive_areas: Dict[str, int], array_udfs: Set[str]) -> List[str]:
+def check_template(parts: Parts, receive_areas: Dict[str, Area], array_udfs: Set[str]) -> List[str]:
     """雛形の問題点の一覧(空なら合格)。"""
     problems = []
     contents = dict(parts)
