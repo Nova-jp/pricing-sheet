@@ -763,6 +763,18 @@ Excelの`RDP.HistoricalPricing`はAPIの生フィールド名(`NRMV_OCPHM`等)�
 - ローカルのパス(`C:\Users\…`、`file:///`)が無いこと(`vbaProject.bin`のxlwings参照は既知で除外)
 - 配列を返すUDF(`udf.py`の戻り値の型が`List[...]`のもの)のセルが動的配列(`cm`属性)であること
 - `templates/`以外にブックがgitに入っていないこと(`git ls-files`で次にコミットされる中身を見る)
+- ノートブック(`.ipynb`)に出力・実行番号が残っていないこと(出力にはDBの値が入る)
 
 pre-commitフック(`.githooks/pre-commit`、`git config core.hooksPath .githooks`で有効化)と
 GitHub Actions(`.github/workflows/templates.yml`)で走る。テストは`tests/test_template.py`。
+
+## 分析ノートブック(`notebooks/`)
+
+ブックとは別の、手元で動かす分析用のJupyterノートブック。`data/historical.db`を読むだけで、UDF・ブックには
+関わらない。追加のパッケージは`notebooks/requirements.txt`(matplotlib・jupyterlab等)。
+
+- `vol_strategies.ipynb` — ボラサーフェスの戦略(1M売り・1M/1Y比のタイミング・PC2売り・日銀会合の前後・
+  週末とIVの形)の可視化と検証。部品は`vol_lab.py`(Traditionのプレミアム→IV、ATMストラドルの一括の時価評価、
+  ローリングPCA)。P&Lは建てた時のベガ1単位あたりのボラbp。
+
+出力にはLSEG・Traditionのデータが入るので、**出力を消してからコミットする**(`tools.template --check`が止める)。
