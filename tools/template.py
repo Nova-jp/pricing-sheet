@@ -36,9 +36,10 @@ RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
     "PricingSheet.xlsm": {},
     "SwapAnalysis.xlsm": {},
     "BondOption.xlsm": {},
-    # 会社のリスクのシートをそのまま貼る生シート(全行)、会社の列名・dataset名・基準日の入力(SODの黄色のセル)、
-    # 日中の取引の入力(Positionシートの42行目以降)。値は消し、数式だけ残す
-    "PositionSheet.xlsm": {"Raw_IR": 1, "Raw_IRVOL": 1, "SOD": "B4:B34", "Position": 42},
+    # 会社のリスクのシートをそのまま貼る生シート(全行)、基準日(SODのB4)、日中の取引の入力(Positionシートの
+    # 42行目以降)。値は消し、数式だけ残す。SODの列名・dataset名(黄色のセル)は社内データではないので残す
+    # (毎回入れ直さずに済むように。ユーザー指示 2026-11-03)
+    "PositionSheet.xlsm": {"Raw_IR": 1, "Raw_IRVOL": 1, "SOD": "B4", "Position": 42},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
