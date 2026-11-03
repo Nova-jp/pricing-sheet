@@ -165,7 +165,7 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
 **表UDF(2026-10-21、ユーザー指示)**: 1行ごとにUDFを置くと、再計算の時間がUDFのセルの数で決まる(1セルごとに
 Excelとの往復がかかる。PricingTableと同じ理由、[decisions.md](decisions.md))。行ごとに5〜6個(100行で500超)
 あったUDFを、全行を1回で計算する3つの表UDF(本体は`engine/bond_option/table.py`)にまとめた。四則演算程度の計算は
-Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AX〜BF)に
+Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AY〜BG)に
 スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
 する。表示のセルを手で上書きすれば、下流の式とその先の表UDFはその値で計算される(スピルの中を上書きして
 #SPILL!になることもない)。1行の入力の誤りで表全体をエラーにせず、計算できなかった値は空欄(表示の列は#N/A)、
@@ -181,27 +181,33 @@ Excelの式のまま残す(手で上書きしたときに対応しやすいた�
 - **Bonds**シート: A3 `=JgbMaster(TradeDate)`(名前`BondList` = `Bonds!$A$3#`)。
 - **Holidays**シート: A3 `=JapanHolidays(DATE(YEAR(TradeDate)−1,1,1), DATE(YEAR(TradeDate)+21,12,31))`
   (名前`Holidays` = `Holidays!$A$3#`)。
-- **Option**シート(2026-10-21に組み替え): 上段は B1 取得モード(Live/Fixed)、B3 評価日(空欄=今日)、
-  B4 使う評価日(名前`TradeDate`)、B5 換算の日数(名前`VolDays`、252)、E3・E4 Repo bid・offer(名前`RepoBid`・
-  `RepoOffer`)、G1:I5 スキームの対応表(名前`SchemeTable` = G2:I5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
+- **Option**シート(2026-10-21に組み替え、2026-11-03に列を整理): 上段は C1 取得モード(Live/Fixed)、C3 評価日(空欄=今日)、
+  C4 使う評価日(名前`TradeDate`)、C5 換算の日数(名前`VolDays`、252)、F3・F4 Repo bid・offer(名前`RepoBid`・
+  `RepoOffer`)、H1:J5 スキームの対応表(名前`SchemeTable` = H2:J5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
   黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
   入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
-  明細(AG〜AV)と計算用(AX〜BH)は折りたたみ(AWは2つのグループを分ける隙間)。2026-10-22にFwd +bp・先渡単利の
-  2列を挿入した。ずらし幅の入力(ATM slide・Spot +sen・Fwd +sen・Fwd +bp・ATM +bp)は+付き・負は赤の表示形式
+  明細(AH〜AW)と計算用(AY〜BI)は折りたたみ(AXは2つのグループを分ける隙間)。2026-10-22にFwd +bp・先渡単利の
+  2列を挿入した。2026-11-03(ユーザー指示)に、左端に顧客名の列(Client、計算には使わない)を足し、MarketブロックのATMの
+  3列をRepoより左へ、Strike inputの列幅を少し狭く(9)し、Quote textの中身を決めた。ずらし幅の入力(ATM slide・Spot +sen・
+  Fwd +sen・Fwd +bp・ATM +bp)は+付き・負は赤の表示形式
   (`+General;[Red]-General;0`。日本語版ExcelのCOMは`[Red]`を受け付けないので`NumberFormatLocal`の
   `+G/標準;[赤]-G/標準;0`で設定する)。
 
 | ブロック | 列 |
 |---|---|
-| Trade | A Bond, B Scheme(対応表から選ぶ), C Expiry, D Settle lag(1/2), E Notional(億円) |
-| Market | F Repo override(%), G Repo(使う値。overrideが空ならSchemeの対応表のBid/Offer。未設定ならメッセージ), H ATM slide(bp), I ATM yield, J Spot price(`JGB_PRICE`) |
-| Strike input(1つだけ) | K Spot +sen, L Fwd +sen, M Fwd +bp, N Fwd price, O ATM +bp, P Yield(%) |
-| Forward | Q Fwd clean, R Fwd yield simple(先渡単利、se起点) |
-| Strike | S Strike basis(どの入力を使うか、または入力の誤りのメッセージ), T Strike price, U Strike yield(se起点) |
-| Vol | V・W Normal vol(override │ 使う値), X・Y bp vol, Z・AA Price vol |
-| Premium | AB Premium(銭), AC 円, AD Strike + premium(ITMBWの確認), AE Quote text(客先に返す文面。中身は後日決める), AF Message |
-| Details(折りたたみ) | AG〜AJ 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AK Type(対応表から), AL〜AN スポット受渡日・行使後の受渡日・T, AO〜AR 経過利子×2・期中の利払・Fwd dirty, AS〜AV Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
-| Calc(折りたたみ) | AX `OptionMarketTable`, BC `ItmBuyWriteTable`, BE `PremiumTable`(8行目にスピル), BH3 ライブのボラ(`LiveQuotes("vol")`) |
+| Trade | A Client(顧客名など、自由記入), B Bond, C Scheme(対応表から選ぶ), D Expiry, E Settle lag(1/2), F Notional(億円) |
+| Market | G ATM slide(bp), H ATM yield, I Spot price(`JGB_PRICE`), J Repo override(%), K Repo(使う値。overrideが空ならSchemeの対応表のBid/Offer。未設定ならメッセージ) |
+| Strike input(1つだけ) | L Spot +sen, M Fwd +sen, N Fwd +bp, O Fwd price, P ATM +bp, Q Yield(%) |
+| Forward | R Fwd clean, S Fwd yield simple(先渡単利、se起点) |
+| Strike | T Strike basis(どの入力を使うか、または入力の誤りのメッセージ), U Strike price, V Strike yield(se起点) |
+| Vol | W・X Normal vol(override │ 使う値), Y・Z bp vol, AA・AB Price vol |
+| Premium | AC Premium(銭), AD 円, AE Strike + premium(ITMBWの確認), AF Quote text, AG Message |
+| Details(折りたたみ) | AH〜AK 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AL Type(対応表から), AM〜AO スポット受渡日・行使後の受渡日・T, AP〜AS 経過利子×2・期中の利払・Fwd dirty, AT〜AW Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
+| Calc(折りたたみ) | AY `OptionMarketTable`, BD `ItmBuyWriteTable`, BF `PremiumTable`(8行目にスピル), BI3 ライブのボラ(`LiveQuotes("vol")`) |
+
+Quote text(客先に返す文面、2026-11-03にユーザーが決定)は「Scheme Expiry 価格ボラ% プレミアムC」を空白区切りで並べる
+(例 `TB 2026-12-15 3.25% 45.2C`)。価格ボラは使う値(AB)を小数2桁+`%`、プレミアムは銭(AC)を小数1桁+`C`。
+どれかがエラーなら空欄(理由はMessage列)。
 
 旧構成(2026-10-19〜21)の`INDEX(配列UDF(…), 行, 列)`のセルはExcelが旧式の数式(`cm`属性なし)として保存していた
 (`tools/template.py`の検査はこの形を除いている。今のシートでは使っていない)。
