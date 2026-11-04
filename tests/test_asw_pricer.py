@@ -4,7 +4,7 @@ ASWPricerシートのUDF(AswPricingTable、engine/swap_pricing/asw/table.py・pr
 - 銘柄からDBの利率・償還日・引け値を引き、単利=引け値+スライド(yield overrideが優先)にすること
 - 受渡日(T+1)・MMSの起算日(空欄=スポット)・満期日(償還日、休日調整)の決め方
 - MMSは行の規約で組んだOISのパーレート(PricingSheetと同じ経路)、roll conv=BWDは償還日から遡ること
-- par-par ASW・adj_notionalの列と、行ごとのエラーをmessageに閉じ込めること
+- par-par ASW・adj_notional・bond bpv・hedge ratioの列と、行ごとのエラーをmessageに閉じ込めること
 値そのもの(複利・パーレート・スプレッド)はQuantLibを正とし、手計算の照合はしない。
 
 実行方法:
@@ -27,6 +27,7 @@ from engine.common import bond, market, udf_common  # noqa: E402
 from engine.common.conventions import CALENDAR, ROLL_BWD, rule_and_eom  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
+from engine.common.risk import annuity_delta  # noqa: E402
 from engine.common.swap_pricer import _build_swap  # noqa: E402
 from engine.common.terms import PAY, SwapConvention, SwapTerms  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
@@ -147,6 +148,33 @@ class AswPricingTableTest(unittest.TestCase):
         self.assertEqual(r["adj_notional"], measures.notional_for_delta(self.curves, terms, -10, "PAY"))
         (blank,) = self._price(_row())
         self.assertEqual(blank["adj_notional"], "")
+
+    def test_bond_bpv_is_repricing_for_one_bp_of_compound_yield(self):
+        (r,) = self._price(_row(slide=2.5))
+        jgb = bond.ql_bond(bond.Jgb(1.7, MATURITY), "no_leap")
+        settle = ql.Date.from_date(r["settle"])
+        dirty = lambda y: ql.BondFunctions.cleanPrice(  # noqa: E731
+            jgb, ql.InterestRate(y / 100, bond.NO_LEAP, ql.Compounded, ql.Semiannual), settle,
+        ) + ql.BondFunctions.accruedAmount(jgb, settle)
+        y = r["compound yield"]
+        repriced = (dirty(y - 0.01) - dirty(y + 0.01)) / 2 * 1e6  # 額面100円→1億円
+        self.assertAlmostEqual(r["bond bpv"] / repriced, 1.0, places=6)
+
+    def test_hedge_ratio_makes_swap_delta_match_bond_bpv(self):
+        (r,) = self._price(_row(slide=2.5))
+        terms = SwapTerms(self.curves.spot_date, SA, end=MATURITY)
+        swap_delta = annuity_delta(measures.par(self.curves, terms).annuity, r["hedge ratio"] * 1e8, PAY)
+        self.assertAlmostEqual(swap_delta, r["bond bpv"], places=6)
+        self.assertEqual(r["message"], "")
+
+    def test_hedge_ratio_ignores_pay_rec_and_delta_inputs(self):
+        base, other = self._price(_row(), _row(delta=-10, pay_rec="REC"))
+        self.assertEqual(base["hedge ratio"], other["hedge ratio"])
+        self.assertGreater(base["hedge ratio"], 0)
+
+    def test_hedge_ratio_uses_the_row_slide(self):
+        rich, cheap = self._price(_row(override=1.0), _row(override=3.0))
+        self.assertGreater(rich["bond bpv"], cheap["bond bpv"])  # 利回りが高いほどBPVは小さい
 
     def test_row_errors_go_to_message(self):
         no_close, unknown, off, past = self._price(

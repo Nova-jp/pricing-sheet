@@ -25,7 +25,7 @@ from typing import NamedTuple
 
 import QuantLib as ql
 
-from engine.common.bond import NO_LEAP, ForwardPrice, Jgb, forward_price, ql_bond, truncate3  # noqa: F401
+from engine.common.bond import NO_LEAP, ForwardPrice, Jgb, dollar_duration, forward_price, ql_bond, truncate3  # noqa: F401
 from engine.common.bond import compound_yield as bond_compound_yield
 from engine.common.conventions import CALENDAR
 
@@ -40,19 +40,11 @@ class ForwardDuration(NamedTuple):
     modified_duration: float  # MD = DD / 先渡dirty × 100
 
 
-def _rate(compound_yield: float) -> ql.InterestRate:
-    return ql.InterestRate(compound_yield / 100, NO_LEAP, ql.Compounded, ql.Semiannual)
-
-
 def forward_duration(bond: Jgb, forward_dirty: float, forward_settle: date) -> ForwardDuration:
     """F7・F8: 先渡dirtyに一致する半年複利(うるう日除き/365、受渡日起点)を小数3桁で切り捨て、
     その利回りでの −dP/dy を DD、DD/先渡dirty を MD とする(分母はレポで計算した先渡dirty)。"""
-    b = ql_bond(bond, "no_leap")
-    settle = ql.Date.from_date(forward_settle)
     compound_yield = bond_compound_yield(bond, forward_dirty, forward_settle)
-    rate = _rate(compound_yield)
-    dirty_at_yield = ql.BondFunctions.cleanPrice(b, rate, settle) + ql.BondFunctions.accruedAmount(b, settle)
-    dd = ql.BondFunctions.duration(b, rate, ql.Duration.Modified, settle) * dirty_at_yield / 100
+    dd = dollar_duration(bond, compound_yield, forward_settle)
     return ForwardDuration(compound_yield, dd, dd / forward_dirty * 100)
 
 

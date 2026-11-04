@@ -23,7 +23,7 @@
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約) |
 | `asw/udf.py` | ASWシートの`AswHistoricalRate`/`AswHistoricalRates`(DBの`asw_quotes`を読むだけ)、ASWPricerシートの`AswPricingTable` |
-| `asw/pricer.py` | ASWPricerの計算: 現物の単価・複利(スポット受渡T+1、`bond.compound_yield`)、par-par ASW(`ql.AssetSwap`)。MMSは`pricing/measures.py`の`par` |
+| `asw/pricer.py` | ASWPricerの計算: 現物の単価・複利(スポット受渡T+1、`bond.compound_yield`)、複利1bpのBPV(`bond.dollar_duration`)、par-par ASW(`ql.AssetSwap`)。MMSは`pricing/measures.py`の`par` |
 | `asw/table.py` | `AswPricingTable`の本体(pricing表と同じく見出し名で列を探し、flag=1の行だけ、行ごとのエラーはmessageへ) |
 
 テスト: `test_market_risk.py`(カーブの共有・デルタ・RiskGrid・評価日・startのテナー・HistChart)、`test_past_start.py`、
@@ -197,6 +197,12 @@ JGB銘柄別のASWスプレッド(DBの`asw_quotes`、朝バッチがNeonから�
   `bond.schedule`(NullCalendar)のままだと受渡日が土曜になるので日本のカレンダーで組んだ債券を使う。起算日が評価日より前の行は
   計算しない(変動側の実績を登録しないため)。
 - **delta→想定元本はpricing表と同じ`notional_for_delta`をMMSに適用**。PV・デルタは今は出さない(ユーザー判断)。
+- **約定したASWからMMSのレートとノーショナルを出す(AA:AD、2026-11-04)**。入力は現物のノーショナル(億円)と約定ASW(bp)、スライドは既存のC列。
+  MMSのレート = 複利 − 約定ASW/100、MMSのノーショナル = 現物のノーショナル × hedge ratio(どちらもシートの式。UDFの入力範囲は変えない)。
+  - 現物のリスクは**その銘柄の複利の修正デュレーション×利含み単価**(`bond bpv`、複利1bpあたり。カーブはバンプしない。ユーザー判断)。ASWを固定するとMMSの1bpは複利の1bpなので、
+    ASWの定義(複利 − MMS)と整合する。単利の1bp・カーブの平行シフト+Zスプレッド固定は採らない。
+  - スワップ側は`adj_notional`と同じアニュイティデルタ。`hedge ratio` = `bond bpv`に合うMMSの想定元本/現物の額面で、PAY/RECによらず正の数。
+    向きはK列(現物を買うならPAY)。現物はT+1受渡時点の価値、スワップのアニュイティは評価日時点で、その差(1日分の割引)は無視する。端数は丸めない。
 - 配置: 入力A〜K(4〜53行。flag・bond・slide(bp)・yield override・delta・start・fix freq・fix dcf・float freq・roll conv(既定`BWD`)・
-  pay/rec)、表示L〜Z、計算AQ3`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(AF:BDは折りたたみ)。
+  pay/rec)、表示L〜Z、約定AA〜AD、計算AQ3`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(AF:BFは折りたたみ)。
 - 先物ASW・リファレンスの列は[roadmap.md](roadmap.md)の11。

@@ -119,6 +119,15 @@ def compound_yield(bond: Jgb, dirty: float, settle: date) -> float:
     return truncate3(y * 100)
 
 
+def dollar_duration(bond: Jgb, compound_yield_pct: float, settle: date) -> float:
+    """半年複利(%、compound_yieldの値)での DD = −dP/dy(利含み単価、額面100円、利回り1%あたり)。"""
+    b = ql_bond(bond, "no_leap")
+    rate = ql.InterestRate(compound_yield_pct / 100, NO_LEAP, ql.Compounded, ql.Semiannual)
+    qd = _qd(settle)
+    dirty = ql.BondFunctions.cleanPrice(b, rate, qd) + ql.BondFunctions.accruedAmount(b, qd)
+    return ql.BondFunctions.duration(b, rate, ql.Duration.Modified, qd) * dirty / 100
+
+
 class ForwardPrice(NamedTuple):
     clean: float
     dirty: float

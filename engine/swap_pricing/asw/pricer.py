@@ -9,6 +9,10 @@
   - MMS: 起算日=スポット(T+2)、満期日=償還日(Modified Following)、償還日から遡る日程(roll conv=BWD)、
     固定側 Act/365・PA/SA、変動側も同じ頻度のOISのパーレート(swap_pricerの経路。PricingSheetの
     パーレートと同じカーブ)。PA/SAの差がNeonと0.01bpの範囲で一致することを確認済み(2026-09-25のDB)。
+■ 約定したASWのヘッジ(ASWPricerシートのAA:AD)
+  ASWを固定するとMMSの1bpは複利の1bpなので、現物のリスクは複利を1bp動かしたときの利含み単価の変化で測り
+  (bond_bpv)、スワップはアニュイティデルタ(pricing表のadj_notionalと同じ基準)で合わせる。
+  ヘッジ比率とノーショナルの掛け算・MMSのレート(複利−約定ASW)はシートの式で計算する。
 ■ par-par ASW(参考値)
   額面で現物を買い(利含み単価を払う)、現物のクーポン・償還を払ってTONA+スプレッドを受けるスワップの
   スプレッド(bp)。QuantLibの ql.AssetSwap(parAssetSwap=True)の fairSpread。変動側の日程はMMSと同じ
@@ -26,6 +30,7 @@ from engine.common.market_data import Market
 from engine.common.terms import SwapTerms
 
 SPOT_SETTLEMENT_DAYS = 1  # 現物のスポット受渡(T+1)
+OKU = 100_000_000  # 額面1億円
 
 
 class SpotBond(NamedTuple):
@@ -44,6 +49,12 @@ def spot_bond(jgb: bond.Jgb, simple_yield: float, valuation_date: date) -> SpotB
     price = bond.price_from_simple_yield(jgb, simple_yield, settle)
     accrued = bond.accrued_interest(jgb, settle)
     return SpotBond(settle, simple_yield, price, accrued, bond.compound_yield(jgb, price + accrued, settle))
+
+
+def bond_bpv(jgb: bond.Jgb, spot: SpotBond) -> float:
+    """額面1億円の現物の、複利1bpあたりの価値の変化の大きさ(円、正の数)。"""
+    per_100_per_pct = bond.dollar_duration(jgb, spot.compound_yield, spot.settle)
+    return per_100_per_pct / 100 * OKU / 100
 
 
 def _asset_swap_bond(jgb: bond.Jgb) -> ql.FixedRateBond:
