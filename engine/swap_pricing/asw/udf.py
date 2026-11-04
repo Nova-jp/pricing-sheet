@@ -104,7 +104,8 @@ def AswHistoricalRates(bond_codes, convention, from_date=None, to_date=None) -> 
 def AswPricingTable(asw_table, real_time_range, valuation_date=None) -> List[list]:
     """
     ASWPricer表の全行の coupon・maturity・close・close date・simple yield・settle・price・compound yield・
-    start date・end date・swap rate(MMS)・par-par asw(bp)・adj_notional・message を1回で返す
+    start date・end date・swap rate(MMS)・par-par asw(bp)・adj_notional・bond bpv(額面1億円、円/bp)・
+    hedge ratio(デルタニュートラルのMMSの想定元本/現物の額面)・message を1回で返す
     (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はasw/table.py)。
     ASW(bp) = (compound yield − swap rate)×100 はシートの式で計算する。
 

@@ -9,14 +9,15 @@ message列に閉じ込める。計算の定義は asw/pricer.py。
   → 単利 = 引け値+スライド(bp)/100(yield overrideがあればその値)→ 単価・複利(スポット T+1)
   → MMS(起算日=start、空欄ならスポット T+2。満期日=償還日。規約は行の fix freq 等)
   → par-par ASW、目標delta(百万円)があればMMSのnotional(アニュイティデルタ基準、pricing表と同じ)
-  ASW(bp) = (複利 − MMS)×100 はシートの式で計算する。
+  → 現物の額面1億円のBPV(bond bpv)、デルタニュートラルにするMMSの想定元本/現物の額面(hedge ratio)
+  ASW(bp) = (複利 − MMS)×100、約定ASWからのMMSのレート、hedge ratio×現物のノーショナルはシートの式で計算する。
 """
 
 from typing import List, Sequence
 
 from engine.common import bond, udf_common
 from engine.common.swap_pricer import swap_dates
-from engine.common.terms import SwapConvention, SwapTerms
+from engine.common.terms import PAY, SwapConvention, SwapTerms
 from engine.swap_pricing.asw import pricer
 from engine.swap_pricing.pricing import measures
 from engine.swap_pricing.pricing.row import start_date
@@ -28,7 +29,7 @@ INPUT_COLUMNS = (
 )
 OUTPUT_HEADER = (
     "coupon", "maturity", "close", "close date", "simple yield", "settle", "price", "compound yield",
-    "start date", "end date", "swap rate", "par-par asw", "adj_notional", "message",
+    "start date", "end date", "swap rate", "par-par asw", "adj_notional", "bond bpv", "hedge ratio", "message",
 )
 _OUT = {name: i for i, name in enumerate(OUTPUT_HEADER)}
 
@@ -98,6 +99,12 @@ def price_row(row: Sequence, col, curves, store) -> list:
             put("adj_notional", measures.notional_for_delta(curves, terms, get("delta"), get("pay/rec"), par))
         except Exception as e:
             errors.append(f"adj_notional: {e}")
+    try:
+        bpv = pricer.bond_bpv(jgb, spot)
+        put("bond bpv", bpv)
+        put("hedge ratio", measures.notional_for_delta(curves, terms, bpv / 1e6, PAY, par) / pricer.OKU)
+    except Exception as e:
+        errors.append(f"hedge ratio: {e}")
     put("message", " / ".join(errors))
     return result
 
