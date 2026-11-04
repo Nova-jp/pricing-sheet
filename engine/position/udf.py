@@ -15,7 +15,7 @@
 
 ■ 引数(共通)
   pillars: グリッドのピラーの縦の並び(Setupシート。短い順)。結果の列・行はこの並び。
-  real_time_range: フラグ/Ticker/Value の範囲(Setupシートのカーブ用の範囲)。評価日の空欄=今日はライブ、
+  real_time_range: フラグ/Ticker/Value の範囲(Positionシートのカーブ用の範囲)。評価日の空欄=今日はライブ、
     過去日はDBのその日の引け値(他のブックと同じ udf_common._market)。
 """
 
