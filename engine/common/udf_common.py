@@ -47,7 +47,7 @@ def _is_blank(value) -> bool:
 
 
 def _flag_excludes(flag) -> bool:
-    """RealTime B列の採否フラグ判定。空欄・None・非数値は「使う」、明示的な 0 のみ除外。"""
+    """採否フラグ(Mainシート等のカーブ用の範囲の1列目)の判定。空欄・None・非数値は「使う」、明示的な 0 のみ除外。"""
     if flag is None or flag == "":
         return False
     try:

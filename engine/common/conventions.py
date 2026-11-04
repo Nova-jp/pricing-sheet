@@ -1,7 +1,7 @@
 """
 業務上のコンベンション表記 → QuantLibの引数・オブジェクトへの変換を一か所にまとめたモジュール。
 
-pricingシート・RealTimeシート等の入力(テナー表記、dcf、freq、roll conv、IMMコード、営業日数(2bd))を
+pricingシート・Mainシート等の入力(テナー表記、dcf、freq、roll conv、IMMコード、営業日数(2bd))を
 QuantLibが受け取れる形に変換する対応表と、日本の営業日カレンダーだけを持つ。
 営業日判定・加算・スケジュール生成等の日付アルゴリズムは全てQuantLib純正のAPI
 (CALENDAR.isBusinessDay/adjust/advance、ql.MakeOIS等)を呼び出し側で直接使い、
@@ -52,7 +52,7 @@ ql.Date.from_date()/to_date() を呼び出し側で直接使う。
   休日調整前の日付で、休日調整はスケジュール生成に任せる。
 
 ■ テナー表記の読み替え(TENOR_ALIASES)
-  RealTimeシート(Excel)は Reuters フィードの都合で 1Y/2Y/3Y を 12M/24M/36M
+  ライブのレート(Excel)は LSEG のフィードの都合で 1Y/2Y/3Y を 12M/24M/36M
   表記にしている(historical_data.xlsxのMidシートも同じ表記)。
   カーブ構築の入力境界(curve.bootstrap_curve)で正規化し、内部は常に 1Y/2Y/3Y 表記で扱う。
 """

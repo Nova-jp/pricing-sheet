@@ -8,15 +8,17 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
-- 設計判断とその理由: `docs/decisions.md`
-- 保留中/次フェーズの項目: `docs/roadmap.md`
+- ブックにまたがる設計判断とその理由: `docs/decisions.md`
+- ブックごとの構成と判断: `docs/pricing.md`・`docs/analysis.md`・`docs/bond_option.md`・`docs/position.md`
+- 保留中の項目: `docs/roadmap.md`(済んだら消す)
+- docsには今も有効なことだけを書く。判断を置き換えたら古い記述は消して書き換える(経緯は`git log -p`とPR)
 - Windowsセットアップ手順: `docs/setup_windows.md`
 - 環境固有の運用値: `OPERATIONS.md`(gitignore対象、直接見るか
   ユーザーに確認する。コード中にハードコードしない)
 
 ## 触ってよい範囲
 
-- `engine/`(`common/`・`swap_pricing/`・`pca/`の3つの並列パッケージ)、`PricingSheet.py`、
+- `engine/`(共有の`common/`と、ブックごとの並列パッケージ)、`PricingSheet.py`、
   `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`tests/`、`docs/`、
   `tools/`、`templates/`が本プロジェクト。分析ブック`SwapAnalysis.xlsm`・`SwapAnalysis.py`
   (`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`・`engine/fut/`、PCA・IV vs HV・BOJ会合・

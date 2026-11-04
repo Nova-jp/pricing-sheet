@@ -122,7 +122,7 @@ class _DbBefore:
 
 
 class _RealTimeToday:
-    """今日(RealTimeシートのライブのレート)だけの供給元。カーブはpricingシートと同じ market の
+    """今日(ライブのレート)だけの供給元。カーブはpricingシートと同じ market の
     カーブ一式を使う(DBに今日の引け値があっても、今日はライブのレートを優先する)。日付だけを
     求める呼び出しではカーブを作らない。"""
 
@@ -253,7 +253,7 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
     """
     ヘッジ(HistChartで系列1に重ねる仮想金利)用に、スポットのテナーごとのパーレート(%)を、
     dates の並びどおりに返す(行=dates、列=tickers。見出し行なし)。Σ d_i × r_i・縮尺・水準合わせは
-    Excelの数式で行う(engine/swap_pricing/historical/hedge.py、docs/decisions.md)。
+    Excelの数式で行う(engine/swap_pricing/historical/hedge.py、docs/pricing.mdの「ヘッジ」)。
 
     tickers: ヘッジに使うテナー(RealTimeのTicker、例 5Y)の1列。空欄は無視する。
         O/Nと会合スワップ(RD・M1〜)はエラー。

@@ -5,9 +5,10 @@ xlwingsのUDFとしてExcelから呼び出す(VBAなし、ブックは手動計�
 
 | ブック | 内容 |
 |---|---|
-| `PricingSheet.xlsm` | 任意のコンベンションのスワップのパーレート / PV / デルタ / リスクグリッド、ヒストリカルなレート推移(アウトライト・カーブ・フライ)、ASW、日銀会合のインプライド |
-| `SwapAnalysis.xlsm` | スワップ・ボラのPCA |
+| `PricingSheet.xlsm` | 任意のコンベンションのスワップのパーレート / PV / デルタ / リスクグリッド、ヒストリカルなレート推移(アウトライト・カーブ・フライ)、ASW |
+| `SwapAnalysis.xlsm` | スワップ・ボラのPCA、IV vs HV、ボラとFwdの水準、Fwdの監視、国債先物のベーシス、日銀会合スワップとスポットのずれ |
 | `BondOption.xlsm` | JGBの店頭オプション(現物オプション)のプライサー |
+| `PositionSheet.xlsm` | ポジション・リスク管理(叩き台) |
 
 データの供給元はLSEG Workspace。リアルタイムのレートは常駐のフィード(Python)が受信し、
 ヒストリカルは朝のバッチがローカルのDBに保存する。ASWスプレッドだけはNeon(Postgres)から
@@ -31,14 +32,13 @@ LSEG Workspace(起動・ログイン中)
 | パス | 内容 |
 |---|---|
 | `templates/` | Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う |
-| `PricingSheet.xlsm` ・ `SwapAnalysis.xlsm` ・ `BondOption.xlsm` | 作業用のブック(計算はUDFのみ。`.gitignore`済み) |
-| `PricingSheet.py` ・ `SwapAnalysis.py` ・ `BondOption.py` | xlwingsの制約(ブックと同名の.pyが必要)のため、UDFを再エクスポートするだけのファイル |
+| `PricingSheet.xlsm` ・ `SwapAnalysis.xlsm` ・ `BondOption.xlsm` ・ `PositionSheet.xlsm` | 作業用のブック(`.gitignore`済み) |
+| `PricingSheet.py` ・ `SwapAnalysis.py` ・ `BondOption.py` ・ `PositionSheet.py` | xlwingsの制約(ブックと同名の.pyが必要)のため、UDFを再エクスポートするだけのファイル |
 | `engine/common/` | 共有の計算エンジン・データ層(カーブ、プライサー、DB、朝バッチ、リアルタイムのフィード) |
 | `engine/swap_pricing/` | PricingSheet.xlsmのUDF(`pricing/`・`historical/`・`asw/`) |
-| `engine/pca/` | SwapAnalysis.xlsmのPCA |
-| `engine/vol/` | SwapAnalysis.xlsmのIV vs HV |
-| `engine/boj/` | SwapAnalysis.xlsmのBOJ会合スワップとスポットのずれ |
+| `engine/pca/` ・ `vol/` ・ `fwd/` ・ `fut/` ・ `boj/` | SwapAnalysis.xlsmのPCA・ボラ・Fwdの監視・国債先物・BOJ会合 |
 | `engine/bond_option/` | BondOption.xlsmのプライサー・ボラ |
+| `engine/position/` | PositionSheet.xlsmのポジション・リスク管理 |
 | `historical_data.xlsx` | LSEGのヒストリカル生データを取得するブック(作業用で`.gitignore`済み) |
 | `live_feed.toml` | リアルタイムのフィードの設定(購読するRIC・秒数) |
 | `historical_curve.toml` | ヒストリカル日次カーブの設定(カーブの引き方・使うテナー) |
@@ -116,8 +116,7 @@ NEON_CONNECTION_STRING=postgresql://<ユーザー>:<パスワード>@<ホスト>
    - D1(Updated)は、表示中のレートの値が最後に変わった時刻(相場が静かなら古いままになる)。
 
 評価日はMainシートの`評価日`セル(空欄=今日=ライブのレート、過去日=DBのその日のカーブ)。
-各ブックの使い方は[docs/setup_windows.md](docs/setup_windows.md)、現物オプションの計算規則と
-シートの構成は[docs/bond_option.md](docs/bond_option.md)を参照。
+各ブックの使い方は[docs/setup_windows.md](docs/setup_windows.md)、ブックごとの構成は下の「ドキュメント」を参照。
 
 ## コードを更新したとき(git pull後)
 
@@ -150,11 +149,13 @@ QuantLibの入ったx64のPython環境で実行する。LSEGのデータには�
 
 ## ドキュメント
 
-- [docs/architecture.md](docs/architecture.md) — 全体構成、データフロー、モジュール・シート構成
-- [docs/decisions.md](docs/decisions.md) — 設計判断とその理由
-- [docs/roadmap.md](docs/roadmap.md) — 保留中/次フェーズの項目
+目次は[docs/README.md](docs/README.md)。
+- [docs/architecture.md](docs/architecture.md) — 全体構成、データフロー、共有モジュール
+- [docs/decisions.md](docs/decisions.md) — ブックにまたがる設計判断とその理由
+- [docs/pricing.md](docs/pricing.md) ・ [docs/analysis.md](docs/analysis.md) ・ [docs/bond_option.md](docs/bond_option.md) ・
+  [docs/position.md](docs/position.md) — ブックごとの構成と判断
+- [docs/roadmap.md](docs/roadmap.md) — 保留中の項目
 - [docs/setup_windows.md](docs/setup_windows.md) — Windowsのセットアップ手順・各ブックの使い方・トラブルシューティング
-- [docs/bond_option.md](docs/bond_option.md) — 現物オプション・プライサーの計算規則とブックの構成
 
 ## 注意(このリポジトリはPublic)
 

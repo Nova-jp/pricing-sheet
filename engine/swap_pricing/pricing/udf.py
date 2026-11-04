@@ -139,7 +139,7 @@ _RISK_COLUMNS = (
 def RiskGrid(pricing_table, real_time_range, valuation_date=None, lch_range=None) -> List[list]:
     """
     risk_flag=1 の全行について、テナーごとに動かしたときのデルタ(1bpあたり、百万円単位)の合計を、
-    RealTimeシートのテナー行の並びで返す(Ticker/Deltaの2列、1行目は見出し)。
+    Mainシートのテナー行の並びで返す(Ticker/Deltaの2列、1行目は見出し)。
 
     pricing_table: pricingシートの見出し行(1行目)から最終行まで(例: pricing!$A$1:$T$201)。
         列は見出し名で探す(risk_flag, notional, start, tenor, end, fix rate, fix freq,

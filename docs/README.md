@@ -1,49 +1,25 @@
 # pricing_sheet ドキュメント目次
 
-JPY OIS(TONA)スワップのプライシングシート(Excel + Python/QuantLib + LSEG)の
-設計・運用情報。セッションをまたいでも参照できるよう、このフォルダに
-集約している。
+JPY OIS(TONA)スワップのプライシングシートと周辺のブック(Excel + Python/QuantLib + LSEG)の設計・運用情報。
 
-- [architecture.md](architecture.md) — 全体構成、データフロー、モジュール一覧、シート構成
-- [decisions.md](decisions.md) — 主要な設計判断とその理由(なぜそうしたか)
-- [roadmap.md](roadmap.md) — 保留中/次フェーズ以降に回した項目
-- [setup_windows.md](setup_windows.md) — 会社PC(Windows)でのセットアップ手順
-- [bond_option.md](bond_option.md) — 現物オプション・プライサー(BondOption.xlsm)の計算規則とブックの構成
-- [position.md](position.md) — ポジション・リスク管理(PositionSheet.xlsm、叩き台)の手法とブックの構成
-- `../OPERATIONS.md`(**gitignore対象、リポジトリ直下**) — 環境固有の運用値。このリポジトリは
-  **GitHub上でPublic**のため、秘密情報・環境固有の値は絶対にコミットしない。
+| ファイル | 内容 |
+|---|---|
+| [architecture.md](architecture.md) | 全体構成、データフロー(朝バッチ・フィード)、共有モジュール(`engine/common/`)、テスト、`historical_data.xlsx`、雛形 |
+| [decisions.md](decisions.md) | 複数のブックにまたがる設計判断とその理由(Excelとの分担・カーブ・DB・データの供給元・フィード・公開範囲) |
+| [pricing.md](pricing.md) | `PricingSheet.xlsm`(pricing・RiskGrid・HistChart・ASW・ASWPricer)の構成と判断 |
+| [analysis.md](analysis.md) | `SwapAnalysis.xlsm`(PCA・ボラ・FwdMonitor・FutBasis・BOJ)の構成と判断 |
+| [bond_option.md](bond_option.md) | `BondOption.xlsm`(現物オプション)の計算規則・構成と判断 |
+| [position.md](position.md) | `PositionSheet.xlsm`(ポジション・リスク管理)の手法・構成と判断 |
+| [roadmap.md](roadmap.md) | まだ済んでいない保留中の項目 |
+| [setup_windows.md](setup_windows.md) | 会社PC(Windows)でのセットアップ・毎日の手順・トラブルシューティング |
 
-## 関連ファイル(コード側)
+`../OPERATIONS.md`(**gitignore対象、リポジトリ直下**)は環境固有の運用値。このリポジトリはGitHub上でPublicのため、
+秘密情報・環境固有の値は絶対にコミットしない。
 
-- `engine/` — 計算エンジン本体(QuantLibベース)。`common/`(共有)・`swap_pricing/`
-  (PricingSheet.xlsm固有)・`pca/`(SwapAnalysis.xlsm固有)の3つの並列パッケージ。
-  各ファイル冒頭のdocstringに役割を明記しているので、詳細はコードを直接参照するのが
-  最新かつ正確。
-- `engine/swap_pricing/udf.py` — Excelから直接呼べるUDFの単一の窓口(`PricingSheet.py`が再エクスポート)。
-  実体はシート(機能)ごとに`pricing/udf.py`・`historical/udf.py`・`asw/udf.py`に分かれている
-  (共有部分は`engine/common/udf_common.py`)
-- `engine/common/conventions.py` — 業務上の表記(テナー・dcf・freq・roll・IMMコード・startのテナー)→
-  QuantLibの対応表とカレンダー
-- `tests/` — リグレッションテスト(`python -m unittest discover -s tests`、QuantLibの入った
-  x64 Python環境で実行)。価格の値はQuantLibを正とし、自前ロジックだけをテストする
-  - `test_curve_repricing.py` — 市場レート逆算精度の要件(機械精度〜0.1bp未満)
-  - `test_past_start.py` — 過去起算(フィキシング不足時のエラー等)と評価日の扱い
-  - `test_market_risk.py` — カーブ一式の共有とデルタ(旧手順との一致)、RiskGrid、評価日の切り替え、startのテナー入力、HistChartの最新日(RealTime)、HistChartのヘッジ(`HedgeHistoricalRates`)
-  - `test_imm.py` — IMMコードの解釈とIMMロールのスケジュール、startのテナー表記の判定
-  - `test_hedge.py` — ヘッジの重ね表示用のテナー別パーレート(日付の並び、カーブに使っていないテナーの空欄、入力の確認)
-  - `test_historical.py` — ヒストリカル計算(FIXED/ROLLINGの日付の決め方・営業日数の固定、先読みしないフィキシング、満期後の除外)
-  - `test_historical_store.py` / `test_morning_batch.py` — 日次カーブDBの保存・復元精度とバッチ
-  - `test_jgb_futures.py` — 長期国債先物(JPXの交換係数・受渡日との一致、ベーシス・CTD・レポの階段・つなぎ足、取得と朝バッチの差分取得)
-  - `test_neon_source.py` — ASWスプレッド取得の対象テーブル・差分取得・接続の後始末(psycopg2をモック)
-  - `test_bond_option.py` — 現物オプションの式(端数処理・日数・利払日・先渡・パリティ・ボラの補間・UDFの組み合わせ)。
-    ユーザーのプライサーのサンプル(`data/`、コミットしない)があるときはプレミアムまでの一致も確かめる
-- `historical_curve.toml` — ヒストリカル日次カーブの設定(引き方・使うテナー)。
-  `python -m engine.common.morning_batch`が読む
-- `templates/` — Excelブックの雛形(LSEGのデータを含まない)。直下にコピーして作業用として使う。
-  直下のブックは`.gitignore`済み。雛形は`python -m tools.template`(`tools/template.py`)で作る
-  (仕組みはarchitecture.mdの「Excelブックの雛形」)
-- `PricingSheet.xlsm` — 成果物のExcelブック本体(計算はUDFのみ。マクロ有効ブックだが
-  VBAはxlwingsアドイン参照の保持用で業務ロジックは持たない)
-- `historical_data.xlsx` — LSEG Workspaceから取得するヒストリカル生データ(日付×銘柄の
-  ミッド、TONAフィキシング)のブック。過去起算の
-  UDFがFixingシートを参照するので、PricingSheetと一緒に開く(構成はarchitecture.md)
+## 書き方
+
+- 判断は、横断的なものは`decisions.md`、ブックに固有のものはそのブックのドキュメントに書く。
+- 今も有効なことだけを書く。判断を置き換えたら古い記述は消して書き換える(経緯は`git log -p`とPRにある)。
+  済んだ保留項目は`roadmap.md`から消す。
+- コードの細部(関数の中身・計測の推移)はdocstring・コメントに書き、docsには書かない。各ファイル冒頭のdocstringが
+  役割の最新かつ正確な説明。

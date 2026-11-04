@@ -2,7 +2,7 @@
 JPY OIS(TONA)ディスカウントカーブのブートストラップモジュール。QuantLibを使用。
 
 ■ 使用データ
-  RealTimeシートのスポットテナー(O/N〜40Y)のみ。会合スワップ(RD・M1〜M9)は使わない
+  ライブのレートのスポットテナー(O/N〜40Y)のみ。会合スワップ(RD・M1〜M9)は使わない
   (BOJシートの比較用に engine/boj/meeting_curve.py が別のカーブを引く)。
 
 ■ O/Nの扱い
@@ -19,14 +19,14 @@ JPY OIS(TONA)ディスカウントカーブのブートストラップモジュ�
 
 ■ どのテナーを使うか
   入力辞書(spot_rates)に入っているキーがそのまま使われる。「このレートを
-  使う/使わない」の取捨選択は呼び出し側(Excelなら RealTime B列のフラグを
-  読む engine.swap_pricing.udf._rates_from_range)の責務で、この関数では行わない。
+  使う/使わない」の取捨選択は呼び出し側(Excelなら Mainシートの採否フラグを
+  読む engine.common.udf_common._rates_from_range)の責務で、この関数では行わない。
   ここでは O/N・週物・会合スワップ 以外のキーを ql.PeriodParser で期間化して
   OISRateHelper にするだけ。15M/18M/21M も特別扱いせず普通のテナーとして扱う。
   期間として解釈できないキーは skipped_tenors に記録する(無言で捨てない)。
 
 ■ 表記ゆれの吸収(TENOR_ALIASES)
-  RealTimeシート(Excel)は Reuters フィードの都合で 1Y/2Y/3Y を 12M/24M/36M
+  ライブのレート(Excel)は LSEG のフィードの都合で 1Y/2Y/3Y を 12M/24M/36M
   表記にしている(historical_data.xlsxのMidシートも同じ表記)。
   入力境界で正規化し、内部は常に 1Y/2Y/3Y 表記で扱う(対応表は conventions.py)。
 
