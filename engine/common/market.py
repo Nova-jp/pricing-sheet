@@ -3,9 +3,9 @@
 カーブ一式(基準カーブとバンプしたカーブ)を管理するモジュール。
 
 ■ 評価日によるデータ元の切り替え(udf._market が判定)
-  - 評価日が今日: RealTimeシートのライブのレート(B列フラグ≠0のテナー)
+  - 評価日が今日: シートのライブのレート(Mainの採否フラグ≠0のテナー)
   - 評価日が過去: ヒストリカルDB(data/historical.db)に取り込み済みのその日のレートのうち、
-    RealTimeシートのフラグで選んだテナー(今日と同じグリッドにするため)。O/Nはその日の
+    同じ採否フラグで選んだテナー(今日と同じグリッドにするため)。O/Nはその日の
     TONA実績。DBにない日はエラー
   どちらも同じ MarketSnapshot(評価日+レート一式+TONA実績)にしてから、同じ関数でカーブを組む。
   TONA実績(過去起算の計算に使う)はどちらの場合もヒストリカルDBから読む(db_fixings。
@@ -103,7 +103,7 @@ def realtime_snapshot(
     valuation_date: date, rates: Dict[str, float], fixings: Optional[Dict[date, float]] = None,
     curve: str = JSCC,
 ) -> MarketSnapshot:
-    """rates: RealTimeシートでフラグ≠0のテナーのレート(udf._rates_from_range の結果)。
+    """rates: 採否フラグ≠0のテナーのレート(udf_common._rates_from_range の結果)。
     fixings: TONA実績(通常は db_fixings)。過去起算の計算にだけ使う。curve: 清算機関(JSCC/LCH)。"""
     return MarketSnapshot(
         valuation_date, tuple(sorted(rates.items())), "RealTime", _before(fixings or {}, valuation_date), curve,

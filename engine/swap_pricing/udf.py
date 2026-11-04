@@ -6,7 +6,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
   `PricingSheet.py`(ワークブックと同名)が`from engine.swap_pricing.udf import *`で読み込む
   単一の窓口。xlwingsのExcelアドイン(Windows)は「Import Functions」実行時に
   **ワークブックと同名の.pyファイル**からUDFを探すため、この1段の間接参照が必要
-  (詳細はdocs/architecture.md)。実体はシート(機能)ごとに分かれている:
+  (詳細はdocs/pricing.md)。実体はシート(機能)ごとに分かれている:
     - pricing/udf.py   : Main/pricingシート(PricingTable, FairRate, SwapPV, SwapDelta,
                           SwapAnnuityDelta, NotionalForDelta, RiskGrid, MarketInfo)
     - historical/udf.py: HistChartシート(HistoricalRate, HistoricalRates, HedgeHistoricalRates)

@@ -2,7 +2,7 @@
 BondOption.xlsmのOptionシートの全行を1回でまとめて計算する(表UDFの本体)。
 
 xlwingsのUDFは1セルごとにExcelとの往復がかかり、行ごとにUDFを置くと再計算の時間がセルの数で決まる
-(PricingTableと同じ理由、docs/decisions.md)。QuantLibが必要な計算だけを列ごとの範囲で受け取り、
+(PricingTableと同じ理由、docs/decisions.mdの「Excelとの分担」)。QuantLibが必要な計算だけを列ごとの範囲で受け取り、
 行ごとの結果を1つの配列で返す。四則演算程度の計算(単利⇔単価・先渡価格・ボラの換算・ストライク)は
 Excelの式のまま残す。
 
