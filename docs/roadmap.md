@@ -99,3 +99,17 @@ VolPCAの既定は満期×原資産の格子の全点(ユーザー指示「と�
 ## 18. HistChartのヘッジの残差の線
 
 ヘッジの残差の線(フロー − ヘッジ)の見せ方は未決定。レートの水準と同じ軸だと潰れるため、後で決める([pricing.md](pricing.md)の「ヘッジ」)。
+
+## 19. Linux・新しいQuantLibで失敗するテスト(2026-11-04、クラウドの環境で確認)
+
+クラウドの環境(Linux、QuantLib 1.44)で全テストを流すと、52件が失敗する(変更前の`main`でも同じ)。会社PC・私用PC
+(Windows)のQuantLibの版で同じ失敗が出るかは未確認。
+
+- **`test_imm.BusinessDaysStartTest.test_2bd_is_spot_date_on_every_day`(51件)**: 失敗は全て評価日が土日祝の日。
+  QuantLib 1.44の`ql.MakeOIS`のスポット日(`curve.spot_date_for`)は、休日の評価日を翌営業日に調整せずに2営業日進めた日になる
+  (例 2026-12-20(日)→12/22)。`conventions.business_days_start`の`2bd`は評価日を翌営業日に調整してから進める(→12/23)。
+  これは以前直した「評価日が非営業日のときのスポット日のずれ」([decisions.md](decisions.md)の「カーブと評価」)と同じ箇所で、
+  QuantLibの版によってカーブのピラーの日付が休日の評価日だけ1営業日変わりうる。→ 会社PCのQuantLibの版で同じテストを流して
+  確かめ、版によって変わるなら`requirements.txt`の版を固定するか、スポット日を版に依存しない形にする(どちらにするかは相談)。
+- **`test_live.LiveUdfTest.test_book_key`(1件)**: フルパスの大文字・小文字を区別しないことを確かめるテストで、パスの
+  大文字・小文字を区別するLinuxでは失敗する(Windows前提)。→ Windows以外では飛ばすか、比較の仕方を見直す。
