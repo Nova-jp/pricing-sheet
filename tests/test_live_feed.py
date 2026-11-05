@@ -67,6 +67,17 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(vol.curve, "swap")
         self.assertEqual(config.timing.stale_after_sec, 10)
 
+    def test_totan_datasets_have_the_same_tickers(self):
+        # PricingSheetのBrokerで"swap"・"swap_lch"と差し替えるので、Tickerの並びが同じ
+        by_name = {d.name: d for d in load_config(live_feed.DEFAULT_CONFIG).datasets}
+        for tradition, totan in (("swap", "swap_totan"), ("swap_lch", "swap_lch_totan")):
+            with self.subTest(totan=totan):
+                self.assertEqual([r[0] for r in by_name[totan].rows], [r[0] for r in by_name[tradition].rows])
+                self.assertTrue(all(ric.endswith("=TKFX") for ric in by_name[totan].rics))
+        totan = dict(by_name["swap_totan"].rows)
+        self.assertEqual((totan["O/N"], totan["12M"], totan["21M"], totan["RD"], totan["M9"]),
+                         ("JPY1DOIS=TKFX", "JPY1YOIS=TKFX", "", "JPYBJ0OIS=TKFX", "JPYBJ9OIS=TKFX"))
+
     def test_defaults_when_timing_is_omitted(self):
         config = parse_config({"datasets": CONFIG["datasets"]})
         self.assertEqual(config.timing, live_feed.Timing())
@@ -86,6 +97,8 @@ class ConfigTest(unittest.TestCase):
             ({"datasets": [{"name": "swap", "kind": "fx", "rows": [["a", "b"]]}]}, "kind"),
             ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["O/N"]]}]}, "rows"),
             ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["a", "X="], ["b", "X="]]}]}, "RIC"),
+            ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["a", ""], ["b", ""]]}]}, "全部空"),
+            ({"datasets": [{"name": "swap", "kind": "ois", "rows": [["", "X="]]}]}, "Ticker"),
             ({"datasets": [{"name": "vol", "kind": "vol", "expiries": ["1M"]}]}, "tenors"),
             ({"datasets": [dict(CONFIG["datasets"][1], curve="")]}, "curve"),
             ({"datasets": [CONFIG["datasets"][0], dict(CONFIG["datasets"][1], curve="vol")]}, "curve"),
@@ -109,6 +122,21 @@ class DatasetFeedTest(unittest.TestCase):
             ["M1", (1.22 + 1.26) / 2, datetime(2026, 11, 2), datetime(2026, 12, 18)],
         ])
         self.assertEqual(self.swap.last_tick_at, at(1))
+
+    def test_totan_dates_and_blank_ric(self):
+        # 東短は起算日・満期日がSTART_DT/MATUR_DATE。RICが空欄の行は購読せず、値を空欄にする
+        ds = parse_config({"datasets": [{"name": "swap_totan", "kind": "ois", "rows": [
+            ["21M", ""], ["M2", "JPYBJ2OIS=TKFX"]]}]}).datasets[0]
+        self.assertEqual(ds.rics, ["JPYBJ2OIS=TKFX"])
+        feed = DatasetFeed(ds)
+        feed.on_refresh({"BID": 1.485, "ASK": 1.495, "START_DT": "2027-01-25", "MATUR_DATE": "2027-03-18"},
+                        "JPYBJ2OIS=TKFX")
+        self.assertEqual(feed.rows(), [
+            ["21M", None, None, None],
+            ["M2", (1.485 + 1.495) / 2, datetime(2027, 1, 25), datetime(2027, 3, 18)],
+        ])
+        feed.on_status({"State": {"Stream": "Closed", "Data": "Suspect"}}, "JPYBJ2OIS=TKFX")
+        self.assertTrue(feed.all_bad())  # 空欄の行は数えない
 
     def test_update_merges_fields_and_one_sided_quote_is_blank(self):
         self.swap.on_refresh({"BID": 1.2, "ASK": 1.3}, "JP1DONI=TRDT")

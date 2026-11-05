@@ -15,8 +15,9 @@ stale_after_sec = 10
 resubscribe_after_sec = 30
 
 # ── データセット(LiveQuotes の第1引数) ─────────────────────────────────────
-# kind = "ois": 行 = [Ticker, BIDとASKのミッド, 起算日(GV1_DATE), 満期日(GV2_DATE)]。
-#   起算日・満期日はある銘柄(RD・M1〜)だけ。読む側はTickerで引き当てる(MainシートA列と同じ表記)
+# kind = "ois": 行 = [Ticker, BIDとASKのミッド, 起算日, 満期日]。起算日・満期日はある銘柄(会合スワップ)だけで、
+#   TraditionはGV1_DATE/GV2_DATE、東短はSTART_DT/MATUR_DATE。読む側はTickerで引き当てる(MainシートA列と同じ表記)。
+#   RICを空欄にした行(そのブローカーにクオートが無いテナー)は購読せず、値を空欄にする
 # kind = "vol": 行 = [銘柄("1Mx2Y"), RIC, 値(営業日ベースのノーマルvol bp/年 = bp/日×√252)]。満期×原資産の全組み合わせ。
 #   購読するのはTraditionのATMストラドルのプレミアム(JPY{満期}{原資産}TOATM=TRDT の PRIMACT_1)で、
 #   curve のデータセットのライブのレートで組んだカーブ(historical_curve.toml と同じテナー)でvolに換えて書く。
@@ -115,6 +116,104 @@ rows = [
     ["30Y", "JPY30YOISL=TRDT"],
     ["35Y", "JPY35YOISL=TRDT"],
     ["40Y", "JPY40YOISL=TRDT"],
+]
+
+# ── 東短(Totan ICAP)のブローカー ─────────────────────────────────────────────
+# PricingSheetの pricing!F1(Broker = Tradition/Totan)で、ブック全体の"swap"・"swap_lch"をこちらに切り替える
+# (定義名 LiveSwap・LiveSwapLCH)。Tickerは"swap"・"swap_lch"と同じ表記にし、東短に無いテナー(21M)はRICを空欄にする
+# (値は空欄になり、カーブから外れる)。東短のテナーは12M/24M/36Mが1Y/2Y/3Y、O/Nが1D。
+# 会合スワップはJPYBJ{n}OIS=TKFX(BJ0が直近の会合まで=RD)。起算日・満期日はSTART_DT/MATUR_DATEで、RDには無い。
+# BID・ASKの幅は常に1bp(ミッドを使うので影響しない)。リアルタイムだけで、引け値・ヒストリカルは使わない
+
+[[datasets]]
+name = "swap_totan"
+kind = "ois"
+rows = [
+    ["O/N", "JPY1DOIS=TKFX"],
+    ["1W", "JPY1WOIS=TKFX"],
+    ["1M", "JPY1MOIS=TKFX"],
+    ["2M", "JPY2MOIS=TKFX"],
+    ["3M", "JPY3MOIS=TKFX"],
+    ["4M", "JPY4MOIS=TKFX"],
+    ["5M", "JPY5MOIS=TKFX"],
+    ["6M", "JPY6MOIS=TKFX"],
+    ["7M", "JPY7MOIS=TKFX"],
+    ["8M", "JPY8MOIS=TKFX"],
+    ["9M", "JPY9MOIS=TKFX"],
+    ["10M", "JPY10MOIS=TKFX"],
+    ["11M", "JPY11MOIS=TKFX"],
+    ["12M", "JPY1YOIS=TKFX"],
+    ["15M", "JPY15MOIS=TKFX"],
+    ["18M", "JPY18MOIS=TKFX"],
+    ["21M", ""],
+    ["24M", "JPY2YOIS=TKFX"],
+    ["36M", "JPY3YOIS=TKFX"],
+    ["4Y", "JPY4YOIS=TKFX"],
+    ["5Y", "JPY5YOIS=TKFX"],
+    ["6Y", "JPY6YOIS=TKFX"],
+    ["7Y", "JPY7YOIS=TKFX"],
+    ["8Y", "JPY8YOIS=TKFX"],
+    ["9Y", "JPY9YOIS=TKFX"],
+    ["10Y", "JPY10YOIS=TKFX"],
+    ["11Y", "JPY11YOIS=TKFX"],
+    ["12Y", "JPY12YOIS=TKFX"],
+    ["15Y", "JPY15YOIS=TKFX"],
+    ["20Y", "JPY20YOIS=TKFX"],
+    ["25Y", "JPY25YOIS=TKFX"],
+    ["30Y", "JPY30YOIS=TKFX"],
+    ["35Y", "JPY35YOIS=TKFX"],
+    ["40Y", "JPY40YOIS=TKFX"],
+    ["RD", "JPYBJ0OIS=TKFX"],
+    ["M1", "JPYBJ1OIS=TKFX"],
+    ["M2", "JPYBJ2OIS=TKFX"],
+    ["M3", "JPYBJ3OIS=TKFX"],
+    ["M4", "JPYBJ4OIS=TKFX"],
+    ["M5", "JPYBJ5OIS=TKFX"],
+    ["M6", "JPYBJ6OIS=TKFX"],
+    ["M7", "JPYBJ7OIS=TKFX"],
+    ["M8", "JPYBJ8OIS=TKFX"],
+    ["M9", "JPYBJ9OIS=TKFX"],
+]
+
+[[datasets]]
+name = "swap_lch_totan"
+kind = "ois"
+# LCH清算(東短のLCHのアウトライト JPY{テナー}OISL=TKFX)
+rows = [
+    ["O/N", "JPY1DOISL=TKFX"],
+    ["1W", "JPY1WOISL=TKFX"],
+    ["1M", "JPY1MOISL=TKFX"],
+    ["2M", "JPY2MOISL=TKFX"],
+    ["3M", "JPY3MOISL=TKFX"],
+    ["4M", "JPY4MOISL=TKFX"],
+    ["5M", "JPY5MOISL=TKFX"],
+    ["6M", "JPY6MOISL=TKFX"],
+    ["7M", "JPY7MOISL=TKFX"],
+    ["8M", "JPY8MOISL=TKFX"],
+    ["9M", "JPY9MOISL=TKFX"],
+    ["10M", "JPY10MOISL=TKFX"],
+    ["11M", "JPY11MOISL=TKFX"],
+    ["12M", "JPY1YOISL=TKFX"],
+    ["15M", "JPY15MOISL=TKFX"],
+    ["18M", "JPY18MOISL=TKFX"],
+    ["21M", ""],
+    ["24M", "JPY2YOISL=TKFX"],
+    ["36M", "JPY3YOISL=TKFX"],
+    ["4Y", "JPY4YOISL=TKFX"],
+    ["5Y", "JPY5YOISL=TKFX"],
+    ["6Y", "JPY6YOISL=TKFX"],
+    ["7Y", "JPY7YOISL=TKFX"],
+    ["8Y", "JPY8YOISL=TKFX"],
+    ["9Y", "JPY9YOISL=TKFX"],
+    ["10Y", "JPY10YOISL=TKFX"],
+    ["11Y", "JPY11YOISL=TKFX"],
+    ["12Y", "JPY12YOISL=TKFX"],
+    ["15Y", "JPY15YOISL=TKFX"],
+    ["20Y", "JPY20YOISL=TKFX"],
+    ["25Y", "JPY25YOISL=TKFX"],
+    ["30Y", "JPY30YOISL=TKFX"],
+    ["35Y", "JPY35YOISL=TKFX"],
+    ["40Y", "JPY40YOISL=TKFX"],
 ]
 
 [[datasets]]
