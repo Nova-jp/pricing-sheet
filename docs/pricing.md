@@ -46,6 +46,18 @@
   =採否/Ticker/値/起算日/満期日)がこの並びでライブのレートを引き当て、UDFには`TAKE(範囲#,,3)`を渡す。
   ライブのレート・カーブ用の範囲のセル: Main H3/M3、pricing AF4/AK4(LCH: AX4/BC4)、HistChart AJ3/AO3、ASWPricer AF4/AK4。
 
+## ブローカーの切り替え(pricing!F1)
+
+- **pricing!F1(定義名`Broker`、`Tradition`/`Totan`)で、ブック全体のライブのレートを一括で切り替える**(ユーザー指示。
+  index列のような行ごとの選択にはしない)。定義名`LiveSwap`=`IF(Broker="Totan","swap_totan","swap")`、
+  `LiveSwapLCH`=`IF(Broker="Totan","swap_lch_totan","swap_lch")`を、各シートの`LiveQuotes`/`LiveSnapshot`/`LiveInfo`の第1引数に渡す。
+  UDFは変えない(四則演算・分岐はExcelに任せる)。カーブのキャッシュはレートの内容で見るので、切り替えれば引き直される。
+- **東短はリアルタイムだけ**(ユーザー指示)。評価日が過去日のカーブ・HistChartのヒストリカル・ASWはBrokerに関係なくDB(Tradition)を使う。
+- SwapAnalysis・BondOption・PositionSheetは切り替えない(`"swap"`のまま)。ブック同士を参照させない。
+- 手動計算なので、切り替えた後はシートごとにShift+F9(B1のLive/Fixedと同じ)。B1が`Fixed`のシートは、そのブローカーで最後に
+  Liveで読んだ値を返し、一度も読んでいなければエラーになる(黙って他のブローカーの値を使わない)。
+- 東短に21Mは無い(Mainの`MarketInfo`に「値なし・未使用: 21m」と出る)。BID/ASKの幅は常に1bpで、使うのはミッド。
+
 ## pricingシート
 
 列A-V: `flag / risk_flag / remarks / notional / delta(target) / adj_notional / start / tenor / end / fix rate /
@@ -66,7 +78,7 @@ float dcfの列は持たない(TONAの変動脚の日数計算はQuantLibが指�
 - **delta(annuity)・adj_notionalはアニュイティ(想定元本1あたり、正)にnotionalを掛けて出す**。delta(bump)・RiskGridは
   カーブのバンプ。フォワード物では両者が一致しない(どちらに揃えるかは[roadmap.md](roadmap.md)の15)。
 - **index列(M、`JSCC`/`LCH`、空欄=JSCC)で行ごとにカーブを選ぶ**(ユーザー指示)。`LCH`の行はTraditionのLCHの
-  アウトライト`JPY{テナー}OISL=TRDT`(フィードの`"swap_lch"`、AX4→BC4)で引いたカーブで計算する。
+  アウトライト`JPY{テナー}OISL=TRDT`(フィードの`"swap_lch"`、AX4→BC4。Brokerが東短なら`"swap_lch_totan"`)で引いたカーブで計算する。
   - LCHもJSCCも変動側は同じTONAで規約も同じなので、違うのは元のレートだけ。指標・スワップの組み方・デルタの計算は
     そのまま使い、同じ`bootstrap_curve`でもう1本引く(指標を引数に取る一般化はしない)。ベーシス(`JPYTOLJ{テナー}S=TKFX`)から
     足し算で作る案もあったが、アウトライトが取れるのでそれを使う(ユーザーの希望)。

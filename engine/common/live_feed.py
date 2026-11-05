@@ -17,7 +17,9 @@ RICを購読し続け、最新の値を data/live.db(engine/common/live_store.py
   - 終了時(Ctrl+C)は状態を stopped にして書く(ブックはすぐに「停止しています」と分かる)
 
 ■ 行の形(ブック側は変えない。以前の LiveFeed.xlsm の PublishLive と同じ)
-  - kind="ois": [Ticker, BIDとASKのミッド, 起算日(GV1_DATE), 満期日(GV2_DATE)]
+  - kind="ois": [Ticker, BIDとASKのミッド, 起算日, 満期日]。起算日・満期日はTraditionの GV1_DATE/GV2_DATE、
+    東短(Totan ICAP)の START_DT/MATUR_DATE のどちらか(ブローカーで入る欄が違う)。RICが空欄の行
+    (そのブローカーにクオートが無いテナー)は購読せず、値を空欄にする
   - kind="vol": [銘柄, RIC, 営業日ベースのノーマルvol(bp/年)]
   銘柄の状態が異常(Suspect・存在しない等)か、BID・ASKのどちらかが無ければ値を空欄にする
   (黙って古い値・片側の値を使わない)。
@@ -54,7 +56,7 @@ LOG_PATH = LIVE_DATA_DIR / "live_feed.log"  # live.dbと同じ場所(メイン�
 
 # データセットの種類 → 購読するフィールド
 KIND_FIELDS: Dict[str, Tuple[str, ...]] = {
-    "ois": ("BID", "ASK", "GV1_DATE", "GV2_DATE"),
+    "ois": ("BID", "ASK", "GV1_DATE", "GV2_DATE", "START_DT", "MATUR_DATE"),
     "vol": ("PRIMACT_1",),  # ATMストラドルのフォワード・プレミアム(bp)。CF_LASTと同じ値
 }
 
@@ -79,7 +81,7 @@ class Timing:
 class Dataset:
     name: str
     kind: str
-    rows: Tuple[Tuple[str, str], ...]  # (ブックで引き当てる表記, RIC)
+    rows: Tuple[Tuple[str, str], ...]  # (ブックで引き当てる表記, RIC)。kind="ois"はRICが空欄でもよい
     curve: Optional[str] = None  # kind="vol": カーブを組む kind="ois" のデータセットの名前
 
     @property
@@ -88,7 +90,7 @@ class Dataset:
 
     @property
     def rics(self) -> List[str]:
-        return [ric for _, ric in self.rows]
+        return [ric for _, ric in self.rows if ric]
 
 
 @dataclass(frozen=True)
@@ -155,11 +157,14 @@ def _parse_dataset(raw: dict) -> Dataset:
         rows = raw.get("rows", [])
         if not rows or any(not isinstance(r, list) or len(r) != 2 for r in rows):
             raise ValueError(f'datasets {name!r} の rows は ["Ticker", "RIC"] の並びにしてください')
-        rows = [(str(label), str(ric)) for label, ric in rows]
+        # RICの空欄 = そのブローカーにクオートが無いテナー(行は残し、値を空欄にする)
+        rows = [(str(label).strip(), str(ric).strip()) for label, ric in rows]
+        if not any(ric for _, ric in rows):
+            raise ValueError(f"datasets {name!r} のRICが全部空です")
     for i, (label, ric) in enumerate(rows):
-        if not label.strip() or not ric.strip():
-            raise ValueError(f"datasets {name!r} の{i + 1}行目のTicker/RICが空です")
-    for what, values in (("Ticker", [r[0] for r in rows]), ("RIC", [r[1] for r in rows])):
+        if not label.strip():
+            raise ValueError(f"datasets {name!r} の{i + 1}行目のTickerが空です")
+    for what, values in (("Ticker", [r[0] for r in rows]), ("RIC", [r[1] for r in rows if r[1]])):
         dup = sorted({v for v in values if values.count(v) > 1})
         if dup:
             raise ValueError(f"datasets {name!r} で{what}が重複しています: {dup}")
@@ -216,7 +221,7 @@ class DatasetFeed:
 
     def all_bad(self) -> bool:
         with self._lock:
-            return bool(self.dataset.rows) and all(ric in self._bad for ric in self.dataset.rics)
+            return bool(self.dataset.rics) and all(ric in self._bad for ric in self.dataset.rics)
 
     def bad(self) -> Dict[str, str]:
         with self._lock:
@@ -235,7 +240,9 @@ class DatasetFeed:
             return [label, None, None, None]
         bid, ask = _number(f.get("BID")), _number(f.get("ASK"))
         mid = (bid + ask) / 2 if bid is not None and ask is not None else None
-        return [label, mid, _date(f.get("GV1_DATE")), _date(f.get("GV2_DATE"))]
+        start = _date(f.get("GV1_DATE")) or _date(f.get("START_DT"))
+        end = _date(f.get("GV2_DATE")) or _date(f.get("MATUR_DATE"))
+        return [label, mid, start, end]
 
 
 def _number(value) -> Optional[float]:

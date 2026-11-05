@@ -71,6 +71,7 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
     volatileが外れるので、Shift+F9で再計算されるのは入力を変えたセル(追加した行など)だけで、
     それらは切り替える前と同じレートで計算される。Ctrl+Alt+F9・UDFサーバの再起動でも変わらない。
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
+  PricingSheetは`"swap"`の代わりに定義名`LiveSwap`(LCHは`LiveSwapLCH`)を渡し、ブローカーを切り替える(pricing.md)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
   折りたたんである(Main H:Q、pricing AF:BG(PricingTableの出力・LCHのレートを含む)、ASWPricer AF:BF(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
@@ -98,6 +99,9 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 - `"swap_lch"`(kind=`ois`): LCH清算の円OIS(TraditionのLCHのアウトライト`JPY{テナー}OISL=TRDT`)。O/N〜40Y
   (Tickerは`"swap"`と同じ表記。12M/24M/36Mは`JPY1Y/2Y/3YOISL=TRDT`、1Wはスポット・ウィーク`JPYSWOISL=TRDT`、
   O/Nは`JPY1DOISL=TRDT`。会合スワップは無い)。pricingシートのindex=LCHの行だけが使う(下の「pricingシート」)。
+- `"swap_totan"`・`"swap_lch_totan"`(kind=`ois`): 東短(Totan ICAP)の`JPY{テナー}OIS=TKFX`・`JPY{テナー}OISL=TKFX`、会合スワップは
+  `JPYBJ{n}OIS=TKFX`(BJ0=RD)。Tickerと行の並びは`"swap"`・`"swap_lch"`と同じで、東短に無い21MはRICを空欄にする(値が空欄になり
+  カーブから外れる)。起算日・満期日は`START_DT`/`MATUR_DATE`で、RDには無い。PricingSheetのBrokerで切り替えて読む(pricing.md)。
 - `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産12本。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
   営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
   (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
