@@ -114,6 +114,16 @@ class CloseRatesTest(unittest.TestCase):
                     udf.PosCloseRates(["10Y"], date(2026, 9, 28))  # その日の引けが無い
 
 
+    def test_close_vols_grid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = HistoricalStore(Path(tmp) / "historical.db")
+            store.save_vol_quotes({FRIDAY: {"1Mx1Y": 30.0, "1Yx10Y": 65.5}})
+            with mock.patch.object(udf_common, "_historical_store", lambda: store):
+                out = udf.PosCloseVols(["1M", "1Y"], ["1Y", "10Y"], FRIDAY)
+                self.assertEqual(out, [[30.0, ""], ["", 65.5]])  # 行=満期、列=原資産。無い点は空欄
+                with self.assertRaises(ValueError):
+                    udf.PosCloseVols(["1M"], ["1Y"], date(2026, 9, 28))
+
 class IntradayTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

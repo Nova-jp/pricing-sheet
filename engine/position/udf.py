@@ -85,6 +85,22 @@ def PosCloseRates(pillars, as_of_date) -> List[list]:
     return [[quotes.get(normalize_label(p), "")] for p in _labels(pillars)]
 
 
+
+@xw.func
+@xw.arg("expiries", ndim=1)
+@xw.arg("tails", ndim=1)
+def PosCloseVols(expiries, tails, as_of_date) -> List[list]:
+    """DBのその日のスワップションATMノーマルvol(bp/年、営業日ベース)。行=満期、列=原資産(値が無ければ空欄)。
+    Positionシートのボラの動き(今のvol − 会社のリスクの基準日の引け)の基準に使う。"""
+    d = _to_date(as_of_date)
+    if d is None:
+        raise ValueError("日付を入れてください(会社のリスクの基準日)")
+    with udf_common._historical_store() as store:
+        vols = {normalize_label(k): v for k, v in store.vol_quotes().get(d, {}).items()}
+    if not vols:
+        raise ValueError(f"{d}のvolがDBにありません")
+    return [[vols.get(normalize_label(f"{e}x{t}"), "") for t in _labels(tails)] for e in _labels(expiries)]
+
 # ---------------------------------------------------------------------------
 # 日中の取引(Positionシートの下段。OIS・現物)のデルタ・ガンマ(engine/position/intraday.py)
 # ---------------------------------------------------------------------------
