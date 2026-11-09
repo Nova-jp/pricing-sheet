@@ -48,7 +48,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from engine.common.live_store import FEED_OK, FEED_STOPPED, FeedStatus, LiveStore
 from engine.common.paths import LIVE_DATA_DIR, REPO_ROOT
-from engine.common.swaption_source import ric as swaption_ric
+from engine.common.swaption_source import in_grid as swaption_in_grid, ric as swaption_ric
 
 DEFAULT_CONFIG = REPO_ROOT / "live_feed.toml"
 CURVE_CONFIG = REPO_ROOT / "historical_curve.toml"  # ボラの計算に使うカーブのテナー・構築方法
@@ -152,7 +152,8 @@ def _parse_dataset(raw: dict) -> Dataset:
         expiries, tenors = raw.get("expiries", []), raw.get("tenors", [])
         if not expiries or not tenors:
             raise ValueError(f"datasets {name!r}(vol)には expiries と tenors を並べてください")
-        rows = [(f"{e}x{t}", swaption_ric(e, t)) for e in expiries for t in tenors]
+        # 満期+原資産が40年を超える銘柄は除く(朝バッチの格子と同じ規則。swaption_source.in_grid)
+        rows = [(f"{e}x{t}", swaption_ric(e, t)) for e in expiries for t in tenors if swaption_in_grid(e, t)]
     else:
         rows = raw.get("rows", [])
         if not rows or any(not isinstance(r, list) or len(r) != 2 for r in rows):

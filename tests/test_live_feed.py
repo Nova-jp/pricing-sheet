@@ -60,10 +60,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(swap.rows[0], ("O/N", "JP1DONI=TRDT"))
         self.assertEqual(swap.rows[33], ("40Y", "JP40YONI=TRDT"))
         self.assertEqual(swap.rows[34:36], (("RD", "JPBOJRDONI=TRDT"), ("M1", "JPBOJ1ONI=TRDT")))
-        self.assertEqual(len(vol.rows), 13 * 12)  # クオートの無い2M・6Y・8Y・9Y満期は使わない
+        self.assertEqual(len(vol.rows), 13 * 13 - 2)  # クオートの無い2M・6Y・8Y・9Y満期は使わない
         self.assertEqual(sorted({r[0].split("x")[0] for r in vol.rows}), sorted(swaption_source.EXPIRIES))
         self.assertEqual(vol.rows[1], ("1Mx2Y", "JPY1M2YTOATM=TRDT"))
-        self.assertEqual(vol.rows[-1], ("20Yx20Y", "JPY20Y20YTOATM=TRDT"))
+        self.assertEqual(vol.rows[-1], ("20Yx20Y", "JPY20Y20YTOATM=TRDT"))  # 20Yx30Yは40年超で除く
+        self.assertEqual([r[0] for r in vol.rows], swaption_source.labels())  # 朝バッチの格子と同じ
+        self.assertEqual(sorted({r[0].split("x")[1] for r in vol.rows}), sorted(swaption_source.TENORS))
         self.assertEqual(vol.curve, "swap")
         self.assertEqual(config.timing.stale_after_sec, 10)
 

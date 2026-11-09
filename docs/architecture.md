@@ -102,7 +102,7 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 - `"swap_totan"`・`"swap_lch_totan"`(kind=`ois`): 東短(Totan ICAP)の`JPY{テナー}OIS=TKFX`・`JPY{テナー}OISL=TKFX`、会合スワップは
   `JPYBJ{n}OIS=TKFX`(BJ0=RD)。Tickerと行の並びは`"swap"`・`"swap_lch"`と同じで、東短に無い21MはRICを空欄にする(値が空欄になり
   カーブから外れる)。起算日・満期日は`START_DT`/`MATUR_DATE`で、RDには無い。PricingSheetのBrokerで切り替えて読む(pricing.md)。
-- `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産12本。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
+- `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産13本(1Y〜10Y・15Y・20Y・30Y。満期+原資産が40年を超える15Yx30Y・20Yx30Yは除く)。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
   営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
   (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
   (テナー・構築方法は`historical_curve.toml`)、`swaption.py`でvolに換える(取引日=書く時刻の日付。どちらかが
@@ -164,7 +164,7 @@ engine/
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `swaption.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。契約は`underlying`の1か所(満期日=取引日+満期(Following)、起算日=満期日+2営業日=スワップのスポットと同じT+2)。朝バッチの⑦⑧・フィード・`VolFwdLive`が使い、BondOptionの補間も同じ満期日・営業日数を使う |
 | `swaption_forward.py` | スワップションの原資産のFwd(DBの`swaption_forwards`)を日次カーブから計算する(朝バッチの⑧)。日付×格子の全銘柄ごとに、契約(`swaption.underlying`)の日付・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd(`forward_prev`、日次変化=ロールダウンを含まない)。入力(計算方法・その日と前の日付のカーブの入力ハッシュ・銘柄)が変わった日だけ計算する(全日付で約1分、以後は1日0.1秒程度) |
-| `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・8Y・9Yは使わない)×原資産12本。朝バッチの⑥が使う |
+| `swaption_source.py` | LSEG(Python API)からTraditionのプレミアムのヒストリカル(`JPY{満期}{原資産}TOATM=TRDT`の`FWPM_OCPHM`・`ATM_STRIKE`、2022-01-12〜)を取得する。格子は満期13本(2M・6Y・8Y・9Yは使わない)×原資産13本(1Y〜10Y・15Y・20Y・30Y。満期+原資産が40年を超える15Yx30Y・20Yx30Yは除く)(`in_grid`、フィードも同じ規則)。DBに無い銘柄(格子に足した銘柄)は最初の日から取る。朝バッチの⑥が使う |
 | `history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ(PCA用。SwapAnalysisが使う) |
 | `pca.py` | PCA: windowの選び方(`estimate`)、復元日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数(SwapAnalysisが使う) |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |

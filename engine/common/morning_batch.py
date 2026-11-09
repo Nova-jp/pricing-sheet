@@ -39,7 +39,7 @@
      保存する(2020年から。取り終えた限月は取らず、取引中の限月は保存済みの最終日から取り直す)。
      失敗してもここだけスキップする。--skip-jgb で④と一緒に行わない。
   ⑥ LSEG(Python API、engine/common/swaption_source.py)から TraditionのスワップションATMプレミアムを
-     差分で取得し、swaption_premiums に保存する(前回の最終日の少し前から。初回は2022-01-12から)。
+     差分で取得し、swaption_premiums に保存する(前回の最終日の少し前から。初回と、格子に足した銘柄は2022-01-12から)。
      失敗してもここだけスキップする。--skip-vol で行わない。
   ⑦ プレミアムと②のその日のカーブから、営業日ベースのノーマルvol(engine/common/swaption.py)を計算し、
      vol_quotes に保存する(分析ブックのPCA・VolHV用。カーブには使わない)。入力(カーブの入力ハッシュ・
@@ -285,12 +285,18 @@ def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None
 
 
 def sync_swaption_premiums(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
-    """LSEGからTraditionのスワップションATMプレミアムを昨日まで差分で取得して保存する。失敗してもバッチ全体は止めない。"""
+    """LSEGからTraditionのスワップションATMプレミアムを昨日まで差分で取得して保存する。失敗してもバッチ全体は止めない。
+    格子に足した銘柄(DBに1行も無い銘柄)は、差分の前の分も最初の日から取る(2026-11-09 原資産30Yの追加)。"""
     until = last_close_date(today)
     last = store.swaption_premiums_last_date()
     start = swaption_source.FIRST_DATE if last is None else last - timedelta(days=PREMIUM_OVERLAP_DAYS)
+    have = store.swaption_premium_labels()
+    new = [] if last is None else [n for n in swaption_source.labels() if n not in have]
     try:
         rows = swaption_source.fetch_premiums(start, until)
+        if new:
+            rows += swaption_source.fetch_premiums(swaption_source.FIRST_DATE, start - timedelta(days=1), new)
+            log(f"スワップションのプレミアム取得: 新しい銘柄 {len(new)}本は{swaption_source.FIRST_DATE}から取得")
     except Exception as e:
         log(f"スワップションのプレミアム取得: 失敗のためスキップ ({e})")
         return
