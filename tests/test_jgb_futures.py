@@ -313,22 +313,36 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(self.store.fut_settles(), {})
         self.assertTrue(any("スキップ" in x for x in logs))
 
-    def test_sync_jgb_history_targets_10y_bonds(self):
+    def test_sync_jgb_history_10y_from_start_and_others_from_swap_start(self):
         self.store.save_jgb_bonds([
             JgbRecord("JB373", "JP03730067=", "", 0.6, date(2033, 12, 20)),
             JgbRecord("JL180", "JP01800069=", "", 0.8, date(2042, 3, 20)),
+            JgbRecord("JN400", "JP04000042=", "", 0.1, date(2024, 6, 1)),  # スワップの期間の前に償還
         ])
-        closes = [JgbClose(date(2020, 1, 6), "JB373", 0.0), JgbClose(date(2020, 1, 7), "JB373", 0.005)]
-        with mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=closes) as fetch:
+        self.store.save_quotes({date(2024, 10, 28): {"1Y": 0.1}, date(2024, 10, 29): {"1Y": 0.1}})
+        calls = []
+
+        def fetch(bonds, start, end):
+            calls.append(([b.code for b in bonds], start, end))
+            return [JgbClose(start, bonds[0].code, 0.5)]
+
+        with mock.patch.object(morning_batch.jgb_source, "fetch_close_history", side_effect=fetch):
             morning_batch.sync_jgb_history(self.store, date(2020, 1, 1), lambda *_: None, end=date(2026, 10, 23))
-        bonds, start, end = fetch.call_args.args
-        self.assertEqual([b.code for b in bonds], ["JB373"])
-        self.assertEqual((start, end), (date(2020, 1, 1), date(2026, 10, 23)))
+        self.assertEqual(calls, [
+            (["JB373"], date(2020, 1, 1), date(2026, 10, 23)),
+            (["JL180"], date(2024, 10, 28), date(2026, 10, 23)),
+        ])
         self.assertEqual(
-            self.store.jgb_closes_between(date(2020, 1, 1), date(2020, 1, 31), "JB"),
-            {date(2020, 1, 6): {"JB373": 0.0}, date(2020, 1, 7): {"JB373": 0.005}},
+            self.store.jgb_closes_between(date(2020, 1, 1), date(2026, 10, 23)),
+            {date(2020, 1, 1): {"JB373": 0.5}, date(2024, 10, 28): {"JL180": 0.5}},
         )
 
+    def test_sync_jgb_history_later_start_wins(self):
+        self.store.save_jgb_bonds([JgbRecord("JL180", "JP01800069=", "", 0.8, date(2042, 3, 20))])
+        self.store.save_quotes({date(2024, 10, 28): {"1Y": 0.1}})
+        with mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=[]) as fetch:
+            morning_batch.sync_jgb_history(self.store, date(2025, 6, 1), lambda *_: None, end=date(2026, 10, 23))
+        self.assertEqual(fetch.call_args.args[1], date(2025, 6, 1))
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@
      (このバッチは保存済みの値を読む。Excelで開いたままでもよい)
   2. python -m engine.common.morning_batch
      オプション: --xlsx パス / --config パス / --db パス / --rebuild(全日付を作り直す)
-     / --jgb-history-from 2020-01-01(10年債の引け値の過去分を埋める。初回・抜けた日があるときに1回)
+     / --jgb-history-from 2020-01-01(引け値の過去分を埋める。初回・抜けた日があるときに1回)
 
 ■ DBに入れるのは昨日までの引けだけ(2026-10-27、ユーザー指示)
   どの取得も、実行した日の前日(until = 今日 − 1日)までの日付の値だけを保存する。今日の値はブックがライブで
@@ -33,7 +33,9 @@
      取得し、jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。引け値は直近の
      CLOSE_LOOKBACK_DAYS 日分を取り直す(朝バッチを流さなかった日の穴を埋め、配信元の訂正を拾う)。LSEG Workspaceが
      起動していない等で失敗しても、ここだけスキップする(③と同じ)。--skip-jgb で行わない。
-     --jgb-history-from を付けたときは、10年債(先物の受渡適格銘柄の候補)の引け値の過去分も取る
+     --jgb-history-from を付けたときは、引け値の過去分も取る。10年債(先物の受渡適格銘柄の候補)はその日から、
+     他の年限(現物オプションのヒストリカル・ボラ用)はスワップと同じ期間(DBのスワップのMidの最初の日付から。
+     古すぎる分は要らない、ユーザー指示)。どちらもその期間に償還する銘柄は除く
      (JCL、無い日は大和・みずほで補う。jgb_source.fetch_close_history)。
   ⑤ LSEG(engine/common/futures_source.py)から長期国債先物の限月ごとの清算値を取得し、fut_settles に
      保存する(2020年から。取り終えた限月は取らず、取引中の限月は保存済みの最終日から取り直す)。
@@ -242,20 +244,28 @@ def sync_jgbs(store: HistoricalStore, log=print, until: Optional[date] = None) -
 
 
 def sync_jgb_history(store: HistoricalStore, start: date, log=print, end: Optional[date] = None) -> None:
-    """10年債(jgb_bonds のうち JB で start 以降に償還)の start〜end(省略時は昨日)の引け値の過去分を保存する。"""
+    """引け値の過去分(〜end、省略時は昨日)を保存する。10年債は start から、他の年限はスワップと同じ期間
+    (DBのスワップのMidの最初の日付と start の遅い方)から。期間の始まりより前に償還した銘柄は除く。"""
     end = end or last_close_date()
-    bonds = [
-        jgb_source.JgbRecord(r.code, r.ric, r.isin, r.coupon, r.maturity)
-        for r in store.jgb_master(end)
-        if r.code.startswith(jgb_futures.DELIVERABLE_PREFIX) and r.maturity >= start
-    ]
-    try:
-        closes = jgb_source.fetch_close_history(bonds, start, end)
-    except Exception as e:
-        log(f"引け値の過去分: 失敗のためスキップ ({e})")
-        return
-    store.save_jgb_closes(closes)
-    log(f"引け値の過去分: 10年債 {len(bonds)}銘柄 / {len(closes)}件({start}〜{end})")
+    swap_start = max(start, min(store.quotes(), default=start))
+    master = store.jgb_master(end)
+    for label, first, pick in (
+        ("10年債", start, lambda code: code.startswith(jgb_futures.DELIVERABLE_PREFIX)),
+        ("他の年限", swap_start, lambda code: not code.startswith(jgb_futures.DELIVERABLE_PREFIX)),
+    ):
+        bonds = [
+            jgb_source.JgbRecord(r.code, r.ric, r.isin, r.coupon, r.maturity)
+            for r in master if pick(r.code) and r.maturity >= first
+        ]
+        if not bonds:
+            continue
+        try:
+            closes = jgb_source.fetch_close_history(bonds, first, end)
+        except Exception as e:
+            log(f"引け値の過去分({label}): 失敗のためスキップ ({e})")
+            continue
+        store.save_jgb_closes(closes)
+        log(f"引け値の過去分({label}): {len(bonds)}銘柄 / {len(closes)}件({first}〜{end})")
 
 
 def sync_futures(store: HistoricalStore, log=print, today: Optional[date] = None) -> None:
@@ -445,7 +455,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--jgb-history-from", type=date.fromisoformat, metavar="YYYY-MM-DD",
-        help="10年債の引け値の過去分をこの日から取る(初回・抜けた日を埋めるとき)",
+        help="10年債の引け値の過去分をこの日から取る(他の年限はスワップと同じ期間。初回・抜けた日を埋めるとき)",
     )
     parser.add_argument("--skip-vol", action="store_true",
                         help="LSEGからのスワップションのプレミアムの取得を行わない(保存済みのプレミアムからのボラ計算は行う)")
