@@ -25,7 +25,7 @@ LSEG Workspaceのデータを、日中はライブのフィードから、過去
   (①〜⑥のどれも、保存するのは昨日までの日付だけ。今日の値はブックがライブで見る)
   ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCLの履歴、直近10日分)を取得
      (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
-     --jgb-history-from を付けたときは、10年債の引け値の過去分も取る(JCL、無い日は大和・みずほで補う)
+     --jgb-history-from を付けたときは、引け値の過去分も取る(10年債はその日から、他の年限はスワップと同じ期間。JCL、無い日は大和・みずほで補う)
   ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
      (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
   ⑥⑦ LSEGからスワップションのプレミアムを差分取得し、その日のカーブで営業日ベースのvolにする(vol_quotes)
