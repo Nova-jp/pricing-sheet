@@ -19,11 +19,11 @@ Bondのデルタ・ガンマとベガの格子に足す(ユーザー決定、202
 
 ■ ピラーへの分け方(チェーンルール)
   オプションの価値 V は原資産の先渡価格 F の関数で、F は現物の単価 P とほぼ1対1(dF/dP = 1 + レポ×期間、
-  1か月で1.0003程度なので1とみなす)。P のピラー i への感応度 dP_i と2階の d2P_i(bonds.py と同じ
-  Zスプレッド固定、日中の取引のガンマと同じ±0.1bpの中心差分)から
-    デルタ_i = E × dP_i / 100、ガンマ_i = (G × dP_i² + E × d2P_i) / 100
+  1か月で1.0003程度なので1とみなす)。P の複利1bpあたりの変化 dP と2階の d2P(bonds.py と同じ修正
+  デュレーション・コンベクシティ、基準日の引けの単利から)から
+    デルタ = E × dP / 100、ガンマ = (G × dP² + E × d2P) / 100
   E = 符号 × 額面 × Blackのデルタ(デルタ換算の額面、百万円)、G = 符号 × 額面 × Blackのガンマ。
-  ガンマは日中の取引と同じ対角のガンマ(ピラー同士の交差の項は入らない)。
+  どちらも現物と同じく、銘柄の満期が入る区間の長いほうのピラーに全部載せる。
 
 ■ ベガの分け方
   スワップションの格子の点を1つずつ少し動かしたときの補間値の変化(重み)をベガに掛けて足す。格子にあって
@@ -35,9 +35,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from engine.common import bond, udf_common
 from engine.common.jgb_option import hv, pricer, vol
-from engine.common.market import BUMP_BP, CurveSet
-from engine.common.risk import per_bp
-from engine.position.bonds import BondPosition, prepare_bond
+from engine.common.market import CurveSet
+from engine.position.bonds import BondPosition, bond_risk, bucket, pillar_dates
 
 SPOT_LAG = 1
 MARKET_COLUMNS = 12
@@ -221,30 +220,19 @@ def pillar_risk(curves: CurveSet, store, codes: Sequence, faces: Sequence,
         acc = totals.setdefault(_code(code), [0.0, 0.0])
         acc[0] += e
         acc[1] += g
-    prepared, errors = {}, []
-    for code in totals:
-        try:
-            prepared[code] = prepare_bond(curves, store, BondPosition(code, 100.0))  # 価値 = 額面100円あたりの単価
-        except Exception as e:
-            errors.append(f"{code}: {e}")
-    curve = curves.base.curve.currentLink()
-    base = {c: p.value(curve) for c, p in prepared.items()}
+    pillars = pillar_dates(curves.bump_labels, curves.spot_date)
     deltas: Dict[str, float] = {}
     gammas: Dict[str, float] = {}
-    for label in curves.bump_labels:
-        with curves.bumped(label, BUMP_BP):
-            up = {c: p.value(curve) for c, p in prepared.items()}
-        with curves.bumped(label, -BUMP_BP):
-            down = {c: p.value(curve) for c, p in prepared.items()}
-        d_sum = g_sum = 0.0
-        for c in prepared:
-            e, g = totals[c]
-            dp = per_bp(up[c] - base[c])
-            d2p = (up[c] - 2.0 * base[c] + down[c]) / (BUMP_BP * BUMP_BP)
-            d_sum += e * dp / 100.0
-            g_sum += (g * dp * dp + e * d2p) / 100.0
-        deltas[label] = d_sum
-        gammas[label] = g_sum
+    errors: List[str] = []
+    for code, (e, g) in totals.items():
+        try:
+            r = bond_risk(store, BondPosition(code, 100.0), curves.valuation_date)  # 額面100円あたり
+            label = bucket(r.maturity, pillars).lower()
+        except Exception as ex:
+            errors.append(f"{code}: {ex}")
+            continue
+        deltas[label] = deltas.get(label, 0.0) + e * r.dp / 100.0
+        gammas[label] = gammas.get(label, 0.0) + (g * r.dp * r.dp + e * r.d2p) / 100.0
     return deltas, gammas, errors
 
 
