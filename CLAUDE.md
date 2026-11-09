@@ -3,7 +3,7 @@
 JPY OIS(TONA)スワップのプライシングシート。Excel(UDF専用、VBAなし) +
 Python/QuantLib + LSEG Workspace(カーブ・プライシング本体の供給元)。ASWスプレッドのみ
 Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.md`)。現物オプションのブック
-`BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)と、ポジション・リスク管理の叩き台
+`BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)と、ポジション・リスク管理の
 `PositionSheet.xlsm`(`engine/position/`、`docs/position.md`)も含む。
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
@@ -34,7 +34,7 @@ Neon(Postgres)から読み取り専用で取得する(詳細は`docs/decisions.m
   - 分析ブック(`pca/`・`vol/`・`boj/`・`fwd/`・`fut/`)は`swap_pricing/`に依存させず、`common/`だけを使う
     (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(table/udf)。計算の部品は`engine/common/jgb_option/`(pricer/vol/hv、PositionSheetも使う)、JGBの規約は`engine/common/bond.py`
-  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/trades/udf)。
+  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/bond_options/trades/udf)。
     `common/`だけを使う
 - `notebooks/` — 手元で動かす分析ノートブック(ブック・UDFとは無関係、DBを読むだけ)。**出力を消してからコミットする**
 

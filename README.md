@@ -8,7 +8,7 @@ xlwingsのUDFとしてExcelから呼び出す(VBAなし、ブックは手動計�
 | `PricingSheet.xlsm` | 任意のコンベンションのスワップのパーレート / PV / デルタ / リスクグリッド、ヒストリカルなレート推移(アウトライト・カーブ・フライ)、ASW |
 | `SwapAnalysis.xlsm` | スワップ・ボラのPCA、IV vs HV、ボラとFwdの水準、Fwdの監視、国債先物のベーシス、日銀会合スワップとスポットのずれ |
 | `BondOption.xlsm` | JGBの店頭オプション(現物オプション)のプライサー |
-| `PositionSheet.xlsm` | ポジション・リスク管理(叩き台) |
+| `PositionSheet.xlsm` | ポジション・リスク管理(会社のリスク + 日中の取引 + 現物オプションのデルタ・ガンマ・ベガ、ベガのPL) |
 
 データの供給元はLSEG Workspace。リアルタイムのレートは常駐のフィード(Python)が受信し、
 ヒストリカルは朝のバッチがローカルのDBに保存する。ASWスプレッドだけはNeon(Postgres)から
@@ -37,7 +37,7 @@ LSEG Workspace(起動・ログイン中)
 | `engine/common/` | 共有の計算エンジン・データ層(カーブ、プライサー、DB、朝バッチ、リアルタイムのフィード) |
 | `engine/swap_pricing/` | PricingSheet.xlsmのUDF(`pricing/`・`historical/`・`asw/`) |
 | `engine/pca/` ・ `vol/` ・ `fwd/` ・ `fut/` ・ `boj/` | SwapAnalysis.xlsmのPCA・ボラ・Fwdの監視・国債先物・BOJ会合 |
-| `engine/bond_option/` | BondOption.xlsmのプライサー・ボラ |
+| `engine/bond_option/` | BondOption.xlsmの表UDF(計算の部品は`engine/common/jgb_option/`、PositionSheetと共用) |
 | `engine/position/` | PositionSheet.xlsmのポジション・リスク管理 |
 | `historical_data.xlsx` | LSEGのヒストリカル生データを取得するブック(作業用で`.gitignore`済み) |
 | `live_feed.toml` | リアルタイムのフィードの設定(購読するRIC・秒数) |
@@ -95,7 +95,7 @@ NEON_CONNECTION_STRING=postgresql://<ユーザー>:<パスワード>@<ホスト>
    python -m engine.common.live_feed
    ```
 
-   「swap: 44銘柄を購読しました」「vol: 192銘柄を購読しました」と出れば動いている。止めるときはその窓で
+   「swap: 44銘柄を購読しました」「vol: 167銘柄を購読しました」等と出れば動いている。止めるときはその窓で
    Ctrl+C。二重に起動すると「別のフィードが動いています」で止まる。ログは`data/live_feed.log`。
 3. **朝のバッチで日次カーブDBを更新する**。`historical_data.xlsx`を開き、LSEGのデータ更新が終わったら
    **保存**してから(バッチは保存済みの値を読む。開いたままでよい):
@@ -116,7 +116,20 @@ NEON_CONNECTION_STRING=postgresql://<ユーザー>:<パスワード>@<ホスト>
    - D1(Updated)は、表示中のレートの値が最後に変わった時刻(相場が静かなら古いままになる)。
 
 評価日はMainシートの`評価日`セル(空欄=今日=ライブのレート、過去日=DBのその日のカーブ)。
-各ブックの使い方は[docs/setup_windows.md](docs/setup_windows.md)、ブックごとの構成は下の「ドキュメント」を参照。
+
+## ブックごとの使い方
+
+入力するのは黄色のセル。詳しい手順は[docs/setup_windows.md](docs/setup_windows.md)の5.1〜5.3、シートの構成と計算の
+規則はブックごとのドキュメント(下の「ドキュメント」)。
+
+| ブック | 使い方 |
+|---|---|
+| `PricingSheet.xlsm` | Mainシートの評価日(空欄=今日)とカーブのテナーの採否を確かめる。pricingシートの表にコンベンション・テナー・想定元本等を入れてShift+F9(パーレート・PV・デルタ。RiskGridはrisk_flagの行のピラーごとのデルタ。ブローカーはpricing!F1で切り替え)。HistChartは系列の条件を入れてヒストリカルの推移、ASW・ASWPricerは銘柄を入れてASW |
+| `SwapAnalysis.xlsm` | PCA/VolPCA/PCAGridは推定(Window end・window)と復元(Recon date・主成分数)を入れてF9。VolHV・VolLevel・FwdMonitor・FutBasis・BOJは条件を入れてF9(過去分はDB、今日はライブ) |
+| `BondOption.xlsm` | Optionシートに銘柄・スキーム・満期・額面・ストライクの指定(6つの入力列のどれか1つ)を入れてF9。プレミアム(銭)とQuote textが出る。ボラ・レポは上書きできる |
+| `PositionSheet.xlsm` | 会社のファイルをRaw_IR・Raw_IRVOLに、現物オプションの全約定をRaw_BondOptionにA1から貼る。Setupの基準日(既定はDBの直近の引け。B3で上書き)とレポを確かめてF9。日中はPositionシートの下段に今日の取引を入れてShift+F9 |
+
+ブックごとの構成は下の「ドキュメント」を参照。
 
 ## コードを更新したとき(git pull後)
 
