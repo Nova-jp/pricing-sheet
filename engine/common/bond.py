@@ -109,14 +109,15 @@ def coupon_dates(bond: Jgb, after: date, until: date) -> List[date]:
     return list(dates[bisect_right(dates, after):bisect_right(dates, until)])
 
 
-def compound_yield(bond: Jgb, dirty: float, settle: date) -> float:
+def compound_yield(bond: Jgb, dirty: float, settle: date, truncate: bool = True) -> float:
     """利含み単価 dirty に一致する半年複利(%、うるう日除き/365、受渡日起点)を小数3桁で切り捨てる。
-    現物オプションの先渡複利(先渡dirty・行使後の受渡日)とアセットスワップの複利(スポット)が使う。"""
+    現物オプションの先渡複利(先渡dirty・行使後の受渡日)とアセットスワップの複利(スポット)が使う。
+    truncate=False は切り捨てない(現物オプションのヒストリカル・ボラ。0.1bpの切り捨てを日次変化に入れない)。"""
     y = ql.BondFunctions.bondYield(
         ql_bond(bond, "no_leap"), ql.BondPrice(dirty, ql.BondPrice.Dirty), NO_LEAP, ql.Compounded,
         ql.Semiannual, _qd(settle), 1.0e-12, 100, 0.02,
     )
-    return truncate3(y * 100)
+    return truncate3(y * 100) if truncate else y * 100
 
 
 def dollar_duration(bond: Jgb, compound_yield_pct: float, settle: date) -> float:

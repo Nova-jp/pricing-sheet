@@ -15,6 +15,7 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
   OptionMarketTable / ItmBuyWriteTable / PremiumTable:
                      上の3つ(先渡リスク+ボラの補間、ITMBW、プレミアム)の表版。シートはこちらを使い、全行を
                      1回で計算する(1セルごとの往復を減らすため。本体は table.py)。1行用は単独の確認用に残す
+  VolRatioTable    : 全行の現物とスワップのヒストリカル・ボラとその比(Vol ratio。本体は hv.py)
 式の詳細とシートの構成は docs/bond_option.md。
 
 ■ データ
@@ -23,12 +24,13 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
   計算方法は「手動」+F9。評価日はシートの評価日セル(空欄=今日)。TODAY()は使わない。
 """
 
-from typing import List
+from datetime import timedelta
+from typing import Dict, List, Optional
 
 import QuantLib as ql
 import xlwings as xw
 
-from engine.bond_option import pricer, table, vol
+from engine.bond_option import hv, pricer, table, vol
 from engine.bond_option.table import as_date as _date, as_number as _number
 from engine.common import bond, udf_common
 from engine.common.conventions import CALENDAR
@@ -156,3 +158,55 @@ def PremiumTable(types, forwards, strikes, price_vols, terms) -> List[list]:
     """全行の [プレミアム(額面100円あたりの円、割引なし), message](BlackPremiumの表版)。
     引数は同じ行数の列の範囲(Call/Put・先渡clean・ストライク・価格ボラ・T)。"""
     return table.premium_table(types, forwards, strikes, price_vols, terms)
+
+
+# 日付×満期日のスワップレートと行ごとの結果(DBの更新時刻ごと。朝バッチでDBが変われば作り直す)
+_rates: Optional[hv.CurveRates] = None
+_results: Dict[tuple, list] = {}
+
+
+@xw.func
+@xw.arg("bonds", ndim=1)
+@xw.arg("coupons", ndim=1)
+@xw.arg("maturities", ndim=1)
+def VolRatioTable(bonds, coupons, maturities, trade_date, window) -> List[list]:
+    """全行の [現物のHV(bp/日), スワップのHV(bp/日), 比(現物÷スワップ), 変化の数, 窓の最初の日付, 最後の日付, message]。
+    引数は同じ行数の列の範囲(銘柄・利率・償還日)と、取引日・窓(営業日数、日次変化の数)。
+    現物はDBの引け値、スワップは同じ償還日のOISをDBのカーブで評価したもの(engine/bond_option/hv.py)。"""
+    global _rates
+    as_of = udf_common._resolve_valuation_date(trade_date)
+    with udf_common._historical_store() as store:
+        key = (str(store.db_path), store.db_path.stat().st_mtime_ns)
+        if _rates is None or _rates.db_key != key:
+            _rates = hv.CurveRates(store, key)
+            _results.clear()
+        rows = table._rows(bonds, coupons, maturities)
+        keys = [(code, coupon, maturity, as_of, window) for code, coupon, maturity in rows]
+        todo = [i for i, k in enumerate(keys) if k not in _results]
+        if todo:
+            span = timedelta(days=hv.parse_window(window) * 2 + 20) if _valid_window(window) else timedelta(0)
+            closes = _closes_by_code(store.jgb_closes_between(as_of - span, as_of))
+            _rates.store = store
+            computed = table.vol_ratio_table(
+                [rows[i][0] for i in todo], [rows[i][1] for i in todo], [rows[i][2] for i in todo],
+                closes, _rates, as_of, window,
+            )
+            for i, row in zip(todo, computed):
+                _results[keys[i]] = row
+        return [_results[k] for k in keys]
+
+
+def _valid_window(window) -> bool:
+    try:
+        hv.parse_window(window)
+        return True
+    except ValueError:
+        return False
+
+
+def _closes_by_code(by_date) -> Dict[str, dict]:
+    out: Dict[str, dict] = {}
+    for d, codes in by_date.items():
+        for code, y in codes.items():
+            out.setdefault(code.upper(), {})[d] = y
+    return out
