@@ -94,12 +94,12 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
    python -m engine.common.live_feed
    ```
 
-   約20秒で「swap: 44銘柄を購読しました」「vol: 192銘柄を購読しました」「接続の状態: ok」と出れば動いている。
+   約20秒で「swap: 44銘柄を購読しました」「vol: 167銘柄を購読しました」(ほかにswap_lch・swap_totan等)「接続の状態: ok」と出れば動いている。
    止めるときはその窓でCtrl+C(ブックはすぐに「フィードは停止しています」になる)。ログは`data/live_feed.log`。
    二重に起動すると「別のフィードが動いています」で止まる。
    git worktreeで作った開発用のフォルダのブック・コードも、直下(メインの作業ツリー)の`data/live.db`を読む
    (worktreeごとにフィードを起動しない。`engine/common/paths.py`)。
-3. ExcelでPricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsmを開く。計算方法は「手動」。
+3. ExcelでPricingSheet.xlsm・SwapAnalysis.xlsm・BondOption.xlsm・PositionSheet.xlsmを開く。計算方法は「手動」。
 4. 各フロントシート(Main・pricing・HistChart・PCA・VolPCA・BOJ・Option)の1行目が取得モードの欄。B1のプルダウンが
    `Live`なら、そのシートでShift+F9を押すたびに最新のレートを読んでそのシートだけ再計算する(F9はブック全体)。
    `Fixed`にすると、そのシートが最後にLiveで読んだレートのまま止まり、Shift+F9では入力を変えたセル
@@ -174,8 +174,16 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
   (`PositionSheet.py`から`PosCloseRates`等を登録)。
 - 引け値・現物の銘柄情報はDBを読むので、毎朝のバッチ(上の5.)を先に実行しておく。ライブのレートは
   フィード(4.1)の`"swap"`。
-- 使い方: 会社のファイルをRaw_IR・Raw_IRVOLのA1に貼り、SetupのB4に基準日(会社のファイルの日付)を入れてF9。
-  日中はPositionシートの下段に今日の取引を入れ、PositionシートでShift+F9。
+- 使い方:
+  1. 会社のファイル(デルタ・ガンマのシートとベガのシート)をRaw_IR・Raw_IRVOLのA1に、現物オプションの全約定を
+     Raw_BondOptionのA1に、そのまま貼る。
+  2. Setupを確かめる。基準日(B4)は既定でDBの直近の引け(昨日の朝バッチの日付)。会社のファイルの日付と違えばB3に
+     日付を入れて上書きする。現物オプションの先渡に使うレポ(I7)を入れる(HVの窓はI8、既定20日)。
+     会社のファイルの列名が変わったときは黄色のセルを直す。
+  3. F9(ブック全体。Setup・BondOptも計算する)。BondOptの`Message`列に計算できなかった約定の理由が出る。
+  4. 日中はPositionシートの下段に今日の取引を入れ、PositionシートでShift+F9(ライブのレートを読み直す)。フィードが
+     止まっていればエラーになるので、そのときはB2を`Fixed`にする。
+  - ブックを開いたまま日をまたいだら、Ctrl+Alt+F9で基準日から計算し直す。
 
 ## 6. コードを更新したとき(git pull後など)
 
