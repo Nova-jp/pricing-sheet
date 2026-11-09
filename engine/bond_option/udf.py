@@ -30,7 +30,8 @@ from typing import Dict, List, Optional
 import QuantLib as ql
 import xlwings as xw
 
-from engine.bond_option import hv, pricer, table, vol
+from engine.bond_option import table
+from engine.common.jgb_option import hv, pricer, vol
 from engine.bond_option.table import as_date as _date, as_number as _number
 from engine.common import bond, udf_common
 from engine.common.conventions import CALENDAR
@@ -172,7 +173,7 @@ _results: Dict[tuple, list] = {}
 def VolRatioTable(bonds, coupons, maturities, trade_date, window) -> List[list]:
     """全行の [現物のHV(bp/日), スワップのHV(bp/日), 比(現物÷スワップ), 変化の数, 窓の最初の日付, 最後の日付, message]。
     引数は同じ行数の列の範囲(銘柄・利率・償還日)と、取引日・窓(営業日数、日次変化の数)。
-    現物はDBの引け値、スワップは同じ償還日のOISをDBのカーブで評価したもの(engine/bond_option/hv.py)。"""
+    現物はDBの引け値、スワップは同じ償還日のOISをDBのカーブで評価したもの(engine/common/jgb_option/hv.py)。"""
     global _rates
     as_of = udf_common._resolve_valuation_date(trade_date)
     with udf_common._historical_store() as store:

@@ -124,6 +124,32 @@ class CloseRatesTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     udf.PosCloseVols(["1M"], ["1Y"], date(2026, 9, 28))
 
+    def test_base_date_is_latest_db_date_before_today(self):
+        class _Store:
+            def __init__(self, dates):
+                self._dates = dates
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return None
+
+            def dates(self):
+                return self._dates
+
+        monday = date(2026, 9, 28)
+        store = _Store([date(2026, 9, 24), FRIDAY, monday])
+        with mock.patch.object(udf_common, "_historical_store", lambda: store), \
+                mock.patch.object(udf_common, "_today", lambda: monday):
+            self.assertEqual(udf.PosBaseDate(None), FRIDAY)  # 今日(月曜)のカーブがあっても昨日までの直近
+            self.assertEqual(udf.PosBaseDate(""), FRIDAY)
+            self.assertEqual(udf.PosBaseDate(date(2026, 9, 24)), date(2026, 9, 24))  # 上書き
+        with mock.patch.object(udf_common, "_historical_store", lambda: _Store([monday])), \
+                mock.patch.object(udf_common, "_today", lambda: monday):
+            with self.assertRaises(ValueError):
+                udf.PosBaseDate(None)
+
 class IntradayTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -135,8 +135,8 @@ engine/
   fwd/             # SwapAnalysis.xlsm固有のFwd(NyMy)の監視とヒストリカル(3方式)
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
-  bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間・現物とスワップのHVの比)
-  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ)
+  bond_option/     # BondOption.xlsm固有の現物オプションの表UDF(計算の部品は common/jgb_option/)
+  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス)
 ```
 
 
@@ -159,6 +159,7 @@ engine/
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
+| `jgb_option/` | 国債店頭オプションの部品(BondOptionとPositionSheetが使う): `pricer.py`(先渡MD・期間・Black式・ITMバイライトのストライク)、`vol.py`(スワップションのボラの格子からの補間)、`hv.py`(現物とスワップのHVの比、Vol ratio)。式は[bond_option.md](bond_option.md) |
 | `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の履歴の単利、JCLに無い日は大和・みずほで補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`--jgb-history-from`のときは過去分も同じ取り方) |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
@@ -201,6 +202,7 @@ engine/
 | `test_bond_option.py` | 現物オプション(ローカルにサンプルがあればプライサーとの一致も) |
 | `test_bond_option_hv.py` | 現物オプションのVol ratio(現物とスワップのHVの比) |
 | `test_position.py` | ポジション・リスク管理 |
+| `test_position_bond_option.py` | ポジション・リスク管理の現物オプション(グリークス・ピラーとベガの格子への分解) |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)

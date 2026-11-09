@@ -74,6 +74,28 @@ def black_premium(option_type, forward: float, strike: float, price_vol: float, 
     return ql.blackFormula(parse_option_type(option_type), strike, forward, std_dev)
 
 
+class BlackGreeks(NamedTuple):
+    premium: float  # 額面100円あたりの円(F10)
+    delta: float  # ∂プレミアム/∂先渡clean(コールは0〜1、プットは−1〜0)
+    gamma: float  # ∂²プレミアム/∂先渡clean²(1円あたり)
+    vega: float  # 価格ボラ1%(%/年)あたりのプレミアムの変化(円)
+    theta: float  # 1営業日(T − 1/252、先渡・ボラは同じ)でのプレミアムの変化(円、ふつうマイナス)
+
+
+def black_greeks(option_type, forward: float, strike: float, price_vol: float, term: float) -> BlackGreeks:
+    """F10のBlack式(割引なし)のグリークス(ql.BlackCalculator)。引数は black_premium と同じ。
+    セータは期間だけを1営業日縮めた値との差(満期まで1営業日以内なら本源的価値との差)。"""
+    if price_vol < 0 or term <= 0:
+        raise ValueError(f"価格ボラは0以上、期間は正の値です: vol={price_vol}, T={term}")
+    kind = parse_option_type(option_type)
+    calc = ql.BlackCalculator(ql.PlainVanillaPayoff(kind, strike), forward, price_vol / 100 * term ** 0.5, 1.0)
+    premium = calc.value()
+    later = max(term - 1 / TRADING_DAYS, 0.0)
+    after = ql.blackFormula(kind, strike, forward, price_vol / 100 * later ** 0.5) if later > 0 else (
+        max(forward - strike, 0.0) if kind == ql.Option.Call else max(strike - forward, 0.0))
+    return BlackGreeks(premium, calc.deltaForward(), calc.gammaForward(), calc.vega(term) / 100, after - premium)
+
+
 def itm_buy_write_strike(forward: float, target: float, price_vol: float, term: float) -> float:
     """F11: ITMバイライト(債券を target=購入単価で買い、同時にコールを売る)のストライク。
     ストライク + コールのプレミアム = target になるKを解き、小数3桁で切り捨てる。

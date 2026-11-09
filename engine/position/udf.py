@@ -24,7 +24,7 @@ from engine.common import udf_common
 from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
 from engine.common.udf_common import _is_blank, _to_date
-from engine.position import bonds, intraday, trades
+from engine.position import bond_options, bonds, intraday, trades
 
 
 def _labels(values) -> Tuple[str, ...]:
@@ -65,6 +65,22 @@ def _date_or_period(value):
 def _db_key() -> Optional[int]:
     store = HistoricalStore()
     return store.db_path.stat().st_mtime_ns if store.exists() else None
+
+
+@xw.func
+def PosBaseDate(override=None):
+    """会社のリスクの基準日(引け値を読む日付)。overrideに日付があればそれ、空欄ならDBのカーブがある
+    今日より前の直近の日付(朝バッチが置いた昨日までの引け)。TODAY()を使わないため(volatileになる)、
+    空欄の解決をUDFで行う(BondOptionのValuationDateと同じ)。"""
+    d = _to_date(override)
+    if d is not None:
+        return d
+    today = udf_common._today()
+    with udf_common._historical_store() as store:
+        dates = [x for x in store.dates() if x < today]
+    if not dates:
+        raise ValueError("DBに今日より前のカーブがありません(朝バッチを流してください)")
+    return dates[-1]
 
 
 @xw.func
@@ -227,3 +243,116 @@ def PosIntradayGrid(trade_table, pillars, real_time_range, valuation_date=None, 
     columns = [sums["delta_" + intraday.OIS], sums["delta_" + intraday.BOND],
                sums["gamma_" + intraday.OIS], sums["gamma_" + intraday.BOND]]
     return [list(GRID_HEADER)] + [list(row) for row in zip(*columns)]
+
+
+# ---------------------------------------------------------------------------
+# 現物オプションの約定(BondOptシート。engine/position/bond_options.py)
+# ---------------------------------------------------------------------------
+
+BOND_RISK_HEADER = ["Delta", "Gamma"]
+
+# Vol ratio用のスワップレート(DBの更新時刻ごと)と、表UDFの直近の結果(入力とDBの更新時刻がキー)
+_bond_rates: Optional[bond_options.hv.CurveRates] = None
+_bond_cache: dict = {}
+
+
+def _base_date(value):
+    d = _to_date(value)
+    if d is None:
+        raise ValueError("基準日を入れてください(SetupのBase date)")
+    return d
+
+
+def _cached(name: str, key: tuple, compute):
+    full = (name, key, _db_key())
+    if full not in _bond_cache:
+        for k in [k for k in _bond_cache if k[0] == name]:
+            del _bond_cache[k]  # UDFごとに直近1件だけ保持
+        _bond_cache[full] = compute()
+    return _bond_cache[full]
+
+
+def _vol_rows(store, d) -> list:
+    return [[label, v] for label, v in store.vol_quotes().get(d, {}).items()]
+
+
+@xw.func
+@xw.arg("codes", ndim=1)
+@xw.arg("expiries", ndim=1)
+@xw.arg("settles", ndim=1)
+def PosBondOptMarket(codes, expiries, settles, base_date, repo, window) -> List[list]:
+    """現物オプションの行ごとの [Coupon, Maturity, Close yield, Close date, Spot price, Fwd clean, Fwd MD, Fwd DD,
+    Swaption vol, Vol ratio, T, Message](基準日の引け。BondOptionの OptionMarketTable・VolRatioTable と同じ計算)。
+    codes・expiries・settles: 約定の銘柄・行使日・行使後の受渡日(同じ行数の列)。repo: レポ(%)。window: HVの窓。"""
+    d = _base_date(base_date)
+    r = _optional_number(repo, "Repo")  # 空欄なら約定の行ごとにmessage(約定が無ければ何も出ない)
+
+    def compute():
+        global _bond_rates
+        with udf_common._historical_store() as store:
+            key = (str(store.db_path), store.db_path.stat().st_mtime_ns)
+            if _bond_rates is None or _bond_rates.db_key != key:
+                _bond_rates = bond_options.hv.CurveRates(store, key)
+            _bond_rates.store = store
+            return bond_options.market_rows(codes, expiries, settles, d, r, window, store, _bond_rates,
+                                            _vol_rows(store, d))
+
+    return _cached("market", (_freeze([codes, expiries, settles]), d, r, window), compute)
+
+
+@xw.func
+@xw.arg("types", ndim=1)
+@xw.arg("forwards", ndim=1)
+@xw.arg("strikes", ndim=1)
+@xw.arg("price_vols", ndim=1)
+@xw.arg("terms", ndim=1)
+def PosBondOptGreeks(types, forwards, strikes, price_vols, terms) -> List[list]:
+    """現物オプションの行ごとの [Premium, Delta, Gamma, Vega, Theta, Message](額面100円あたり、Black式・割引なし)。
+    Vega: 価格ボラ1%あたり。Theta: 1営業日。引数は同じ行数の列(Call/Put・先渡clean・ストライク・価格ボラ(%)・T)。"""
+    return bond_options.greeks_rows(types, forwards, strikes, price_vols, terms)
+
+
+@xw.func
+@xw.arg("codes", ndim=1)
+@xw.arg("faces", ndim=1)
+@xw.arg("price_gammas", ndim=1)
+@xw.arg("pillars", ndim=1)
+@xw.arg("real_time_range", ndim=2)
+def PosBondRiskGrid(codes, faces, price_gammas, pillars, real_time_range, base_date) -> List[list]:
+    """銘柄ごとのデルタ換算の額面(百万円)・価格のガンマ × 額面を、基準日のDBのカーブでピラーに分けた
+    見出し行 [Delta, Gamma] + pillarsの並びの行(百万円/bp、百万円/bp²)。価格のガンマが空欄なら0(現物)。
+    real_time_range: カーブに使うピラーのフラグの範囲(Positionシートと同じ)。DBに無い銘柄はエラーにする。"""
+    d = _base_date(base_date)
+    labels = _labels(pillars)
+
+    def compute():
+        curves = udf_common._market(real_time_range, d)
+        with udf_common._historical_store() as store:
+            deltas, gammas, errors = bond_options.pillar_risk(curves, store, codes, faces, price_gammas)
+        if errors:
+            raise ValueError(" / ".join(errors))
+        return [list(BOND_RISK_HEADER)] + [list(row) for row in zip(_deltas_row(deltas, labels),
+                                                                    _deltas_row(gammas, labels))]
+
+    return _cached("grid", (_freeze([codes, faces, price_gammas]), labels, _freeze(real_time_range), d), compute)
+
+
+@xw.func
+@xw.arg("vegas", ndim=1)
+@xw.arg("expiries", ndim=1)
+@xw.arg("maturities", ndim=1)
+@xw.arg("expiry_labels", ndim=1)
+@xw.arg("tail_labels", ndim=1)
+def PosBondOptVegaGrid(vegas, expiries, maturities, expiry_labels, tail_labels, base_date) -> List[list]:
+    """約定ごとのベガ(百万円/スワップションのvol 1bp)を、基準日のボラの格子の補間の重みで
+    行=expiry_labels × 列=tail_labels に分けたもの(Positionのベガの格子に足す)。"""
+    d = _base_date(base_date)
+
+    def compute():
+        with udf_common._historical_store() as store:
+            rows = _vol_rows(store, d)
+        return bond_options.vega_grid(rows, d, vegas, expiries, maturities,
+                                      _labels(expiry_labels), _labels(tail_labels))
+
+    return _cached("vega", (_freeze([vegas, expiries, maturities]), _labels(expiry_labels), _labels(tail_labels), d),
+                   compute)
