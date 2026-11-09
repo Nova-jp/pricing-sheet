@@ -49,7 +49,7 @@
   - **ブック同士を参照させない**(外部リンク・他のブックのシートや名前を使わない)。Pythonでも、
     `swap_pricing/`以外のパッケージは`common/`だけに依存させる。PricingSheetのUDFと同じ計算が要るときは
     `common/`の部品で組み、同じ値になることをテストで確かめる(例 `BojSpotForwards`)。
-  - 複数のブックが使う計算は`common/`に置く(例 PCAの推定`pca.py`・`history.py`はSwapAnalysisとPositionSheetが共有)。
+  - 複数のブックが使う計算は`common/`に置く(例 現物の規約`bond.py`はBondOption・SwapAnalysis・PositionSheetが共有)。
 - **UDFの共有部分(Excel境界の型変換・評価日の解決・`_market`)は`engine/common/udf_common.py`に置き、
   各UDFモジュールは`udf_common.xxx(...)`の属性参照で呼ぶ**。`from … import xxx`で名前をコピーすると呼び出し側で
   別の束縛になり、テストの`mock.patch.object(udf_common, "xxx", …)`が効かなくなる。

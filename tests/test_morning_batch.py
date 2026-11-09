@@ -260,9 +260,25 @@ class CurveBatchTest(unittest.TestCase):
         logs = []
         with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
             morning_batch.run(self.xlsx, self.config, self.db, log=logs.append, skip_jgb=True, skip_vol=False)
-        self.assertEqual(fetch.call_args.args[0],
+        self.assertEqual(fetch.call_args_list[0].args[0],
                          date(2026, 9, 26) - timedelta(days=morning_batch.PREMIUM_OVERLAP_DAYS))
         self.assertIn("ボラ計算: 新規/更新 0日 / 変更なし 2日", "\n".join(logs))
+
+    def test_new_grid_labels_are_fetched_from_the_first_date(self):
+        from datetime import timedelta
+        from unittest import mock
+
+        from engine.common.swaption_source import FIRST_DATE, labels
+
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()):
+            self._run(skip_vol=False)
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
+            self._run(skip_vol=False)
+        overlap = date(2026, 9, 26) - timedelta(days=morning_batch.PREMIUM_OVERLAP_DAYS)
+        self.assertEqual(len(fetch.call_args_list), 2)
+        start, end, names = fetch.call_args_list[1].args
+        self.assertEqual((start, end), (FIRST_DATE, overlap - timedelta(days=1)))
+        self.assertEqual(set(names), set(labels()) - {"1Yx10Y", "1Mx1Y"})  # 保存済みの銘柄は取り直さない
 
     def test_old_vol_rows_without_premiums_are_removed(self):
         from unittest import mock

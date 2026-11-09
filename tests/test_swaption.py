@@ -85,7 +85,11 @@ class SourceTest(unittest.TestCase):
     def test_ric_and_labels(self):
         self.assertEqual(swaption_source.ric("1Y", "10Y"), "JPY1Y10YTOATM=TRDT")
         labels = swaption_source.labels()
-        self.assertEqual(len(labels), 13 * 12)
+        self.assertEqual(len(labels), 13 * 13 - 2)
+        self.assertNotIn("15Yx30Y", labels)  # 満期+原資産が40年超
+        self.assertNotIn("20Yx30Y", labels)
+        self.assertIn("10Yx30Y", labels)
+        self.assertIn("20Yx20Y", labels)
         self.assertNotIn("2Mx1Y", labels)  # 2Mにヒストリカルは無い
         self.assertNotIn("6Yx10Y", labels)
 

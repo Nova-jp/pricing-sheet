@@ -3,8 +3,10 @@ LSEG(Python API、lseg.data)から Tradition のスワップションATMプレ�
 
 ■ 銘柄
   RIC は JPY{満期}{原資産}TOATM=TRDT(例 JPY1Y10YTOATM=TRDT。満期が先、"X"は入らない)。
-  ヒストリカルがあるのは 満期 1M,3M,6M,9M,1Y,2Y,3Y,4Y,5Y,7Y,10Y,15Y,20Y × 原資産 1Y〜10Y,15Y,20Y
-  (2022-01-12から)。満期2M・6Y・8Y・9Yは市場にクオートが無いので使わない(2Mのリアルタイムは2021-07-28で
+  ヒストリカルがあるのは 満期 1M,3M,6M,9M,1Y,2Y,3Y,4Y,5Y,7Y,10Y,15Y,20Y × 原資産 1Y〜10Y,15Y,20Y,30Y
+  (2022-01-12から。原資産30Yは2026-11-09に追加。満期25Y・30Yは配信が無い)。
+  満期+原資産が40年を超える銘柄(15Yx30Y・20Yx30Y)は格子に入れない(取引が無く、カーブ(40Yまで)の外挿に
+  頼るため。ユーザー指示、2026-11-09)。フィード(live_feed.toml の "vol")も同じ規則で除く。満期2M・6Y・8Y・9Yは市場にクオートが無いので使わない(2Mのリアルタイムは2021-07-28で
   止まった値、6Y・8Y・9Yは値が無い。2026-10-26に確認)。間の満期は読む側が補間する(ユーザー了承)。
 
 ■ 項目(engine/common/swaption.py の「プレミアムの定義」)
@@ -21,7 +23,7 @@ from datetime import date, datetime
 from typing import Dict, List, NamedTuple, Optional, Sequence
 
 EXPIRIES = ("1M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "4Y", "5Y", "7Y", "10Y", "15Y", "20Y")
-TENORS = ("1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y", "15Y", "20Y")
+TENORS = ("1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y", "15Y", "20Y", "30Y")
 PREMIUM_FIELD = "FWPM_OCPHM"
 STRIKE_FIELD = "ATM_STRIKE"
 FIRST_DATE = date(2022, 1, 12)  # Traditionのヒストリカルの最初の日
@@ -39,8 +41,22 @@ def ric(expiry: str, tenor: str) -> str:
     return f"JPY{expiry.upper()}{tenor.upper()}TOATM=TRDT"
 
 
+MAX_TOTAL_YEARS = 40  # 満期+原資産の上限(カーブの最長テナー)
+
+
+def _years(period: str) -> float:
+    p = period.strip().upper()
+    n = float(p[:-1])
+    return n / 12 if p.endswith("M") else n
+
+
+def in_grid(expiry: str, tenor: str) -> bool:
+    """格子に入れる銘柄か(満期+原資産が MAX_TOTAL_YEARS 以内)。"""
+    return _years(expiry) + _years(tenor) <= MAX_TOTAL_YEARS
+
+
 def labels() -> List[str]:
-    return [f"{e}x{t}" for e in EXPIRIES for t in TENORS]
+    return [f"{e}x{t}" for e in EXPIRIES for t in TENORS if in_grid(e, t)]
 
 
 def _as_float(value) -> Optional[float]:

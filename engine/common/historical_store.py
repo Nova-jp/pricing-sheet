@@ -572,6 +572,11 @@ class HistoricalStore:
                 result.setdefault(date.fromisoformat(d), {})[label] = p
         return result
 
+    def swaption_premium_labels(self) -> set:
+        """保存済みのプレミアムの銘柄(「満期x原資産」)。"""
+        with self._connect() as conn:
+            return {label for (label,) in conn.execute("SELECT DISTINCT label FROM swaption_premiums")}
+
     def swaption_premiums_last_date(self) -> Optional[date]:
         with self._connect() as conn:
             (d,) = conn.execute("SELECT MAX(as_of_date) FROM swaption_premiums").fetchone()

@@ -2,9 +2,8 @@
 ポジション・リスク管理(engine/position/)のリグレッションテスト。
 
 - 現物: ピラーごとのデルタの合計がパラレルのデルタ(全ピラーを同時に動かす)と一致し、ロングはマイナス
-- 日中の取引: スポットの10Y Payerのデルタは10Yのピラーだけに乗り、空行・エラーの行も行数を保つ
-- フォワードの換算行列: 各ピラーのパーレートは自分より先の区間で動かず、全区間の和はほぼ1。O/Nは独立
-- PCA: 使わないピラー(フラグ0)の主成分ベクトルは0の行で返る
+- 日中の取引: スポットの10Y Payerのデルタは10Yのピラーだけに乗る
+- 引け値: PosCloseRatesはピラーの並びで返し、O/NはTONA実績、DBに無いピラーは空欄
 - 日中の取引(OIS・現物)のデルタ・ガンマ: デルタは既存のスワップ・現物の計算と一致し、レシーブ・現物のロングは
   ガンマがプラス。グリッドはStatusで足し分け、エラーの行は行ごとのMessageに出して足さない
 
@@ -15,21 +14,19 @@
 import sys
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
-import numpy as np
 import QuantLib as ql
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import bond, market, udf_common  # noqa: E402
-from engine.common.conventions import CALENDAR  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
-from engine.position import bonds, forward, intraday, trades, udf  # noqa: E402
+from engine.position import bonds, intraday, trades, udf  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402
 
@@ -92,21 +89,6 @@ class BondRiskTest(unittest.TestCase):
         self.assertIsNone(out[3].close_date)  # overrideなら引け値の日付なし
         self.assertIsInstance(out[4], ValueError)
 
-    def test_udf_shape(self):
-        with mock.patch.object(udf_common, "_historical_store", lambda: self.store), \
-                mock.patch.object(udf_common, "_db_fixings", lambda: {}), \
-                mock.patch.object(udf_common, "_today", lambda: FRIDAY):
-            out = udf.PosBondRisk([["JB999", 100, None], [None, None, None], ["ZZ1", 1, None]],
-                                  PILLARS, _rt_range(), None)
-        self.assertEqual(out[0], udf.BOND_HEADER + PILLARS)
-        self.assertEqual(len(out), 4)
-        n = len(udf.BOND_HEADER)
-        self.assertAlmostEqual(out[1][udf.BOND_HEADER.index("DV01")], sum(out[1][n:]))
-        self.assertLess(abs(out[1][n]), abs(out[1][udf.BOND_HEADER.index("DV01")]) * 1e-3)  # O/Nはほぼ0
-        self.assertEqual(out[2], [""] * len(out[0]))
-        self.assertIn("ZZ1", out[3][udf.BOND_HEADER.index("Message")])
-
-
 class TradeRiskTest(unittest.TestCase):
     def setUp(self):
         self.curves = _curves()
@@ -119,80 +101,28 @@ class TradeRiskTest(unittest.TestCase):
         others = sum(abs(v) for k, v in risk.deltas.items() if k != "10y")
         self.assertLess(others, risk.deltas["10y"] * 1e-3)
 
-    def test_forward_start_and_udf_rows(self):
-        with mock.patch.object(udf_common, "_db_fixings", lambda: {}), \
-                mock.patch.object(udf_common, "_today", lambda: FRIDAY):
-            out = udf.PosTradeRisk([
-                ["What-if", "5Y", "5Y", 10_000, "rec", 2.5],
-                [None] * 6,
-                ["Done", None, None, 1, "PAY", None],
-                ["Done", None, "2Y", 1, "BUY", None],
-            ], PILLARS, _rt_range(), None)
-        self.assertEqual(out[0], udf.TRADE_HEADER + PILLARS)
-        deltas = dict(zip(PILLARS, out[1][len(udf.TRADE_HEADER):]))
-        self.assertLess(deltas["10Y"], 0)  # 5y5yのレシーブ: 10Yがマイナス、5Yがプラス
-        self.assertGreater(deltas["5Y"], 0)
-        self.assertEqual(out[2], [""] * len(out[0]))
-        msg = udf.TRADE_HEADER.index("Message")
-        self.assertIn("Tenor/End", out[3][msg])
-        self.assertIn("Pay/Rec", out[4][msg])
+class CloseRatesTest(unittest.TestCase):
+    def test_pillar_order_fixing_and_blanks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = HistoricalStore(Path(tmp) / "historical.db")
+            store.save_quotes({FRIDAY: {"12M": 1.5, "10y": 2.1}})
+            store.save_fixings({FRIDAY: 0.98})
+            with mock.patch.object(udf_common, "_historical_store", lambda: store):
+                out = udf.PosCloseRates(["O/N", "12M", "1W", "10Y"], FRIDAY)
+                self.assertEqual(out, [[0.98], [1.5], [""], [2.1]])  # 表記の大小文字は問わない。1WはDBに無い
+                with self.assertRaises(ValueError):
+                    udf.PosCloseRates(["10Y"], date(2026, 9, 28))  # その日の引けが無い
 
 
-class ForwardJacobianTest(unittest.TestCase):
-    def test_structure(self):
-        jac = forward.forward_jacobian(_curves(), PILLARS)
-        j = np.array(jac.matrix)
-        self.assertEqual(jac.segments[:3], ["O/N", "Spot-1W", "1W-1M"])
-        self.assertEqual(jac.segments[-1], "35Y-40Y")
-        on = PILLARS.index("O/N")
-        expected = np.zeros(len(PILLARS))
-        expected[on] = 1.0
-        np.testing.assert_array_equal(j[on], expected)  # O/Nは自分自身の区間だけ
-        np.testing.assert_array_equal(j[:, on], expected)
-        for row, p in enumerate(PILLARS):
-            if row == on:
-                continue
-            self.assertTrue(np.all(np.abs(j[row, row + 1:]) < 1e-10), p)  # 満期より先の区間では動かない
-            self.assertAlmostEqual(j[row].sum(), 1.0, delta=0.05, msg=p)
-            self.assertTrue(np.all(j[row, 1:row + 1] > 0), p)
-
-    def test_forward_delta_of_a_spot_swap_covers_its_life(self):
-        curves = _curves()
-        jac = forward.forward_jacobian(curves, PILLARS)
-        risk = trades.trade_risks(curves, [trades.Trade(None, "10Y", 10_000.0, "PAY")])[0]
-        d = np.array([risk.deltas.get(p.lower(), 0.0) for p in PILLARS])
-        fwd = np.array(jac.matrix).T @ d
-        ten = PILLARS.index("10Y")
-        self.assertTrue(np.all(fwd[1:ten + 1] > 0))
-        self.assertTrue(np.all(np.abs(fwd[ten + 1:]) < 1e-9))
-        self.assertAlmostEqual(fwd.sum(), d.sum(), delta=abs(d.sum()) * 0.03)
-
-
-class PcaUdfTest(unittest.TestCase):
-    def test_unused_pillars_get_zero_rows(self):
-        rng = np.random.default_rng(0)
-        labels = ["O/N", "1Y", "5Y", "10Y"]
-        days, d = [], date(2026, 1, 5)
-        while len(days) < 60:
-            if CALENDAR.isBusinessDay(ql.Date.from_date(d)):
-                days.append(d)
-            d += timedelta(days=1)
-        level = np.cumsum(rng.normal(0, 0.02, size=(len(days), 3)), axis=0) + 1.0
-        history = {day: {"1Y": v[0], "5Y": v[1], "10Y": v[2]} for day, v in zip(days, level)}
-        with mock.patch.object(udf, "load_history", return_value=history), \
-                mock.patch.object(udf, "_db_key", return_value=1):
-            udf._pca_cached.cache_clear()
-            loadings = udf.PosPcaLoadings(labels, [0, 1, 1, 1], 40, days[-1])
-            eigen = udf.PosPcaEigen(labels, [0, 1, 1, 1], 40, days[-1])
-            window = dict(udf.PosPcaWindow(labels, [0, 1, 1, 1], 40, days[-1]))
-        self.assertEqual(loadings[0], ["Pillar", "PC1", "PC2", "PC3"])
-        self.assertEqual(loadings[1], ["O/N", 0.0, 0.0, 0.0])
-        v = np.array([r[1:] for r in loadings[2:]])
-        np.testing.assert_allclose(v.T @ v, np.eye(3), atol=1e-12)
-        self.assertGreater(eigen[1][1], eigen[2][1])
-        self.assertEqual(window["Samples"], 40)
-        self.assertEqual(window["End"], days[-1])
-
+    def test_close_vols_grid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = HistoricalStore(Path(tmp) / "historical.db")
+            store.save_vol_quotes({FRIDAY: {"1Mx1Y": 30.0, "1Yx10Y": 65.5}})
+            with mock.patch.object(udf_common, "_historical_store", lambda: store):
+                out = udf.PosCloseVols(["1M", "1Y"], ["1Y", "10Y"], FRIDAY)
+                self.assertEqual(out, [[30.0, ""], ["", 65.5]])  # 行=満期、列=原資産。無い点は空欄
+                with self.assertRaises(ValueError):
+                    udf.PosCloseVols(["1M"], ["1Y"], date(2026, 9, 28))
 
 class IntradayTest(unittest.TestCase):
     def setUp(self):
