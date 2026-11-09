@@ -1,7 +1,8 @@
 """
 ポジション・リスク管理(engine/position/)のリグレッションテスト。
 
-- 現物: ピラーごとのデルタの合計がパラレルのデルタ(全ピラーを同時に動かす)と一致し、ロングはマイナス
+- 現物: 修正デュレーション × 単価が複利1bpの単価の変化と一致し、ロングはデルタがマイナス・ガンマがプラス。
+  満期が入る区間の長いほうのピラーに全部載る。Raw_JGBのInstrument IDから銘柄を引き、償還日を照合する
 - 日中の取引: スポットの10Y Payerのデルタは10Yのピラーだけに乗る
 - 引け値: PosCloseRatesはピラーの並びで返し、O/NはTONA実績、DBに無いピラーは空欄
 - 日中の取引(OIS・現物)のデルタ・ガンマ: デルタは既存のスワップ・現物の計算と一致し、レシーブ・現物のロングは
@@ -48,46 +49,94 @@ class BondRiskTest(unittest.TestCase):
         self.store.save_jgb_bonds([
             JgbRecord("JB999", "JP09990067=", "XX", 1.7, date(2035, 9, 20)),
             JgbRecord("JN999", "JP09990042=", "YY", 0.5, date(2028, 3, 1)),  # 引け値なし
+            JgbRecord("JX23", "JP00230068=", "ZZ", 2.5, date(2036, 6, 20)),
         ])
-        self.store.save_jgb_closes([JgbClose(FRIDAY, "JB999", 1.700)])
-        self.curves = _curves()
+        self.store.save_jgb_closes([JgbClose(FRIDAY, "JB999", 1.700), JgbClose(FRIDAY, "JX23", 2.815)])
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def _risks(self, positions):
         with self.store:
-            return bonds.bond_risks(self.curves, self.store, positions)
+            return bonds.bond_risks(self.store, positions, FRIDAY)
 
-    def test_bucket_sum_matches_parallel_and_long_is_negative(self):
+    def test_duration_delta_is_compound_bp_price_change(self):
         risk = self._risks([bonds.BondPosition("jb999", 100.0)])[0]
         self.assertEqual(risk.code, "JB999")
         self.assertEqual(risk.simple_yield, 1.7)
-        total = sum(risk.deltas.values())
-        self.assertLess(total, 0)
-        # パラレル: 全ピラーを同時に動かしたカーブで、Zスプレッドを固定して評価し直す
+        self.assertLess(risk.delta, 0)  # ロングはマイナス
+        self.assertGreater(risk.gamma, 0)
+        # 複利を動かして単価を出し直した差(額面100円あたり)と一致する
         jgb = bond.Jgb(1.7, date(2035, 9, 20))
         settle = ql.Date.from_date(bond.settlement_date(FRIDAY, 1))
-        qb = bond.ql_bond(jgb)
-        z = risk.z_spread_bp / 1e4
-        base = bonds._clean_price(qb, self.curves.base.curve.currentLink(), z, settle)
-        bumped = bonds._clean_price(qb, self.curves.parallel().curve.currentLink(), z, settle)
-        parallel = (bumped - base) / 100.0 * 100.0 / market.BUMP_BP
-        self.assertAlmostEqual(total, parallel, delta=abs(parallel) * 1e-3)
-        # 償還(2035年9月)の前後のピラーに集中する
-        top = sorted(risk.deltas, key=lambda k: abs(risk.deltas[k]), reverse=True)[:2]
-        self.assertEqual(set(top), {"9y", "10y"})
+        qb = bond.ql_bond(jgb, "no_leap")
+
+        def dirty(y):
+            rate = ql.InterestRate(y / 100, bond.NO_LEAP, ql.Compounded, ql.Semiannual)
+            return ql.BondFunctions.cleanPrice(qb, rate, settle) + ql.BondFunctions.accruedAmount(qb, settle)
+
+        y = risk.compound_yield
+        self.assertAlmostEqual(dirty(y), risk.dirty, places=9)
+        self.assertAlmostEqual(dirty(y + 0.005) - dirty(y - 0.005), risk.dp, delta=abs(risk.dp) * 1e-6)
+        self.assertAlmostEqual(dirty(y + 0.01) - 2 * dirty(y) + dirty(y - 0.01), risk.d2p, delta=risk.d2p * 1e-3)
+        self.assertAlmostEqual(risk.delta, risk.dp)  # 額面100百万円 → dP × 100 / 100
+        self.assertAlmostEqual(risk.dp, -risk.modified_duration * risk.dirty * 1e-4)
 
     def test_rows_keep_their_place(self):
         out = self._risks([
             bonds.BondPosition("JB999", -50.0), None, bonds.BondPosition("JN999", 10.0),
             bonds.BondPosition("JN999", 10.0, yield_override=0.9), bonds.BondPosition("ZZ1", 1.0),
         ])
-        self.assertGreater(sum(out[0].deltas.values()), 0)  # ショートはプラス
+        self.assertGreater(out[0].delta, 0)  # ショートはプラス
         self.assertIsNone(out[1])
         self.assertIsInstance(out[2], ValueError)  # 引け値なし
         self.assertIsNone(out[3].close_date)  # overrideなら引け値の日付なし
         self.assertIsInstance(out[4], ValueError)
+
+    def test_bucket_is_longer_pillar_of_the_interval(self):
+        spot = date(2026, 9, 29)
+        pillars = bonds.pillar_dates(["O/N", "1W", "12M", "24M", "36M", "40Y", "RD"], spot)
+        self.assertEqual([label for _, label in pillars], ["1W", "12M", "24M", "36M", "40Y"])  # O/N・読めない表記は除く
+        self.assertEqual(bonds.bucket(date(2029, 5, 1), pillars), "36M")  # 残存2.6年 → 2Yと3Yの間 → 3Y
+        self.assertEqual(bonds.bucket(date(2028, 9, 29), pillars), "24M")  # ピラーの日付ちょうど
+        self.assertEqual(bonds.bucket(date(2026, 10, 1), pillars), "1W")
+        self.assertEqual(bonds.bucket(date(2070, 3, 20), pillars), "40Y")  # 最も長いピラーより先
+
+    def test_instrument_id(self):
+        self.assertEqual(bonds.jgb_code("0-02-0023-00068"), "JX23")
+        self.assertEqual(bonds.jgb_code(" 0-02-0380-00067 "), "JB380")
+        for bad in ("JX23", "0-02-0023-00099", "", None):
+            with self.assertRaises(ValueError):
+                bonds.jgb_code(bad)
+
+    def test_raw_jgb_udfs(self):
+        ids = ["0-02-0023-00068", "0-02-0999-00067", None, "0-02-0023-00068", "0-02-0999-00067", "bad"]
+        maturities = [49846, date(2035, 9, 20), None, date(2036, 6, 21), None, None]  # 49846 = 2036-06-20
+        faces = [500, 100, None, 1, 0, 1]
+        yields = ["", 1.8, None, None, None, None]
+        with mock.patch.object(udf_common, "_historical_store", lambda: self.store):
+            udf._bond_cache.clear()
+            rows = udf.PosJgbRisk(ids, maturities, faces, yields, PILLARS, FRIDAY)
+            grid = udf.PosJgbGrid(ids, maturities, faces, yields, PILLARS, FRIDAY)
+        col = {name: i for i, name in enumerate(udf.JGB_HEADER)}
+        self.assertEqual(rows[0], udf.JGB_HEADER)
+        self.assertEqual(len(rows), len(ids) + 1)
+        self.assertEqual(rows[1][col["Code"]], "JX23")
+        self.assertEqual(rows[1][col["Yield"]], 2.815)  # 空欄ならDBの引け値
+        self.assertEqual(rows[1][col["Pillar"]], "10Y")  # 残存9.7年 → 9Yと10Yの間
+        self.assertEqual(rows[2][col["Yield"]], 1.8)
+        self.assertEqual(rows[2][col["Pillar"]], "9Y")
+        self.assertEqual(rows[3], [""] * len(udf.JGB_HEADER))
+        self.assertIn("償還日", rows[4][col["Message"]])
+        self.assertEqual(rows[5], [""] * len(udf.JGB_HEADER))  # 額面0
+        self.assertIn("Instrument ID", rows[6][col["Message"]])
+        self.assertEqual(grid[0], udf.JGB_GRID_HEADER)
+        self.assertEqual(len(grid), len(PILLARS) + 1)
+        by_pillar = dict(zip(PILLARS, grid[1:]))
+        self.assertAlmostEqual(by_pillar["10Y"][0], rows[1][col["Delta"]])
+        self.assertAlmostEqual(by_pillar["9Y"][1], rows[2][col["Gamma"]])
+        self.assertAlmostEqual(sum(g[0] for g in grid[1:]), rows[1][col["Delta"]] + rows[2][col["Delta"]])
+
 
 class TradeRiskTest(unittest.TestCase):
     def setUp(self):
@@ -169,17 +218,18 @@ class IntradayTest(unittest.TestCase):
                 intraday.IntradayTrade(intraday.DONE, intraday.OIS, swap=swap),
                 intraday.IntradayTrade(intraday.DONE, intraday.BOND, bond=bond_pos),
             ])
-            ref_bond = bonds.bond_risks(self.curves, self.store, [bond_pos])[0]
+            ref_bond = bonds.bond_risk(self.store, bond_pos, FRIDAY)
         ref_swap = trades.trade_risks(self.curves, [swap])[0]
-        for got, ref in ((out[0].deltas, ref_swap.deltas), (out[1].deltas, ref_bond.deltas)):
-            self.assertEqual(set(got), set(ref))
-            for k in ref:
-                self.assertAlmostEqual(got[k], ref[k], delta=1e-6, msg=k)  # ブートストラップの解き直しの誤差(1e-8程度)
+        self.assertEqual(set(out[0].deltas), set(ref_swap.deltas))
+        for k in ref_swap.deltas:
+            self.assertAlmostEqual(out[0].deltas[k], ref_swap.deltas[k], delta=1e-6, msg=k)  # 解き直しの誤差(1e-8程度)
+        self.assertEqual(out[1].deltas, {"9y": ref_bond.delta})  # 現物は満期の区間(8Y〜9Y)の9Yだけ
+        self.assertEqual(out[1].gammas, {"9y": ref_bond.gamma})
         self.assertAlmostEqual(out[0].rate, ref_swap.fix_rate)
         self.assertEqual(out[1].rate, 1.8)
         self.assertIsNone(out[1].pv)
         self.assertGreater(out[0].gammas["10y"], 0)  # レシーブはガンマがプラス
-        self.assertGreater(sum(out[1].gammas.values()), 0)  # 現物のロングもプラス
+        self.assertGreater(out[1].gammas["9y"], 0)  # 現物のロングもプラス
         # 10Yのスワップのガンマ: 1bpの中心差分(スワップは補間の影響を受けない)とほぼ一致
         params = trades.trade_params(self.curves, swap)
         pv = [0.0, 0.0]

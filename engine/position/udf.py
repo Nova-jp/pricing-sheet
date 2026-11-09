@@ -2,7 +2,8 @@
 ポジション・リスク管理のブック(PositionSheet.xlsm)のUDF。
 
 ■ 設計方針(他のブックと同じ)
-  - UDFにするのは、QuantLibが要る日中の取引のデルタ・ガンマと、DBの引け値の読み出しだけ。
+  - UDFにするのは、QuantLibが要る日中の取引・現物(Raw_JGB)・現物オプションのデルタ・ガンマと、DBの引け値の
+    読み出しだけ。
     会社のリスクの抽出・今のデルタ(SOD + ガンマ × Move + 今日の取引)・合計はExcelの数式(四則演算)で計算する。
   - 計算方法は「手動」+ Shift+F9。UDFは非volatile。TODAY()は引数に使わない(評価日の空欄=今日)。
   - 配列はそのまま返し、Excelの動的配列のスピルに任せる(@xw.ret(expand=...)は使わない)。
@@ -21,6 +22,7 @@ from typing import List, Optional, Tuple
 import xlwings as xw
 
 from engine.common import udf_common
+from engine.common.curve import spot_date_for
 from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
 from engine.common.udf_common import _is_blank, _to_date
@@ -243,6 +245,104 @@ def PosIntradayGrid(trade_table, pillars, real_time_range, valuation_date=None, 
     columns = [sums["delta_" + intraday.OIS], sums["delta_" + intraday.BOND],
                sums["gamma_" + intraday.OIS], sums["gamma_" + intraday.BOND]]
     return [list(GRID_HEADER)] + [list(row) for row in zip(*columns)]
+
+
+# ---------------------------------------------------------------------------
+# 現物のポジション(会社のファイルのRaw_JGB。engine/position/bonds.py)
+# ---------------------------------------------------------------------------
+
+JGB_HEADER = ["Code", "Coupon", "Maturity", "Yield", "Compound", "MD", "Convexity", "Pillar", "Delta", "Gamma",
+              "Message"]
+JGB_GRID_HEADER = ["Delta", "Gamma"]
+
+
+def _column(values) -> list:
+    if values is None:
+        return []
+    return list(values) if isinstance(values, (list, tuple)) else [values]
+
+
+def _jgb_rows(ids, maturities, faces, yields, pillars, base_date) -> List[object]:
+    """Raw_JGBの行ごとの (BondRisk, ピラー) / 例外 / None(IDか額面が空欄・額面0の行)。"""
+    d = _base_date(base_date)
+    ids, maturities, faces, yields = (_column(v) for v in (ids, maturities, faces, yields))
+    n = len(ids)
+    for name, col in (("Maturity", maturities), ("Nominal", faces), ("Yield", yields)):
+        if col and len(col) != n:
+            raise ValueError(f"Instrument IDと{name}の行数が違います({n}行と{len(col)}行)")
+    labels = _labels(pillars)
+
+    def compute():
+        pillar_list = bonds.pillar_dates(labels, spot_date_for(d))
+        out: List[object] = []
+        with udf_common._historical_store() as store:
+            for i in range(n):
+                face = faces[i] if faces else None
+                if _is_blank(ids[i]) or _is_blank(face) or face == 0:
+                    out.append(None)
+                    continue
+                try:
+                    code = bonds.jgb_code(ids[i])
+                    y = _optional_number(yields[i], "Yield") if yields else None
+                    r = bonds.bond_risk(store, bonds.BondPosition(code, _number(face, "Nominal"), y), d)
+                    m = _to_date(maturities[i]) if maturities and not _is_blank(maturities[i]) else None
+                    if m is not None and m != r.maturity:
+                        raise ValueError(f"{code}の償還日がDB({r.maturity})と違います: {m}")
+                    out.append((r, bonds.bucket(r.maturity, pillar_list)))
+                except Exception as e:  # 行ごとにメッセージを出して他の行は続ける
+                    out.append(e)
+        return out
+
+    return _cached("jgb", (_freeze([ids, maturities, faces, yields]), labels, d), compute)
+
+
+@xw.func
+@xw.arg("ids", ndim=1)
+@xw.arg("maturities", ndim=1)
+@xw.arg("faces", ndim=1)
+@xw.arg("yields", ndim=1)
+@xw.arg("pillars", ndim=1)
+def PosJgbRisk(ids, maturities, faces, yields, pillars, base_date) -> List[list]:
+    """
+    会社のファイルの現物(Raw_JGB)の行ごとのデルタ・ガンマ(修正デュレーション・コンベクシティ。bonds.py)。
+    ids: Instrument ID(0-02-回号4桁-000種別)。maturities: Maturity(DBの償還日と照合、空欄なら照合しない)。
+    faces: 額面(百万円、Yesterday)。yields: 単利(%、Closing Mark S Yld。空欄ならDBの基準日の引け値)。
+    pillars: グリッドのピラー(満期が入る区間の長いほうに載せる)。base_date: 会社のリスクの基準日。
+    返り値: 見出し行 [Code, Coupon, Maturity, Yield, Compound, MD, Convexity, Pillar, Delta, Gamma, Message] +
+      入力と同じ行数(IDか額面が空欄・額面0の行は空欄)。Delta: 百万円/bp、Gamma: 百万円/bp²。
+    """
+    out = [list(JGB_HEADER)]
+    for row in _jgb_rows(ids, maturities, faces, yields, pillars, base_date):
+        if row is None:
+            out.append(_blank_row(len(JGB_HEADER)))
+        elif isinstance(row, Exception):
+            out.append(_blank_row(len(JGB_HEADER) - 1) + [str(row)])
+        else:
+            r, label = row
+            out.append([r.code, r.coupon, r.maturity, r.simple_yield, r.compound_yield, r.modified_duration,
+                        r.convexity, label, r.delta, r.gamma, ""])
+    return out
+
+
+@xw.func
+@xw.arg("ids", ndim=1)
+@xw.arg("maturities", ndim=1)
+@xw.arg("faces", ndim=1)
+@xw.arg("yields", ndim=1)
+@xw.arg("pillars", ndim=1)
+def PosJgbGrid(ids, maturities, faces, yields, pillars, base_date) -> List[list]:
+    """Raw_JGBのデルタ・ガンマのピラーごとの合計。見出し行 [Delta, Gamma] + pillarsの並びの行。
+    引数はPosJgbRiskと同じ。エラーの行は足さない(PosJgbRiskのMessageで確かめる)。"""
+    labels = _labels(pillars)
+    deltas: dict = {}
+    gammas: dict = {}
+    for row in _jgb_rows(ids, maturities, faces, yields, pillars, base_date):
+        if isinstance(row, tuple):
+            r, label = row
+            key = label.lower()
+            deltas[key] = deltas.get(key, 0.0) + r.delta
+            gammas[key] = gammas.get(key, 0.0) + r.gamma
+    return [list(JGB_GRID_HEADER)] + [list(x) for x in zip(_deltas_row(deltas, labels), _deltas_row(gammas, labels))]
 
 
 # ---------------------------------------------------------------------------

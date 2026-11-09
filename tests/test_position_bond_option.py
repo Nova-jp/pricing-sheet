@@ -5,7 +5,8 @@ PositionSheetの現物オプションのグリークス(engine/position/bond_opt
   セータは期間を1営業日縮めた差
 - 市場の表: 先渡・MD・ボラの補間・Vol ratio・Tが部品を直接呼んだ値と一致。空欄の行は空欄、満期済み・
   DBに無い銘柄はmessageだけ
-- ピラーへの分解: ガンマが空欄なら現物のキーレート・デルタ(bonds.py)と一致し、ガンマの項は G × dP² / 100
+- ピラーへの分解: ガンマが空欄なら現物のデルタ・ガンマ(bonds.py、修正デュレーション)と一致し、満期の区間の
+  ピラーだけに載る。ガンマの項は G × dP² / 100
 - ベガの格子: 合計は約定ごとのベガの合計と一致し、格子に無い原資産(6Y)は前後(5Y・7Y)に分かれる
 
 実行方法:
@@ -115,16 +116,15 @@ class PillarRiskTest(unittest.TestCase):
 
     def test_delta_matches_bond_and_gamma_term(self):
         with self.store:
-            plain = bonds.bond_risks(self.curves, self.store, [bonds.BondPosition("JB999", 300.0)])[0]
+            plain = bonds.bond_risk(self.store, bonds.BondPosition("JB999", 300.0), FRIDAY)
             d0, g0, e0 = bond_options.pillar_risk(self.curves, self.store, ["JB999", "JB999"], [100.0, 200.0], ["", ""])
             d1, g1, _ = bond_options.pillar_risk(self.curves, self.store, ["JB999"], [300.0], [50.0])
-            unit, _, _ = bond_options.pillar_risk(self.curves, self.store, ["JB999"], [100.0], [""])
         self.assertEqual(e0, [])
-        for label, v in plain.deltas.items():
-            self.assertAlmostEqual(d0[label], v, places=7)  # 銘柄ごとに足してから分ける(差分の丸めの誤差 1e-9程度)
-            self.assertAlmostEqual(d1[label], v, places=7)
-            dp = unit[label]  # 額面100百万円のデルタ = dP(円/bp)
-            self.assertAlmostEqual(g1[label] - g0[label], 50.0 * dp * dp / 100.0, places=7)  # 2階の差分の誤差 1e-9程度
+        self.assertEqual(set(d0), {"9y"})  # 償還2035-09-20 → 8Yと9Yの間 → 9Y
+        self.assertAlmostEqual(d0["9y"], plain.delta, places=10)
+        self.assertAlmostEqual(g0["9y"], plain.gamma, places=10)
+        self.assertAlmostEqual(d1["9y"], plain.delta, places=10)
+        self.assertAlmostEqual(g1["9y"] - g0["9y"], 50.0 * plain.dp * plain.dp / 100.0, places=10)
         with self.store:
             _, _, errors = bond_options.pillar_risk(self.curves, self.store, ["JX000"], [1.0], [""])
         self.assertIn("JX000", errors[0])
