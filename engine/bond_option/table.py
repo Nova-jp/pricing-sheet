@@ -12,6 +12,7 @@ Excelの式のまま残す。
   market_table      : [先渡複利, 先渡DD, 先渡MD, ノーマルvol(補間), message](F7・F8・ボラの補間)
   itm_buy_write_table: [ストライク, message](F11。Strike basisが"ITMBW"の行だけ)
   premium_table     : [プレミアム(額面100円あたりの円), message](F10)
+  vol_ratio_table   : [現物のHV, スワップのHV, 比, 変化の数, 窓の最初の日付, 最後の日付, message](hv.py)
 
 ■ エラー
   1行の入力の誤りで表全体をエラーにしない。計算できなかった列は空欄にし、理由をmessage列に出す
@@ -22,7 +23,7 @@ import datetime
 from datetime import date
 from typing import Callable, List, Sequence
 
-from engine.bond_option import pricer, vol
+from engine.bond_option import hv, pricer, vol
 from engine.common import bond, udf_common
 
 ITMBW = "ITMBW"
@@ -129,3 +130,41 @@ def premium_table(
         ), errors, "Premium")
         out.append([premium, " / ".join(errors)])
     return out
+
+
+def vol_ratio_table(
+    bonds: Sequence, coupons: Sequence, maturities: Sequence, closes_by_code, rates: "hv.CurveRates",
+    trade_date: date, window,
+) -> List[list]:
+    """行ごとの [現物のHV(bp/日), スワップのHV(bp/日), 比, 変化の数, 窓の最初の日付, 最後の日付, message]。
+    closes_by_code: {銘柄コード: {日付: 引け値の単利}}。銘柄が空欄の行は空欄。"""
+    blank = [""] * 7
+    try:
+        n = hv.parse_window(window)
+    except ValueError as e:
+        return [blank if udf_common._is_blank(code) else [""] * 6 + [f"HV: {e}"] for code in _column(bonds)]
+    parsed = []
+    for code, coupon, maturity in _rows(bonds, coupons, maturities):
+        if udf_common._is_blank(code):
+            parsed.append(None)
+            continue
+        errors: List[str] = []
+        jgb = _try(lambda: bond.Jgb(as_number(coupon, "利率"), as_date(maturity, "償還日")), errors, "HV")
+        parsed.append((str(code).strip().upper(), jgb, errors))
+    rates.fill(hv.needed(rates.curve_dates, closes_by_code,
+                         [(c, j) for c, j, e in filter(None, parsed) if not e], trade_date, n))
+    out = []
+    for item in parsed:
+        if item is None:
+            out.append(blank)
+            continue
+        code, jgb, errors = item
+        r = "" if errors else _try(
+            lambda: hv.vol_ratio(jgb, closes_by_code.get(code, {}), rates, trade_date, n), errors, "HV")
+        row = [r.bond_hv, r.swap_hv, r.ratio, r.changes, r.first, r.last] if r != "" else [""] * 6
+        out.append(row + [" / ".join(errors)])
+    return out
+
+
+def _column(values) -> list:
+    return list(values) if isinstance(values, (list, tuple)) else [values]

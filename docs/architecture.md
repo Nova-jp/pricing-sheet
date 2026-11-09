@@ -135,7 +135,7 @@ engine/
   fwd/             # SwapAnalysis.xlsm固有のFwd(NyMy)の監視とヒストリカル(3方式)
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
-  bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間)
+  bond_option/     # BondOption.xlsm固有の現物オプション(先渡のデュレーション・Black式・ITMバイライト・ボラの補間・現物とスワップのHVの比)
   position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ)
 ```
 
@@ -199,6 +199,7 @@ engine/
 | `test_swaption.py`・`test_swaption_forward.py` | スワップションのボラの換算・原資産のFwd |
 | `test_pca.py`・`test_vol.py`・`test_fwd.py`・`test_fut.py`・`test_jgb_futures.py`・`test_meeting_curve.py` | 分析ブック(PCA・ボラ・Fwd・先物・BOJ) |
 | `test_bond_option.py` | 現物オプション(ローカルにサンプルがあればプライサーとの一致も) |
+| `test_bond_option_hv.py` | 現物オプションのVol ratio(現物とスワップのHVの比) |
 | `test_position.py` | ポジション・リスク管理 |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |
 

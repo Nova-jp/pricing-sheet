@@ -142,7 +142,23 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
   (標準偏差 = σy × MD × √営業日数)。
 - 補間の方式(満期方向は分散、テナー方向はvolで線形、格子の外は平ら)はユーザー了承。bp/日への換算(/√252)はユーザー指示で、
   あとで変える可能性がある。
-- オーバーライド: Price vol(%)> bp vol(bp/日)> ノーマルvol(bp/年)> 補間値の順に使う(2つ以上入れたら優先の高い方)。
+- **現物への調整(Vol ratio、ユーザー指示)**: 補間値はスワップのボラなので、現物のボラは
+  補間値 × Vol ratio(= 現物のHV ÷ 同じ満期のスワップのHV)にする。比は表UDF`VolRatioTable`(`engine/bond_option/hv.py`)が
+  行ごとに計算し、「override列 │ 使う値」の組で手で上書きできる(空欄ならUDFの比)。
+  - 現物: その行の銘柄のDBの引け値(JCLの単利)を、単利 → 単価(F1、起点 = その日のT+1)→ 半年複利(切り捨てない)に
+    換えた日次変化。価格ボラは複利ベースのMDを掛けるので複利でそろえる。
+  - スワップ: 起算日 = その日のスポット(T+2)、満期日 = 銘柄の償還日のOISのパーレートを、その日のDBのカーブで評価した
+    日次変化。現物もスワップも同じ満期日に向かって短くなる(ロールダウンは両方に同じように入る)のでそのまま比べる(ユーザー決定)。
+  - 窓: 取引日以前でカーブと引け値の両方がある直近の`HvWindow`+1日(`HvWindow`個の日次変化、全行共通)。
+    DBは昨日までの引けなので今日の動きは入らない。朝バッチを流していない日は窓が古くなる(明細のHV from・HV toで分かる)。
+    日数が足りない銘柄(新発債など)は比を#N/Aにし、理由をMessage列に出す(比を手で入れれば計算される)。
+  - HV: 日次変化(bp)の2乗平均の平方根(平均を引かない。分析ブックのVolHVと同じ)、bp/日。
+  - 回帰のβ(= 相関 × σ現物/σスワップ)は使わない。βはヘッジ比率で、現物だけの動き(ASWの変化)を落とすため
+    現物のボラを低めに見積もる。
+  - 速さ: 100行×20日で約1.5秒(カーブの読み込みとスワップの評価)。日付×満期日のレートと行ごとの結果をDBの
+    更新時刻ごとに覚えるので、入力を変えなければF9で計算し直さない。
+- オーバーライド: Price vol(%)> bp vol(bp/日)> ノーマルvol(bp/年)> 補間値 × Vol ratio の順に使う(2つ以上入れたら
+  優先の高い方。Vol ratioは補間値にだけ掛け、ボラのoverrideは現物のボラとしてそのまま使う)。
   3つとも「override列 │ 使う値」の組で、上書きした値から残りの2つを逆算して表示する
   (bp vol = 価格ボラ × 100 /(√252 × MD)、ノーマルvol = bp vol × √VolDays)。
 
@@ -155,8 +171,8 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
   RICは`JP{回号4桁}00{種別}=`(種別 42/45/67/69/68/54)。
 - 引け値は評価日以前で直近のもの(日付も表示する)。
 - 引け値の過去分は`--jgb-history-from`で取る(初回・抜けた日があるときに1回)。10年債は指定した日から(国債先物用)、
-  他の年限はスワップと同じ期間(DBのスワップのMidの最初の日付から。古すぎる分は取らない、ユーザー指示)。
-  あとは毎朝の取得(直近10日分)から溜まる。
+  他の年限はスワップと同じ期間(DBのスワップのMidの最初の日付から。Vol ratioの窓に要るのは直近だけなので、古すぎる分は
+  取らない、ユーザー指示)。あとは毎朝の取得(直近10日分)から溜まる。
 
 ## UDF(`engine/bond_option/udf.py`、`BondOption.py`が再エクスポート)
 
@@ -168,13 +184,14 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
 | `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, ノーマルvol(補間), message] |
 | `ItmBuyWriteTable(Strike basis, 先渡clean, スポット単価, 価格ボラ, T)` | 全行の [F11のK, message](Strike basisが"ITMBW"の行だけ) |
 | `PremiumTable(種類, 先渡clean, K, 価格ボラ, T)` | 全行の [プレミアム(額面100円あたりの円), message] |
+| `VolRatioTable(銘柄, 利率, 償還日, 取引日, 窓)` | 全行の [現物のHV, スワップのHV(bp/日), 比, 日次変化の数, 窓の最初の日付, 最後の日付, message] |
 | `JgbForwardRisk`・`SwaptionVol`・`BlackPremium`・`ItmBuyWriteStrike` | 上の表UDFの1行用(単独の確認用。シートでは使わない) |
 
 **表UDF(ユーザー指示)**: 1行ごとにUDFを置くと、再計算の時間がUDFのセルの数で決まる(1セルごとに
-Excelとの往復がかかる。[decisions.md](decisions.md)の「Excelとの分担」)。全行を1回で計算する3つの表UDF
+Excelとの往復がかかる。[decisions.md](decisions.md)の「Excelとの分担」)。全行を1回で計算する表UDF
 (本体は`engine/bond_option/table.py`)にする。四則演算程度の計算は
-Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(AY〜BG)に
-スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
+Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(BF〜BU)に
+スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・Vol ratio・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
 する。表示のセルを手で上書きすれば、下流の式とその先の表UDFはその値で計算される(スピルの中を上書きして
 #SPILL!になることもない)。1行の入力の誤りで表全体をエラーにせず、計算できなかった値は空欄(表示の列は#N/A)、
 理由はmessage列(表示はMessage列にまとめる)。ITMBWのストライクとプレミアムを別の表UDFにしているのは、
@@ -190,10 +207,10 @@ UDFは銘柄コードを受けず、利率・償還日のセルの値を受け�
   (名前`Holidays` = `Holidays!$A$3#`)。
 - **Option**シート: 上段は C1 取得モード(Live/Fixed)、C3 評価日(空欄=今日)、
   C4 使う評価日(名前`TradeDate`)、C5 換算の日数(名前`VolDays`、252)、F3・F4 Repo bid・offer(名前`RepoBid`・
-  `RepoOffer`)、H1:J5 スキームの対応表(名前`SchemeTable` = H2:J5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
+  `RepoOffer`)、F5 HVの窓(営業日数、名前`HvWindow`、既定20)、H1:J5 スキームの対応表(名前`SchemeTable` = H2:J5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
   黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
   入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
-  明細(AH〜AW)と計算用(AY〜BI)は折りたたみ(AXは2つのグループを分ける隙間)。ずらし幅の入力(ATM slide・Spot +sen・
+  明細(AK〜BD)と計算用(BF〜BX)は折りたたみ(BEは2つのグループを分ける隙間)。ずらし幅の入力(ATM slide・Spot +sen・
   Fwd +sen・Fwd +bp・ATM +bp)は+付き・負は赤の表示形式
   (`+General;[Red]-General;0`。日本語版ExcelのCOMは`[Red]`を受け付けないので`NumberFormatLocal`の
   `+G/標準;[赤]-G/標準;0`で設定する)。
@@ -203,15 +220,17 @@ UDFは銘柄コードを受けず、利率・償還日のセルの値を受け�
 | Trade | A Client(顧客名など、自由記入), B Bond, C Scheme(対応表から選ぶ), D Expiry, E Settle lag(1/2), F Notional(億円) |
 | Market | G ATM slide(bp), H ATM yield, I Spot price(`JGB_PRICE`), J Repo override(%), K Repo(使う値。overrideが空ならSchemeの対応表のBid/Offer。未設定ならメッセージ) |
 | Strike input(1つだけ) | L Spot +sen, M Fwd +sen, N Fwd +bp, O Fwd price, P ATM +bp, Q Yield(%) |
-| Forward | R Fwd clean, S Fwd yield simple(先渡単利、se起点) |
+| Forward | R Fwd clean(小数3桁で表示), S Fwd yield simple(先渡単利、se起点) |
 | Strike | T Strike basis(どの入力を使うか、または入力の誤りのメッセージ), U Strike price, V Strike yield(se起点) |
-| Vol | W・X Normal vol(override │ 使う値), Y・Z bp vol, AA・AB Price vol |
-| Premium | AC Premium(銭), AD 円, AE Strike + premium(ITMBWの確認), AF Quote text, AG Message |
-| Details(折りたたみ) | AH〜AK 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AL Type(対応表から), AM〜AO スポット受渡日・行使後の受渡日・T, AP〜AS 経過利子×2・期中の利払・Fwd dirty, AT〜AW Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値(計算用のセルを参照) |
-| Calc(折りたたみ) | AY `OptionMarketTable`, BD `ItmBuyWriteTable`, BF `PremiumTable`(8行目にスピル), BI3 ライブのボラ(`LiveQuotes("vol")`) |
+| Vol | W Swaption vol(補間値), X・Y Vol ratio(override │ 使う値), Z・AA Normal vol(override │ 使う値), AB・AC bp vol, AD・AE Price vol |
+| Premium | AF Premium(銭), AG 円, AH Strike + premium(ITMBWの確認), AI Quote text, AJ Message |
+| Details(折りたたみ) | AK〜AN 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AO Type(対応表から), AP〜AR スポット受渡日・行使後の受渡日・T, AS〜AV 経過利子×2・期中の利払・Fwd dirty, AW〜AZ Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値, BA〜BD 現物のHV・スワップのHV・HVの窓の最初と最後の日付(計算用のセルを参照) |
+| Calc(折りたたみ) | BF `OptionMarketTable`, BK `ItmBuyWriteTable`, BM `PremiumTable`, BO `VolRatioTable`(8行目にスピル), BX3 ライブのボラ(`LiveQuotes("vol")`) |
 
-Quote text(客先に返す文面、ユーザーが決定)は「Scheme Expiry 価格ボラ% プレミアムC」を空白区切りで並べる
-(例 `TB 2026-12-15 3.25% 45.2C`)。価格ボラは使う値(AB)を小数2桁+`%`、プレミアムは銭(AC)を小数1桁+`C`。
+Quote text(客先に返す文面、ユーザーが決定)は「Scheme 銘柄 Expiry ATMのスライド 価格ボラ% プレミアムc」を空白区切りで並べる
+(例 `TB JB380 2026-12-15 +0.5 3.25% 45.2c`)。スライドはATM slide(bp)を符号付き(0は`0`)、価格ボラは使う値(AE)を
+小数2桁+`%`、プレミアムは銭(AF)を小数1桁+小文字の`c`。
+表示の桁は、プレミアム(銭)・ボラ(Vol ratio・Normal vol・bp vol・Price vol)が小数2桁、Fwd cleanが小数3桁(表示形式だけで、値は丸めない)。
 どれかがエラーなら空欄(理由はMessage列)。
 
 旧構成(2026-10-19〜21)の`INDEX(配列UDF(…), 行, 列)`のセルはExcelが旧式の数式(`cm`属性なし)として保存していた
