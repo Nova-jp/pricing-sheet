@@ -22,7 +22,7 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.bond_option import pricer, vol  # noqa: E402
+from engine.common.jgb_option import pricer, vol  # noqa: E402
 from engine.bond_option import udf as bo_udf  # noqa: E402
 from engine.common import udf_common  # noqa: E402
 from engine.common.bond import (  # noqa: E402

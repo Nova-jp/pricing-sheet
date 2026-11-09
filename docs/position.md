@@ -5,7 +5,7 @@
 UDFを消した)。
 
 コード: `engine/position/`(`common/`だけに依存)、`PositionSheet.py`(再エクスポート)。
-テスト: `tests/test_position.py`。
+テスト: `tests/test_position.py`・`tests/test_position_bond_option.py`。
 
 ## 方針(ユーザーと決定)
 
@@ -13,9 +13,12 @@ UDFを消した)。
   今日の取引)・会社のリスクの抽出・合計は、Excelの1行ずつの普通の数式(四則演算・XLOOKUP・INDEX・FILTER)にする。
   名前付きの数式(LAMBDA)は使わない。値を手で上書きしても他のセルが壊れないように、Nowの列はスピルにしない。
 - **会社のデータは生シートに丸ごと貼る**: 会社のファイル(デルタ・ガンマのシートと、ベガのシート)を
-  `Raw_IR`・`Raw_IRVOL`のA1にそのまま貼る。生シートと基準日(SetupのB4)は雛形では消す(`tools/template.py`の
-  `RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
-  `Raw_Swaption`・`Raw_BondOption`は満期の近いオプションの約定の貼り付け先(まだ使っていない)。
+  `Raw_IR`・`Raw_IRVOL`のA1にそのまま貼る。現物オプションの全約定は`Raw_BondOption`、保有銘柄は`Raw_JGB`(次の開発)、
+  `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと基準日の上書き(SetupのB3)は雛形では消す
+  (`tools/template.py`の`RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
+- **基準日(SetupのB4)は既定でDBの直近の引け**(`PosBaseDate`。今日より前でカーブがある直近の日 = 朝バッチが置いた昨日の
+  引け)。B3に日付を入れればそれを使う(2026-11-10、ユーザー指示)。非volatileなので、ブックを開いたまま日をまたいだら
+  Ctrl+Alt+F9で計算し直す。
 - **会社のファイルの形が変わっても直すのはSetupだけ**: 列は見出しの名前で探す(Setupの列名 → 列番号)。
 - **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。
 - **グリッドのピラーはマーケットの基準(ライブのカーブの34本)**。会社のファイルに無いテナー(4M・5M・15M等)の
@@ -33,8 +36,9 @@ UDFを消した)。
 | シート | 中身 |
 |---|---|
 | Position | 管理の1枚。上段の左(B:O)にNow、右(Q:Y)にClose(会社の値)、AA:ADに今日のDoneの取引、AF:APにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、AT:BA・BC:BPにライブのレート・ボラと引けのボラ(折りたたみ)。下段(41行目〜)に今日の取引の入力 |
-| Setup | 基準日、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号) |
-| Raw_IR / Raw_IRVOL / Raw_Swaption / Raw_BondOption | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
+| Setup | 基準日(B3の上書き・B4の使う値)、現物オプションのレポ・HVの窓・`Raw_BondOption`の列名、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号) |
+| BondOpt | 現物オプションの約定ごとのグリークスと、ピラー・ベガの格子への分解(下の「現物オプション」) |
+| Raw_IR / Raw_IRVOL / Raw_Swaption / Raw_BondOption / Raw_JGB | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
 
 ### Positionシートの上段(ピラー34本 × 4〜37行目、38行目が合計)
 
@@ -45,17 +49,17 @@ UDFを消した)。
 | D `Close (%)` | DBの基準日の引け(`PosCloseRates`、O/NはTONA実績。DBに無いピラーは空欄) |
 | E `Move override` | 手入力(黄色)。空欄ならライブを使う |
 | F `Move (bp)` | `=IF(上書き<>"", 上書き, (Live − Close) × 100)`。どちらかが空欄なら空欄(ガンマの分は0) |
-| G・H `Delta Swap / Bond` | `Close のデルタ + Close のガンマ × Move + 今日のDone` |
-| I・J | Delta Total と棒グラフ |
-| K `Γ x Move` | (ガンマ Swap + Bond)× Move(デルタの変化のうちガンマの分。Delta Totalに含まれている) |
-| L・M・N・O | Gamma Swap / Bond(Close + 今日のDone)、Total、棒グラフ |
+| G・H `Delta Swap / Bond` | `Close のデルタ + Close のガンマ × Move + 今日のDone`。Bondには現物オプション(BondOptのBB:BC)も足す(デルタ + ガンマ × Move) |
+| I `of which Γ x Move` | (ガンマ Swap + Bond)× Move。デルタの変化のうちガンマの分で、SwapとBondにすでに含まれている内訳(灰色の斜体。足し直さない)。デルタの表の中に置く(2026-11-10、ユーザー決定) |
+| J・K | Delta Total(Swap + Bond)と棒グラフ |
+| L・M・N・O | Gamma Swap / Bond(Close + 今日のDone。Bondには現物オプションも)、Total、棒グラフ |
 | Q:Y | Close(会社の値そのもの): Delta Swap / Bond / Total / 棒、Gamma Swap / Bond / Total / 棒 |
 | AA:AD | 今日のDoneの取引のピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond](`PosIntradayGrid`) |
 | AF:AP | ベガ(下の「ベガとベガのPL」) |
 | AT:AW / AY:BA | ライブの読み込み(Fixedなら`LiveSnapshot`)/ 日中の取引のUDFに渡すカーブの範囲(フラグ・ピラー・レート) |
 | BC:BE / BG:BP | ライブのボラ(`LiveQuotes("vol")`、Fixedなら`LiveSnapshot`)/ 基準日の引けのボラ(`PosCloseVols`) |
 
-- **棒グラフ**: J・O・U・Yに条件付き書式のデータバー(数値は隠す)。軸はセルの中央、プラスは右へ青、マイナスは左へ赤。
+- **棒グラフ**: K・O・U・Yに条件付き書式のデータバー(数値は隠す)。軸はセルの中央、プラスは右へ青、マイナスは左へ赤。
 - **エラーは隠さない**: ライブ・引け値・日中のUDFがエラーなら、Nowの列もエラーになる。フィードが止まっている間に
   計算したいときはB2を`Fixed`にする(そのシートが最後にLiveで読んだレートで計算する)。
 
@@ -65,7 +69,8 @@ UDFを消した)。
   5Y・7Y・10Y・15Y・20Y・30Y)。会社のファイルに6Y・8Y・9Yの原資産は無い。満期25Y・30Yはスワップションのボラが
   配信されていない(枠だけ。MoveとPLは空欄)。15Yx30Y・20Yx30Yは満期+原資産が40年を超えるので朝バッチ・フィードの格子に
   入れていない(同じく空欄)。
-- **4〜18行目 Vega**: 会社のベガ(百万円 / bp vol)。
+- **4〜18行目 Vega**: 会社のベガ + 現物オプションのベガ(BondOptのBE4:BN18、百万円 / bp vol)。SetupのE22(表の合計)は
+  現物オプションの分を引いて会社の値と比べる。AF1:AJ1に現物オプションのセータの合計(百万円/日)。
 - **22〜36行目 Vol move (bp)**: `ライブのvol − 基準日の引けのvol`。ライブはフィード(`LiveQuotes("vol")`)、引けは朝バッチが
   DBに計算済みのvol(`vol_quotes`。どちらもTraditionのATMストラドルのプレミアムから`engine/common/swaption.py`で換算した
   営業日ベースのノーマルvol。会社のvolも営業日ベース)。どちらかが空欄なら空欄、フィードが止まればエラー。
@@ -97,6 +102,35 @@ UDFを消した)。
   (表に無いテナー、重複)があると差が0にならない。
 - ベガ: datasetと満期・原資産の表記(Positionの見出しと同じ文字)で`FILTER`する。
 
+## 現物オプション(BondOptシート、`engine/position/bond_options.py`、2026-11-10、ユーザーと決定)
+
+会社のファイルに入っていないので、`Raw_BondOption`に貼った全約定から基準日の引けの値でグリークスを計算し、Positionの
+Bondのデルタ・ガンマとベガの格子に足す。リアルタイムでは計算しない(F9で計算)。計算の部品はBondOption.xlsmと同じ
+(`engine/common/jgb_option/`。式は[bond_option.md](bond_option.md))。分担もBondOptionと同じで、中身のある計算は表UDF
+(右の折りたたみのAH:AZにスピル)、表示の列はそれを参照し、符号・額面・単位の換算はシートの数式にする。
+
+- **入力**: `Raw_BondOption`の列を見出しの名前で引く(SetupのH10:J18)。Bond = `JGBCode`、Type = `OptionType`(CALL/PUT)、
+  Side = `BuySell`(B/S)、Expiry = `ExerciseDate`、Settle = `EffectiveDate`(行使後の受渡日)、Strike(clean単価)、
+  Notional(円、表示は百万円)。行使日が基準日以前の約定は計算しない(Messageに`Expired`)。200行まで。
+- **市場(`PosBondOptMarket`)**: 取引日 = 基準日。利率・償還日はDBの銘柄情報、スポット単価は基準日の引けの単利(JCL)から
+  F1(起点 = 基準日のT+1)、先渡はSetupのレポ(1つ、黄色)でF6、MD・DDはF7・F8。ボラは基準日のDBのスワップションのvolから
+  BondOptionと同じ補間 × Vol ratio(窓はSetupの`HV window`)。T = 営業日数/252。
+- **グリークス(`PosBondOptGreeks`)**: Black式(割引なし)のプレミアム・デルタ・ガンマ・ベガ(価格ボラ1%あたり)・
+  セータ(1営業日、先渡・ボラはそのまま)。額面100円あたり。
+- **ポジション(シートの数式、百万円)**: PV = 符号 × プレミアム/100 × 額面、デルタ換算の額面 = 符号 × デルタ × 額面、
+  価格のガンマ = 符号 × ガンマ × 額面、ベガ(スワップションのvol 1bpあたり)= 符号 × ベガ × MD/100 × Vol ratio × 額面/100、
+  セータ = 符号 × セータ/100 × 額面。符号はBuy = +1、Sell = −1。
+- **ピラーへの分解(`PosBondRiskGrid`、BB3にスピル、行はPositionと同じ)**: 原資産の現物のZスプレッド固定のキーレート・
+  デルタ(`bonds.py`、基準日のDBのカーブ)にチェーンルールで写す。デルタ_i = E × dP_i / 100、
+  ガンマ_i = (G × dP_i² + E × d2P_i) / 100(E = デルタ換算の額面、G = 価格のガンマ、dP_i・d2P_i = 単価のピラー i への
+  1階・2階の感応度。ガンマは日中の取引と同じ対角)。先渡と現物の単価の比(1 + レポ × 期間)は1とみなす。
+  次の開発の現物の保有銘柄も同じUDFで計算する(E = 額面、G = 空欄)。
+- **ベガの格子(`PosBondOptVegaGrid`、BE4にスピル、行・列はPositionのベガの格子と同じ)**: スワップションの格子の点を
+  1つずつ動かしたときの補間値の変化(重み)でベガを分ける。Positionの格子に無い原資産(6Y・8Y・9Y)は前後の原資産に
+  年数で線形に分ける。
+- Vol ratioのHVの窓に足りる引け値の履歴が無い銘柄は、Messageにその旨が出てボラ以降が空欄になる(朝バッチの
+  `--jgb-history-from`で過去分を取る)。
+
 ## 日中の取引(`engine/position/intraday.py`)
 
 - OIS: 標準のOIS(`trades.py`の規約)。Start空欄=スポット、Tenor/Endは`10Y`か満期日、SideはPay/Rec、Rate空欄=パー。
@@ -111,6 +145,9 @@ UDFを消した)。
 | `PosIntradayGrid` | ピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond]。statusでDone / What-if / Allを選ぶ |
 | `PosCloseRates` | DBのその日の引け値(ピラーの並びの縦1列) |
 | `PosCloseVols` | DBのその日のスワップションのvol(行=満期、列=原資産。無い点は空欄) |
+| `PosBaseDate` | 基準日(上書きの日付、空欄ならDBの今日より前の直近のカーブの日付) |
+| `PosBondOptMarket` / `PosBondOptGreeks` | 現物オプションの行ごとの市場の値・グリークス(上の「現物オプション」) |
+| `PosBondRiskGrid` / `PosBondOptVegaGrid` | 現物オプションのピラーごとのデルタ・ガンマ / ベガの格子 |
 
 同じ取引の表とカーブなら、2つのUDFは1回の計算結果を共有する(`_intraday_cache`)。
 
