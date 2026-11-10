@@ -48,6 +48,8 @@ class IntradayRisk(NamedTuple):
     pv: Optional[float]  # 百万円(OISのPV。現物は約定の価格で評価するのでNone)
     deltas: Dict[str, float]  # ピラーのラベル → 百万円/bp
     gammas: Dict[str, float]  # ピラーのラベル → 百万円/bp²
+    pillar: Optional[str] = None  # 現物: 載せたピラーのラベル(OISはNone)
+    trade_move: Optional[float] = None  # 現物: 約定の複利 − DBの引けの複利(bp)。PL = デルタ × (今のMove − これ)
 
 
 def parse_status(value) -> str:
@@ -90,8 +92,16 @@ def _price_swap(curves: CurveSet, trade: IntradayTrade) -> _Priced:
 def _bond_risk(curves: CurveSet, store, trade: IntradayTrade, pillars) -> IntradayRisk:
     r = bonds.bond_risk(store, trade.bond, curves.valuation_date)
     label = bonds.bucket(r.maturity, pillars)
+    if trade.bond.yield_override is None:  # 約定の利回りが空欄 = 引け値で約定
+        move: Optional[float] = 0.0
+    else:
+        try:
+            close = bonds.bond_risk(store, trade.bond._replace(yield_override=None), curves.valuation_date)
+            move = (r.compound_yield - close.compound_yield) * 100.0
+        except ValueError:  # 引け値がDBに無い(デルタ・ガンマは約定の利回りで出せる)
+            move = None
     return IntradayRisk(trade.status, trade.product, r.simple_yield, None,
-                        bonds.on_pillar(r.delta, label), bonds.on_pillar(r.gamma, label))
+                        bonds.on_pillar(r.delta, label), bonds.on_pillar(r.gamma, label), label.upper(), move)
 
 
 def intraday_risks(curves: CurveSet, store, trades_: Sequence[Optional[IntradayTrade]]) -> List[object]:

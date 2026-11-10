@@ -73,6 +73,20 @@ def vol_from_stdev(stdev: float, days: int) -> float:
     return stdev / math.sqrt(days) * math.sqrt(TRADING_DAYS)
 
 
+CALENDAR_DAYS = 365  # 暦日ベースの年率の日数(Traditionの値と同じ T = 暦日/365)
+
+
+def calendar_factor(trade_date: date, expiry: str) -> float:
+    """営業日ベースのvol → 暦日ベースのvol(bp/年)の掛け目 = √(営業日数/252) × √(365/暦日数)。
+    満期までの標準偏差 σ√T は同じで、年率に直す日数だけを替える(暦日数 = 満期日 − 取引日)。"""
+    end = expiry_date(trade_date, expiry)
+    days = business_days(trade_date, end)
+    calendar_days = (end - trade_date).days
+    if days <= 0 or calendar_days <= 0:
+        raise ValueError(f"満期が取引日以前です: {trade_date} {expiry}")
+    return math.sqrt(days / TRADING_DAYS) * math.sqrt(CALENDAR_DAYS / calendar_days)
+
+
 class Underlying(NamedTuple):
     """取引日のスワップション(満期x原資産)の契約。volの換算・原資産のFwd(DBのswaption_forwards)・
     ライブのFwdは全てこれを使う(契約の決め方をここ1か所にする)。"""
