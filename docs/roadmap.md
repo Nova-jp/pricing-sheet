@@ -118,9 +118,6 @@ VolPCAの既定は満期×原資産の格子の全点(ユーザー指示「と�
 - **現物の保有銘柄のデルタの実データでの照合**: JGBシート([position.md](position.md)の「現物」)で、実データの
   Instrument IDの決まり・`Closing Mark S Yld`の単位と、会社のbondのデルタとの差(デュレーション基準か・単価を掛けるか・
   どのテナーに載せるか)を確かめる。
-- **原資産6Mのボラ**(方針はユーザーと決定、2026-11-10): `swaption_source.TENORS`・`live_feed.toml`のvolの`tenors`に6Mを足し
-  (RIC `JPY{満期}6MTOATM=TRDT`があるかを最初にLSEGで確かめる)、朝バッチで過去分を取り直し、Positionのベガの格子・Vol move・
-  バケットの表に6Mの列を足す。現物オプションのボラの補間(`jgb_option/vol.py`)には6Mを入れない(DBのvolを読むときに除く)。
 - **Positionシートの見た目**: ユーザーが手で直したものを見て整える。
 - **満期が近いスワップションの補正**: [position.md](position.md)の「満期が近いスワップションの補正」。`Raw_Swaption`の形を
   ユーザーが直してから。

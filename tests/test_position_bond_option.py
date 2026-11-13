@@ -158,6 +158,15 @@ class CompanyVegaGridTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             vega.company_grid([], [], [], [], "A", ["1M", "1W"], self.TAIL)  # 短い順でない
 
+    def test_tail_6m(self):
+        # 原資産6M(Positionシートの格子の最も短い原資産)。6M未満は6Mに全部、6Mと1Yの間は線形
+        tails = ["6M", "1Y", "2Y"]
+        out = vega.company_grid(["A"] * 3, ["1M"] * 3, ["3M", "6M", "9M"], [1.0, 2.0, 4.0], "A",
+                                ["1M"], tails)
+        self.assertAlmostEqual(out[0][0], 1.0 + 2.0 + 4.0 * 0.5)
+        self.assertAlmostEqual(out[0][1], 4.0 * 0.5)
+        self.assertEqual(out[0][2], "")
+
 
 if __name__ == "__main__":
     unittest.main()
