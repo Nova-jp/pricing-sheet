@@ -12,6 +12,7 @@
     python -m unittest tests.test_position -v
 """
 
+import math
 import sys
 import tempfile
 import unittest
@@ -24,7 +25,7 @@ import QuantLib as ql
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import bond, market, udf_common  # noqa: E402
+from engine.common import bond, market, swaption, udf_common  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 from engine.position import bonds, intraday, trades, udf  # noqa: E402
@@ -173,6 +174,26 @@ class CloseRatesTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     udf.PosCloseVols(["1M"], ["1Y"], date(2026, 9, 28))
 
+    def test_vol_calendar_factor(self):
+        # 2026-09-25(金)の1M: 満期 10/25(日)→ 10/26(月)。暦日31日、営業日20日(10/12 スポーツの日は休み)
+        factor = math.sqrt(20 / 252) * math.sqrt(365 / 31)
+        self.assertAlmostEqual(swaption.calendar_factor(FRIDAY, "1M"), factor, places=12)
+        out = udf.PosVolCalendarFactor(["1M", "1Y"], FRIDAY)
+        self.assertAlmostEqual(out[0][0], factor, places=12)
+        self.assertEqual(len(out), 2)
+        with mock.patch.object(udf_common, "_today", lambda: FRIDAY):  # 空欄 = 今日(ライブ)
+            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], "")[0][0], factor, places=12)
+
+    def test_business_days_from_base_date(self):
+        self.assertEqual(udf.PosBusinessDays(FRIDAY, date(2026, 9, 28)), 1)  # 金曜の引け → 月曜
+        self.assertEqual(udf.PosBusinessDays(FRIDAY, date(2026, 9, 30)), 3)
+        with mock.patch.object(udf_common, "_today", lambda: date(2026, 9, 28)):
+            self.assertEqual(udf.PosBusinessDays(FRIDAY), 1)  # 空欄 = 今日
+
+    def test_company_vega_grid_udf(self):
+        out = udf.PosVegaGrid(["A", "A"], ["1M", "3D"], ["1Y", "1Y"], [2e6, 1e6], "A", ["1W", "2W", "1M"], ["1Y"])
+        self.assertEqual(out, [[1e6], [""], [2e6]])
+
     def test_base_date_is_latest_db_date_before_today(self):
         class _Store:
             def __init__(self, dates):
@@ -228,6 +249,12 @@ class IntradayTest(unittest.TestCase):
         self.assertAlmostEqual(out[0].rate, ref_swap.fix_rate)
         self.assertEqual(out[1].rate, 1.8)
         self.assertIsNone(out[1].pv)
+        self.assertEqual(out[1].pillar, "9Y")
+        with self.store:  # 約定の複利 − 引けの複利(単利1.8%と1.7%の差を複利にしたもの)
+            close = bonds.bond_risk(self.store, bond_pos._replace(yield_override=None), FRIDAY)
+        self.assertAlmostEqual(out[1].trade_move, (ref_bond.compound_yield - close.compound_yield) * 100, places=10)
+        self.assertGreater(out[1].trade_move, 9.0)
+        self.assertIsNone(out[0].pillar)
         self.assertGreater(out[0].gammas["10y"], 0)  # レシーブはガンマがプラス
         self.assertGreater(out[1].gammas["9y"], 0)  # 現物のロングもプラス
         # 10Yのスワップのガンマ: 1bpの中心差分(スワップは補間の影響を受けない)とほぼ一致
@@ -262,6 +289,10 @@ class IntradayTest(unittest.TestCase):
         self.assertGreater(rows[1][dv01], 0)
         self.assertGreater(rows[3][dv01], 0)  # 現物の売り(ショート)はプラス
         self.assertEqual(rows[3][udf.INTRADAY_HEADER.index("PV")], "")
+        self.assertEqual(rows[3][udf.INTRADAY_HEADER.index("Pillar")], "9Y")
+        self.assertEqual(rows[3][udf.INTRADAY_HEADER.index("Trade move")], 0.0)  # Rate空欄 = 引け値で約定
+        self.assertEqual(rows[1][udf.INTRADAY_HEADER.index("Trade move")], "")  # OIS
+        self.assertEqual(rows[1][msg], "")
         self.assertEqual(rows[4], [""] * len(udf.INTRADAY_HEADER))
         for n, word in ((5, "Status"), (6, "Code"), (7, "Buy")):
             self.assertIn(word, rows[n][msg])

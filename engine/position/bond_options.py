@@ -2,15 +2,15 @@
 現物オプション(国債店頭オプション)の約定のグリークス(PositionSheetのBondOptシート)。
 
 会社のファイルには入っていないので、約定(Raw_BondOptionに貼る)から基準日の引けの値で計算し、Positionシートの
-Bondのデルタ・ガンマとベガの格子に足す(ユーザー決定、2026-11-10)。リアルタイムでは計算しない。
+Bondのデルタ・ガンマとセータに足す(ユーザー決定、2026-11-10)。ベガの格子はスワップション(会社の値)だけで、
+現物オプションのベガは約定ごとの表示だけ(2026-11-10、ユーザー指示)。リアルタイムでは計算しない。
 計算はBondOption.xlsmと同じ部品(engine/common/jgb_option/、式は docs/bond_option.md)。
 
 ■ 分担(BondOptionと同じ。中身のある計算は表UDF、符号・額面・単位の換算と合計はシートの数式)
   market_rows : 行ごとの [利率, 償還日, 引けの単利, 引けの日付, スポット単価, 先渡clean, 先渡MD, 先渡DD,
                 スワップションのボラ(補間), Vol ratio, T, message]
   greeks_rows : 行ごとの [プレミアム, デルタ, ガンマ, ベガ, セータ, message](額面100円あたり、Black式)
-  pillar_risk : 銘柄ごとの「デルタ換算の額面」「価格のガンマ」→ ピラーごとの [デルタ, ガンマ]
-  vega_grid   : 約定ごとのベガ → スワップションの格子(満期×原資産)に補間の重みで分けたもの
+  pillar_risk : 銘柄ごとの「デルタ換算の額面」「価格のガンマ」「セータ」→ ピラーごとの [デルタ, ガンマ, セータ]
 
 ■ 日付・市場データ(すべて基準日 = 会社のリスクの基準日の引け)
   取引日 t0 = 基準日、スポット受渡日 = t0のT+1、行使後の受渡日 se = 約定のEffectiveDate。
@@ -24,14 +24,10 @@ Bondのデルタ・ガンマとベガの格子に足す(ユーザー決定、202
     デルタ = E × dP / 100、ガンマ = (G × dP² + E × d2P) / 100
   E = 符号 × 額面 × Blackのデルタ(デルタ換算の額面、百万円)、G = 符号 × 額面 × Blackのガンマ。
   どちらも現物と同じく、銘柄の満期が入る区間の長いほうのピラーに全部載せる。
-
-■ ベガの分け方
-  スワップションの格子の点を1つずつ少し動かしたときの補間値の変化(重み)をベガに掛けて足す。格子にあって
-  Positionのベガの格子に無い原資産(6Y・8Y・9Y)は、前後の原資産に年数で線形に分ける。
 """
 
 from datetime import date
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence
 
 from engine.common import bond, udf_common
 from engine.common.jgb_option import hv, pricer, vol
@@ -41,7 +37,6 @@ from engine.position.bonds import BondPosition, bond_risk, bucket, pillar_dates
 SPOT_LAG = 1
 MARKET_COLUMNS = 12
 GREEK_COLUMNS = 6
-_VEGA_EPS = 1e-4
 
 
 def _date(value, name: str) -> date:
@@ -203,105 +198,44 @@ def greeks_rows(types: Sequence, forwards: Sequence, strikes: Sequence, price_vo
 # ピラーへの分解(現物オプション・現物の両方に使う)
 # ---------------------------------------------------------------------------
 
-def pillar_risk(curves: CurveSet, store, codes: Sequence, faces: Sequence,
-                price_gammas: Sequence) -> Tuple[Dict[str, float], Dict[str, float], List[str]]:
-    """銘柄ごとの E(デルタ換算の額面、百万円)・G(価格のガンマ × 額面、百万円/円)を足し合わせ、
-    ピラーのラベル → デルタ(百万円/bp)・ガンマ(百万円/bp²)を返す。G が空欄なら0(現物のポジション)。
-    3つ目はエラーの銘柄のメッセージ(その銘柄は足さない)。"""
+class PillarRisk(NamedTuple):
+    deltas: Dict[str, float]  # ピラーのラベル(小文字) → 百万円/bp
+    gammas: Dict[str, float]  # → 百万円/bp²
+    thetas: Dict[str, float]  # → 百万円/営業日(原資産の銘柄のピラーに載せる)
+    errors: List[str]  # エラーの銘柄のメッセージ(その銘柄は足さない)
+
+
+def _float_or_zero(value) -> float:
+    return 0.0 if udf_common._is_blank(value) else float(value)
+
+
+def pillar_risk(curves: CurveSet, store, codes: Sequence, faces: Sequence, price_gammas: Sequence,
+                thetas: Sequence = ()) -> PillarRisk:
+    """銘柄ごとの E(デルタ換算の額面、百万円)・G(価格のガンマ × 額面、百万円/円)・セータ(百万円/日)を
+    足し合わせ、ピラーのラベル → デルタ(百万円/bp)・ガンマ(百万円/bp²)・セータを返す。
+    G・セータが空欄なら0(現物のポジション)。"""
     totals: Dict[str, List[float]] = {}
-    for code, face, gamma in _rows(codes, faces, price_gammas):
+    for code, face, gamma, theta in _rows(codes, faces, price_gammas, thetas):
         if udf_common._is_blank(code) or udf_common._is_blank(face):
             continue
         try:
-            e = float(face)
-            g = 0.0 if udf_common._is_blank(gamma) else float(gamma)
+            e, g, t = float(face), _float_or_zero(gamma), _float_or_zero(theta)
         except (TypeError, ValueError):
             continue
-        acc = totals.setdefault(_code(code), [0.0, 0.0])
+        acc = totals.setdefault(_code(code), [0.0, 0.0, 0.0])
         acc[0] += e
         acc[1] += g
+        acc[2] += t
     pillars = pillar_dates(curves.bump_labels, curves.spot_date)
-    deltas: Dict[str, float] = {}
-    gammas: Dict[str, float] = {}
-    errors: List[str] = []
-    for code, (e, g) in totals.items():
+    out = PillarRisk({}, {}, {}, [])
+    for code, (e, g, t) in totals.items():
         try:
             r = bond_risk(store, BondPosition(code, 100.0), curves.valuation_date)  # 額面100円あたり
             label = bucket(r.maturity, pillars).lower()
         except Exception as ex:
-            errors.append(f"{code}: {ex}")
+            out.errors.append(f"{code}: {ex}")
             continue
-        deltas[label] = deltas.get(label, 0.0) + e * r.dp / 100.0
-        gammas[label] = gammas.get(label, 0.0) + (g * r.dp * r.dp + e * r.d2p) / 100.0
-    return deltas, gammas, errors
-
-
-# ---------------------------------------------------------------------------
-# ベガの格子
-# ---------------------------------------------------------------------------
-
-def _years(label: str) -> float:
-    p = str(label).strip().upper()
-    n = float(p[:-1])
-    return n / 12 if p.endswith("M") else n
-
-
-def _split(x: float, axis: Sequence[float]) -> List[Tuple[int, float]]:
-    """x を軸の点に線形に分ける(範囲外は端の点に全部)。"""
-    if x <= axis[0]:
-        return [(0, 1.0)]
-    if x >= axis[-1]:
-        return [(len(axis) - 1, 1.0)]
-    for i in range(1, len(axis)):
-        if x <= axis[i]:
-            if x == axis[i]:
-                return [(i, 1.0)]
-            w = (x - axis[i - 1]) / (axis[i] - axis[i - 1])
-            return [(i - 1, 1.0 - w), (i, w)]
-    return [(len(axis) - 1, 1.0)]
-
-
-def vega_grid(vol_rows: Sequence, base_date: date, vegas: Sequence, expiries: Sequence, maturities: Sequence,
-              expiry_labels: Sequence[str], tail_labels: Sequence[str]) -> List[List[float]]:
-    """約定ごとのベガ(百万円/スワップションのvol 1bp)を、補間に使ったスワップションの格子の点に重みで分け、
-    行=expiry_labels × 列=tail_labels の格子で返す。ベガが数値でない行(空欄・満期済み)は足さない。"""
-    trades = []
-    for v, te, m in _rows(vegas, expiries, maturities):
-        if udf_common._is_blank(v) or udf_common._is_blank(te) or udf_common._is_blank(m):
-            continue
-        try:
-            trades.append((float(v), _date(te, "ExerciseDate"), _date(m, "償還日")))
-        except (TypeError, ValueError):
-            continue
-    e_axis = [_years(x) for x in expiry_labels]
-    t_axis = [_years(x) for x in tail_labels]
-    out = [[0.0] * len(t_axis) for _ in e_axis]
-    if not trades:
-        return out
-    grid = vol.build_grid(vol_rows, base_date)
-    if not grid:
-        raise ValueError(f"{base_date}のスワップションのvolがDBにありません")
-    # 格子の点(満期の営業日数, 原資産の年数) → 満期・原資産の年数(ラベルから)
-    point_years: Dict[Tuple[float, float], Tuple[float, float]] = {}
-    for row in vol_rows:
-        if not row or udf_common._is_blank(row[0]) or vol._as_vol(row[-1]) is None:
-            continue
-        e, t = vol.parse_label(row[0])
-        e_label, t_label = str(row[0]).upper().split("X")
-        point_years[(vol._expiry_days(base_date, e), vol._tenor_years(t))] = (_years(e_label), _years(t_label))
-    coords = [(vol.business_days(base_date, te), vol._years(te, m)) for _, te, m in trades]  # grid_vol と同じ軸
-    base = [vol.interpolate(grid, x, y) for x, y in coords]
-    for e_days, points in grid.items():
-        for j, (tenor, value) in enumerate(points):
-            points[j] = (tenor, value + _VEGA_EPS)
-            bumped = [vol.interpolate(grid, x, y) for x, y in coords]
-            points[j] = (tenor, value)
-            ey, ty = point_years[(e_days, tenor)]
-            amount = sum(v * (b - a) / _VEGA_EPS for (v, _, _), a, b in zip(trades, base, bumped))
-            if amount == 0.0:
-                continue
-            for i, wi in _split(ey, e_axis):
-                for k, wk in _split(ty, t_axis):
-                    out[i][k] += amount * wi * wk
+        out.deltas[label] = out.deltas.get(label, 0.0) + e * r.dp / 100.0
+        out.gammas[label] = out.gammas.get(label, 0.0) + (g * r.dp * r.dp + e * r.d2p) / 100.0
+        out.thetas[label] = out.thetas.get(label, 0.0) + t
     return out
-

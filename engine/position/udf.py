@@ -19,14 +19,16 @@
 
 from typing import List, Optional, Tuple
 
+import QuantLib as ql
 import xlwings as xw
 
-from engine.common import udf_common
+from engine.common import swaption, udf_common
+from engine.common.conventions import CALENDAR
 from engine.common.curve import spot_date_for
 from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
 from engine.common.udf_common import _is_blank, _to_date
-from engine.position import bond_options, bonds, intraday, trades
+from engine.position import bond_options, bonds, intraday, trades, vega
 
 
 def _labels(values) -> Tuple[str, ...]:
@@ -119,11 +121,48 @@ def PosCloseVols(expiries, tails, as_of_date) -> List[list]:
         raise ValueError(f"{d}のvolがDBにありません")
     return [[vols.get(normalize_label(f"{e}x{t}"), "") for t in _labels(tails)] for e in _labels(expiries)]
 
+@xw.func
+@xw.arg("expiries", ndim=1)
+def PosVolCalendarFactor(expiries, trade_date=None) -> List[list]:
+    """営業日ベースのvol(DB・フィード)→ 暦日ベースのvol(bp/年)の掛け目の縦1列(満期の並び)。
+    = √(取引日から満期日までの営業日数/252) × √(365/暦日数)。会社のベガは暦日の年率のvolで微分した値なので、
+    Positionのボラの動きは暦日ベースで見る(ユーザー指示、2026-11-10)。trade_date: 空欄なら今日(ライブのvol)。
+    引けのvolには基準日を渡す。"""
+    d = _to_date(trade_date) or udf_common._today()
+    return [[swaption.calendar_factor(d, e)] for e in _labels(expiries)]
+
+
+@xw.func
+def PosBusinessDays(start_date, end_date=None) -> int:
+    """start_date から end_date(空欄なら今日)までの営業日数(ql.Japan。基準日の翌営業日から今日までを数える)。
+    現物オプションのセータ(1営業日)のPLに掛ける。"""
+    a = _to_date(start_date)
+    if a is None:
+        raise ValueError("日付を入れてください(基準日)")
+    b = _to_date(end_date) or udf_common._today()
+    return CALENDAR.businessDaysBetween(ql.Date.from_date(a), ql.Date.from_date(b), False, True)
+
+
+@xw.func
+@xw.arg("datasets", ndim=1)
+@xw.arg("expiries", ndim=1)
+@xw.arg("tails", ndim=1)
+@xw.arg("vegas", ndim=1)
+@xw.arg("expiry_labels", ndim=1)
+@xw.arg("tail_labels", ndim=1)
+def PosVegaGrid(datasets, expiries, tails, vegas, dataset, expiry_labels, tail_labels) -> List[list]:
+    """会社のベガ(Raw_IRVOLの列: dataset・満期・原資産・ベガ)を、行=expiry_labels × 列=tail_labels の格子に
+    振り分けた合計(engine/position/vega.py。格子に無い満期・原資産は前後の点に年数で線形に分け、最も短い点より
+    短い満期は最も短い点に全部。単位は生シートのまま(円)。どの行も載らないマスは空欄)。"""
+    return vega.company_grid(list(datasets or []), list(expiries or []), list(tails or []), list(vegas or []),
+                             dataset, _labels(expiry_labels), _labels(tail_labels))
+
+
 # ---------------------------------------------------------------------------
 # 日中の取引(Positionシートの下段。OIS・現物)のデルタ・ガンマ(engine/position/intraday.py)
 # ---------------------------------------------------------------------------
 
-INTRADAY_HEADER = ["Rate", "PV", "DV01", "Gamma", "Message"]
+INTRADAY_HEADER = ["Rate", "PV", "DV01", "Gamma", "Pillar", "Trade move", "Message"]
 GRID_HEADER = ["Delta Swap", "Delta Bond", "Gamma Swap", "Gamma Bond"]
 _STATUS_FILTERS = {"DONE": (intraday.DONE,), "WHATIF": (intraday.WHAT_IF,), "ALL": intraday.STATUSES}
 
@@ -198,21 +237,26 @@ def PosIntradayRisk(trade_table, pillars, real_time_range, valuation_date=None) 
     日中の取引の行ごとの要約(engine/position/intraday.py)。
     trade_table: [Status, Product, Start, Tenor/End, Code, Notional(百万円), Side, Rate(%)] の行(見出しなし)。
       Status: Done(約定済み)/ What-if(検討中)。Product: OIS / Bond。Productが空欄の行は計算しない。
-    返り値: 見出し行 [Rate, PV, DV01, Gamma, Message] + 入力と同じ行数。
+    返り値: 見出し行 [Rate, PV, DV01, Gamma, Pillar, Trade move, Message] + 入力と同じ行数。
       Rate: 計算に使った金利(OISは固定金利、現物は単利)。PV: OISのPV(百万円、現物は空欄)。
       DV01・Gamma: pillarsのピラーのデルタ・ガンマの合計(百万円/bp、百万円/bp²)。
+      Pillar・Trade move: 現物を載せたピラーと、約定の複利 − DBの引けの複利(bp。Rate空欄なら0、OISは空欄)。
+      現物のPLはシートで デルタ × (BondのMove − Trade move) + ½ × ガンマ × (…)² にする。
     """
     labels = _labels(pillars)
     out = [list(INTRADAY_HEADER)]
     for r in _intraday(trade_table, real_time_range, valuation_date):
         if isinstance(r, Exception):
-            out.append(["", "", "", "", str(r)])
+            out.append(_blank_row(len(INTRADAY_HEADER) - 1) + [str(r)])
         elif r is None:
             out.append(_blank_row(len(INTRADAY_HEADER)))
         else:
             out.append([
                 r.rate, "" if r.pv is None else r.pv,
-                sum(_deltas_row(r.deltas, labels)), sum(_deltas_row(r.gammas, labels)), "",
+                sum(_deltas_row(r.deltas, labels)), sum(_deltas_row(r.gammas, labels)),
+                r.pillar or "", "" if r.trade_move is None else r.trade_move,
+                "" if r.product == intraday.OIS or r.trade_move is not None
+                else "約定の利回りとの差を出せません(DBに引け値がありません)",
             ])
     return out
 
@@ -349,7 +393,7 @@ def PosJgbGrid(ids, maturities, faces, yields, pillars, base_date) -> List[list]
 # 現物オプションの約定(BondOptシート。engine/position/bond_options.py)
 # ---------------------------------------------------------------------------
 
-BOND_RISK_HEADER = ["Delta", "Gamma"]
+BOND_RISK_HEADER = ["Delta", "Gamma", "Theta"]
 
 # Vol ratio用のスワップレート(DBの更新時刻ごと)と、表UDFの直近の結果(入力とDBの更新時刻がキー)
 _bond_rates: Optional[bond_options.hv.CurveRates] = None
@@ -418,41 +462,24 @@ def PosBondOptGreeks(types, forwards, strikes, price_vols, terms) -> List[list]:
 @xw.arg("price_gammas", ndim=1)
 @xw.arg("pillars", ndim=1)
 @xw.arg("real_time_range", ndim=2)
-def PosBondRiskGrid(codes, faces, price_gammas, pillars, real_time_range, base_date) -> List[list]:
-    """銘柄ごとのデルタ換算の額面(百万円)・価格のガンマ × 額面を、基準日のDBのカーブでピラーに分けた
-    見出し行 [Delta, Gamma] + pillarsの並びの行(百万円/bp、百万円/bp²)。価格のガンマが空欄なら0(現物)。
+@xw.arg("thetas", ndim=1)
+def PosBondRiskGrid(codes, faces, price_gammas, pillars, real_time_range, base_date, thetas=None) -> List[list]:
+    """銘柄ごとのデルタ換算の額面(百万円)・価格のガンマ × 額面・セータ(百万円/日)を、基準日のDBのカーブで
+    ピラーに分けた見出し行 [Delta, Gamma, Theta] + pillarsの並びの行(百万円/bp、百万円/bp²、百万円/営業日)。
+    価格のガンマ・セータが空欄なら0(現物)。セータは原資産の銘柄のピラーに載せる(デルタと同じ)。
     real_time_range: カーブに使うピラーのフラグの範囲(Positionシートと同じ)。DBに無い銘柄はエラーにする。"""
     d = _base_date(base_date)
     labels = _labels(pillars)
+    theta_column = list(thetas or [])
 
     def compute():
         curves = udf_common._market(real_time_range, d)
         with udf_common._historical_store() as store:
-            deltas, gammas, errors = bond_options.pillar_risk(curves, store, codes, faces, price_gammas)
-        if errors:
-            raise ValueError(" / ".join(errors))
-        return [list(BOND_RISK_HEADER)] + [list(row) for row in zip(_deltas_row(deltas, labels),
-                                                                    _deltas_row(gammas, labels))]
+            r = bond_options.pillar_risk(curves, store, codes, faces, price_gammas, theta_column)
+        if r.errors:
+            raise ValueError(" / ".join(r.errors))
+        return [list(BOND_RISK_HEADER)] + [list(row) for row in zip(
+            _deltas_row(r.deltas, labels), _deltas_row(r.gammas, labels), _deltas_row(r.thetas, labels))]
 
-    return _cached("grid", (_freeze([codes, faces, price_gammas]), labels, _freeze(real_time_range), d), compute)
-
-
-@xw.func
-@xw.arg("vegas", ndim=1)
-@xw.arg("expiries", ndim=1)
-@xw.arg("maturities", ndim=1)
-@xw.arg("expiry_labels", ndim=1)
-@xw.arg("tail_labels", ndim=1)
-def PosBondOptVegaGrid(vegas, expiries, maturities, expiry_labels, tail_labels, base_date) -> List[list]:
-    """約定ごとのベガ(百万円/スワップションのvol 1bp)を、基準日のボラの格子の補間の重みで
-    行=expiry_labels × 列=tail_labels に分けたもの(Positionのベガの格子に足す)。"""
-    d = _base_date(base_date)
-
-    def compute():
-        with udf_common._historical_store() as store:
-            rows = _vol_rows(store, d)
-        return bond_options.vega_grid(rows, d, vegas, expiries, maturities,
-                                      _labels(expiry_labels), _labels(tail_labels))
-
-    return _cached("vega", (_freeze([vegas, expiries, maturities]), _labels(expiry_labels), _labels(tail_labels), d),
+    return _cached("grid", (_freeze([codes, faces, price_gammas, theta_column]), labels, _freeze(real_time_range), d),
                    compute)
