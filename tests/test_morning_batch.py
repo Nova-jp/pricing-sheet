@@ -80,11 +80,10 @@ class CurveBatchTest(unittest.TestCase):
         self.xlsx, self.config, self.db = tmp / "historical_data.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(self.xlsx)
         _write_config(self.config, ["O/N"] + TENORS)
-        # LSEG・Neonには接続しない。モックしていない取得は失敗扱い(バッチはその取得だけスキップする)。
+        # LSEGには接続しない。モックしていない取得は失敗扱い(バッチはその取得だけスキップする)。
         # 個々のテストのmock.patchはこれより内側なので、そちらが優先される
-        offline = RuntimeError("テストではLSEG・Neonに接続しない")
+        offline = RuntimeError("テストではLSEGに接続しない")
         for target, name in [
-            (morning_batch.neon_source, "fetch_asw_quotes"),
             (morning_batch.jgb_source, "fetch_jgbs"),
             (morning_batch.jgb_source, "fetch_close_history"),
             (morning_batch.futures_source, "fetch_settles"),
@@ -317,56 +316,19 @@ class CurveBatchTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Midシートにデータがありません"):
             self._run()
 
-    def test_asw_quotes_are_synced_from_neon(self):
-        from unittest import mock
-
-        from engine.common.historical_store import AswQuoteRow
-
-        rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
-        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows) as fetch:
-            summary = self._run()
-        self.assertIsNone(fetch.call_args.kwargs["since"])  # 初回は差分の基準が無い=全件
-        self.assertEqual(summary.built, DAYS)  # ASW取り込みはカーブ構築に影響しない
-        self.assertEqual(
-            HistoricalStore(self.db).asw_quotes(),
-            {date(2026, 10, 9): {"000190054": (0.448, 0.4804)}},
-        )
-
-    def test_second_run_passes_watermark_as_since(self):
-        from unittest import mock
-
-        from engine.common.historical_store import AswQuoteRow
-
-        rows = [AswQuoteRow(date(2026, 10, 9), "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6))]
-        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=rows):
-            self._run()
-        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]) as fetch:
-            self._run()
-        # 保存済みの updated_at の最大から ASW_OVERLAP_DAYS 日前から取り直す
-        fetch.assert_called_once()
-        self.assertEqual(
-            fetch.call_args.kwargs["since"],
-            datetime(2026, 10, 9, 12, 30, 6) - timedelta(days=morning_batch.ASW_OVERLAP_DAYS),
-        )
-
     def test_only_closes_until_yesterday_are_saved(self):
         """どの取得も今日の値は保存しない(今日はブックがライブで見る)。"""
-        from engine.common.historical_store import AswQuoteRow
         from engine.common.jgb_source import JgbClose, JgbRecord
         from engine.common.swaption_source import PremiumQuote
 
         today = DAYS[-1]  # 9/28 を今日として流す → 9/25 まで
-        asw = [
-            AswQuoteRow(DAYS[1], "000190054", 0.44, 0.48, datetime(2026, 9, 25, 18)),
-            AswQuoteRow(today, "000190054", 0.45, 0.49, datetime(2026, 9, 28, 18)),
-        ]
         bonds = [JgbRecord("JB380", "JP03800067=", "", 1.7, date(2035, 9, 20))]
         closes = [JgbClose(DAYS[1], "JB380", 2.94)]
         premiums = [PremiumQuote(DAYS[1], "1Yx10Y", 455.0, 2.9), PremiumQuote(today, "1Yx10Y", 460.0, 2.9)]
         fut = morning_batch.futures_source.FuturesFetch(
             [(DAYS[1], "2026-12", 126.5), (today, "2026-12", 126.6)], [], [],
         )
-        with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=asw),                 mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, closes)) as jgbs,                 mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fut) as futs,                 mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=premiums) as prem:
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, closes)) as jgbs,                 mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fut) as futs,                 mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=premiums) as prem:
             summary = self._run(skip_jgb=False, skip_vol=False, today=today)
         until = date(2026, 9, 27)
         self.assertEqual(jgbs.call_args.args, (until - timedelta(days=morning_batch.CLOSE_LOOKBACK_DAYS), until))
@@ -375,19 +337,8 @@ class CurveBatchTest(unittest.TestCase):
         self.assertEqual(summary.built, DAYS[:2])  # 9/28 のMidは取り込まない
         store = HistoricalStore(self.db)
         self.assertEqual(sorted(store.quotes()), DAYS[:2])
-        self.assertEqual(list(store.asw_quotes()), [DAYS[1]])
         self.assertEqual(store.fut_settles()["2026-12"], {DAYS[1]: 126.5})
         self.assertEqual(sorted(store.swaption_premiums()), [DAYS[1]])
-
-    def test_neon_failure_does_not_abort_the_batch(self):
-        from unittest import mock
-
-        with mock.patch.object(
-            morning_batch.neon_source, "fetch_asw_quotes", side_effect=RuntimeError("接続できません"),
-        ):
-            summary = self._run()  # 例外を外に投げず、カーブ構築は通常通り完了する
-        self.assertEqual(summary.built, DAYS)
-        self.assertEqual(HistoricalStore(self.db).asw_quotes(), {})
 
     def test_jgbs_are_synced_from_lseg(self):
         from unittest import mock

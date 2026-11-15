@@ -11,8 +11,7 @@ xlwingsのUDFとしてExcelから呼び出す(VBAなし、ブックは手動計�
 | `PositionSheet.xlsm` | ポジション・リスク管理(会社のリスク + 日中の取引 + 現物オプションのデルタ・ガンマ・ベガ・セータ、引けからのおおよそのPL) |
 
 データの供給元はLSEG Workspace。リアルタイムのレートは常駐のフィード(Python)が受信し、
-ヒストリカルは朝のバッチがローカルのDBに保存する。ASWスプレッドだけはNeon(Postgres)から
-読み取り専用で取得する(詳細は[docs/decisions.md](docs/decisions.md))。
+ヒストリカルは朝のバッチがローカルのDBに保存する(詳細は[docs/decisions.md](docs/decisions.md))。
 
 ## 構成
 
@@ -24,7 +23,7 @@ LSEG Workspace(起動・ログイン中)
   │
   ├─ historical_data.xlsx(ヒストリカルのミッド・TONAフィキシング)
   └─ Python API(JGBの銘柄情報・引け値)
-        │  朝に手動実行: python -m engine.common.morning_batch(+NeonからASW)
+        │  朝に手動実行: python -m engine.common.morning_batch
         ▼
      data/historical.db ──▶ ヒストリカル系・現物オプションのUDF(読むだけ)
 ```
@@ -68,21 +67,6 @@ Excelのブックは`templates/`の雛形を直下にコピーして使う。直
 このあと、xlwingsが使うPython(venvの`pythonw.exe`)の指定、各ブックでの「Import Functions」、
 計算方法(手動)の確認などを行う。手順の詳細とトラブルシューティングは
 [docs/setup_windows.md](docs/setup_windows.md)を参照。
-
-ASWスプレッドの取得(朝バッチの一部)にはNeonへの接続文字列が必要。リポジトリ直下に`.env`というファイルを作り、
-次の1行を書く(PCごとに1回):
-
-```
-NEON_CONNECTION_STRING=postgresql://<ユーザー>:<パスワード>@<ホスト>/<DB名>?sslmode=require
-```
-
-- 値はNeonのコンソールの「Connect」で表示される接続文字列(パスワード入り)をそのまま貼る(`OPERATIONS.md`も参照)。
-  パスワードを含むので、`.env`はgitignore対象でコミットされない。値をコード・docsに書かない。
-- 朝バッチはまず5432番(Postgres)で繋ぎ、繋がらないPC(会社のPC等)では同じ接続文字列のまま自動的に
-  HTTPS(443番、`https://<ホスト>/sql`)で取得する。PCごとの切り替えの設定は要らない。認証はどちらの経路でも
-  接続文字列のユーザー・パスワードでNeon側が行う(会社のPCでは`ASW_data`のSELECTしかできないロールの
-  接続文字列にしておくと安全)。
-- 設定が無い・どちらの経路でも繋がらない場合もバッチは止まらず、ASWの取り込みだけスキップされる(ログに理由が出る)。
 
 ## 毎日の使い方
 

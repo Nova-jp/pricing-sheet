@@ -10,21 +10,20 @@ LSEG Workspaceのデータを、日中はライブのフィードから、過去
 ## データフロー
 
 ```
-[Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]       [Neon(Postgres、他プロジェクトと共用)]
-  LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する                      public."ASW_data"(JGB銘柄別ASW、他プロジェクトのテーブルは触れない)
+[Excel: historical_data.xlsx(作業用。リポジトリにはtemplates/の雛形のみ)]
+  LSEG Workspace(RDP.HistoricalPricing)から取得し、保存する
   - Midシート: 日付×テナーのミッド(1M〜40YはJP{テナー}ONIPE=TRDTの引けの確定値。1W・会合スワップはJP…ONI=TRDT)
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
-        │                                                                              │
-        ▼  朝に手動実行: python -m engine.common.morning_batch                          │ SELECTのみ、updated_atで差分取得
-[朝バッチ engine/common/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)   │
-  ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)              │
-  ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存        │
-     (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)      │
-  ③ engine/common/neon_source.py経由でASWスプレッドを差分取得 ◀─────────────────────────┘
-     (Neonに繋がらなくても①②は続行する)
+        │
+        ▼  朝に手動実行: python -m engine.common.morning_batch
+[朝バッチ engine/common/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)
+  ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)
+  ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存
+     (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)
+  ③ (欠番)ASWスプレッドは取得しない(Neonからの取得は廃止。DBのasw_quotesは取得済みの値を残す)
   (①〜⑥のどれも、保存するのは昨日までの日付だけ。今日の値はブックがライブで見る)
   ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCLの履歴、直近10日分)を取得
-     (現物オプション用。Workspaceに繋がらなくても①〜③は続行する。--skip-jgbで行わない)
+     (現物オプション用。Workspaceに繋がらなくても①②は続行する。--skip-jgbで行わない)
      --jgb-history-from を付けたときは、引け値の過去分も取る(10年債はその日から、他の年限はスワップと同じ期間。JCL、無い日は大和・みずほで補う)
   ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
      (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
@@ -33,7 +32,7 @@ LSEG Workspaceのデータを、日中はライブのフィードから、過去
      (入力が変わった日だけ。VolHV・VolLevelが読む。engine/common/swaption_forward.py)
         │
         ▼
-[data/historical.db(ローカルのSQLite。LSEG/Neon由来なのでコミットしない)]
+[data/historical.db(ローカルのSQLite。LSEG由来なのでコミットしない)]
         │
         ▼  日中はDBを読むだけ(ブートストラップしない)
 [Excel: 各ブック]
@@ -113,7 +112,7 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 接続が切れたらまずライブラリの再接続を待ち、`resubscribe_after_sec`(30秒)たっても戻らなければセッションと
 購読を開き直す。ログは`data/live_feed.log`。
 
-データの供給元はLSEG Workspace(カーブ・プライシング本体)とNeon(ASWスプレッド、参照データのみ。カーブには使わない)。
+データの供給元はLSEG Workspace。
 詳細は[decisions.md](decisions.md)の「データの供給元」。
 
 ## 計算エンジン(`engine/`)
@@ -152,8 +151,7 @@ engine/
 | `market.py` | 評価日のマーケット(今日=ライブのレート、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB。清算機関(JSCC/LCH)ごとのスナップショット)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは清算機関ごとに最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)・スワップションのvol(`vol_quotes`)と原資産のFwd(`swaption_forwards`)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
-| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。`neon_source.py`経由でASWスプレッドも差分取得する(Neonに繋がらなくてもカーブ構築は続行)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`swaption_forward.py`) |
-| `neon_source.py` | Neon(Postgres)の`public."ASW_data"`から読み取り専用でASWスプレッドを取得する(他のテーブル・他プロジェクトのデータには触れない)。接続文字列は環境変数`NEON_CONNECTION_STRING`(`.env`)。`updated_at`を基準に差分取得できる。5432番に繋がらなければHTTPS(443番、`https://<ホスト>/sql`)で10万行ずつ取る |
+| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`swaption_forward.py`) |
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
@@ -183,7 +181,7 @@ engine/
 
 ## テスト(`tests/`)
 
-`python -m unittest discover -s tests`(QuantLibの入ったx64のPython環境)。LSEG・Neonには繋がない(取得部分はモック、
+`python -m unittest discover -s tests`(QuantLibの入ったx64のPython環境)。LSEGには繋がない(取得部分はモック、
 データは合成)。価格の値はQuantLibを正とし、自前ロジック(入力の解釈・スケジュール・エラー処理・ブートストラップの
 再現精度)をテストする。
 
@@ -194,7 +192,6 @@ engine/
 | `test_market_risk.py`・`test_pricing_table.py`・`test_lch_curve.py` | カーブの共有・デルタ・RiskGrid・PricingTable・LCHのカーブ |
 | `test_historical.py`・`test_hedge.py` | ヒストリカル(FIXED/ROLLING・先読みしないフィキシング)、ヘッジの重ね表示 |
 | `test_historical_store.py`・`test_morning_batch.py` | 日次カーブDBの保存・復元精度と朝バッチ |
-| `test_neon_source.py` | ASWの取得(対象テーブル・差分取得・接続の後始末・HTTPSへの切り替え) |
 | `test_asw.py`・`test_asw_pricer.py` | ASWシート・ASWPricer |
 | `test_live.py`・`test_live_feed.py`・`test_paths.py` | ライブのレートの受け渡し・フィード・worktreeのパス |
 | `test_swaption.py`・`test_swaption_forward.py` | スワップションのボラの換算・原資産のFwd |
