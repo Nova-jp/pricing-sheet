@@ -13,6 +13,7 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
   SwaptionVol      : スワップションのノーマルvol(bp/年)を満期×テナーで補間
   BlackPremium     : プレミアム(額面100円あたりの円、割引なし)(F10)
   ItmBuyWriteStrike: ITMバイライトのストライク(ストライク+プレミアム=購入単価、F11)
+  OptionTermTable  : 全行の期間T(満期までの営業日数/252。engine/common/option/term.py)
   OptionMarketTable / ItmBuyWriteTable / PremiumTable:
                      上の3つ(先渡リスク+ボラの補間、ITMBW、プレミアム)の表版。シートはこちらを使い、全行を
                      1回で計算する(1セルごとの往復を減らすため。本体は table.py)。1行用は単独の確認用に残す
@@ -121,6 +122,15 @@ def ItmBuyWriteStrike(forward, target, price_vol, term) -> float:
 
 
 # ---- 表UDF(Optionシートの全行を1回で計算する。本体は table.py) ----
+
+@xw.func
+@xw.arg("bonds", ndim=1)
+@xw.arg("expiries", ndim=1)
+def OptionTermTable(bonds, expiries, trade_date) -> List[list]:
+    """全行の期間T(年、満期までの営業日数/252)の縦1列。引数は同じ行数の列の範囲(銘柄・満期)と取引日。
+    銘柄が空欄の行は空欄。計算できない行は理由の文字列。"""
+    return table.term_table(bonds, expiries, udf_common._resolve_valuation_date(trade_date))
+
 
 @xw.func
 @xw.arg("bonds", ndim=1)

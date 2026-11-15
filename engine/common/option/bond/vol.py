@@ -7,7 +7,7 @@ bp/年 = bp/日×√252。engine/common/option/swaption/convert.py)で、LiveQuo
 
 ■ 補間(ユーザーと決めた方式)
   - 軸: 満期 = 取引日→オプション満期、テナー = オプション満期→償還日(行使時点の債券の残存)。
-    満期は営業日数(当日を含む。volと同じ数え方)。格子の点はスワップションの満期日(取引日+期間、
+    満期は営業日数(engine/common/option/term.py。volと同じ数え方)。格子の点はスワップションの満期日(取引日+期間、
     休日なら翌営業日)までの営業日数。テナーは暦日/365(うるう日除き)。
   - テナー方向: 満期ごとに vol を線形補間。
   - 満期方向: 分散(σ²t)を線形補間。
@@ -25,7 +25,8 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 import QuantLib as ql
 
 from engine.common.bond import NO_LEAP
-from engine.common.option.swaption.convert import business_days, expiry_date
+from engine.common.option.swaption.convert import expiry_date
+from engine.common.option.term import business_days
 
 _LABEL = re.compile(r"^\s*(\d+[MY])\s*X\s*(\d+[MY])\s*$", re.I)
 

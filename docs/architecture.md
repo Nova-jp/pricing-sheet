@@ -161,6 +161,7 @@ engine/
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `option/` | オプションの部品。スワップション(`swaption/`、原資産=フォワード・スワップレート、バシュリエ=レートが正規分布)と国債店頭オプション(`bond/`、原資産=債券の先渡clean単価、Black=単価が対数正規分布)。LSEGからのプレミアムの取得(`swaption_source.py`)はデータの取得の層なので`common/`の直下に置く |
+| `option/term.py` | 満期までの時間(スワップション・現物オプションで共通): 満期までの営業日数(`ql.Japan()`、当日を含み満期日を含まない)、年率の日数252、期間T、セータの1営業日。volの換算・ボラの格子の補間・現物オプションのT(BondOptionの`OptionTermTable`・PositionSheet)が全てここを使う |
 | `option/swaption/convert.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。契約は`underlying`の1か所(満期日=取引日+満期(Following)、起算日=満期日+2営業日=スワップのスポットと同じT+2)。暦日ベースへの掛け目`calendar_factor`(PositionSheetのVol moveだけが使う)。朝バッチの⑦⑧・フィード・`VolFwdLive`が使い、BondOptionの補間も同じ満期日・営業日数を使う |
 | `option/swaption/forward.py` | スワップションの原資産のFwd(DBの`swaption_forwards`)を日次カーブから計算する(朝バッチの⑧)。日付×格子の全銘柄ごとに、契約(`convert.underlying`)の日付・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd(`forward_prev`、日次変化=ロールダウンを含まない)。入力(計算方法・その日と前の日付のカーブの入力ハッシュ・銘柄)が変わった日だけ計算する(全日付で約1分、以後は1日0.1秒程度) |
 | `option/bond/` | 国債店頭オプションの部品(BondOptionとPositionSheetが使う): `pricer.py`(先渡MD・コンベクシティ・期間・Black式とグリークス・ITMバイライトのストライク)、`vol.py`(スワップションのボラの格子からの補間)、`hv.py`(現物とスワップのHVの比、Vol ratio)。式は[bond_option.md](bond_option.md) |
@@ -195,6 +196,7 @@ engine/
 | `test_historical_store.py`・`test_morning_batch.py` | 日次カーブDBの保存・復元精度と朝バッチ |
 | `test_asw.py`・`test_asw_pricer.py` | ASWシート・ASWPricer |
 | `test_live.py`・`test_live_feed.py`・`test_paths.py` | ライブのレートの受け渡し・フィード・worktreeのパス |
+| `test_option_term.py` | 満期までの時間(営業日数・T・セータの1営業日)と、volの換算・格子の補間・Tが同じ数え方を使うこと |
 | `test_swaption.py`・`test_swaption_forward.py` | スワップションのボラの換算・原資産のFwd |
 | `test_pca.py`・`test_vol.py`・`test_fwd.py`・`test_fut.py`・`test_jgb_futures.py`・`test_meeting_curve.py` | 分析ブック(PCA・ボラ・Fwd・先物・BOJ) |
 | `test_bond_option.py` | 現物オプション(ローカルにサンプルがあればプライサーとの一致も) |

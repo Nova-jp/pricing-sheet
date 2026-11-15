@@ -12,8 +12,7 @@
   プレミアムから逆算した満期までの標準偏差 σ√T(bp)を、満期までの営業日数 N で割って1日あたりにし、
   年率は ×√252 で表す(vol = σ√T / √N × √252。bp/日 = vol / √252)。分散が営業日にだけ積み上がる見方で、
   年末年始・GWのように休日をまたぐ満期ほど暦日ベース(Traditionの値)とずれる。
-  N は取引日から満期日の前日までの営業日数(当日を1日と数える。BondOptionのTと同じ数え方)。
-  当日の扱いは将来、日中の残り時間で減らしていく予定(business_days の1か所を変える)。
+  N は満期までの営業日数(engine/common/option/term.py。BondOptionのTと同じ数え方)。
 
 ■ 計算(QuantLib)
   原資産のフォワード・スワップ(起算日〜起算日+原資産、規約は STANDARD)を組み、フォワード・レートと
@@ -29,10 +28,10 @@ from typing import NamedTuple, Optional, Tuple
 import QuantLib as ql
 
 from engine.common.conventions import CALENDAR
+from engine.common.option.term import TRADING_DAYS, business_days
 from engine.common.swap_pricer import PAY, _build_swap
 from engine.common.terms import STANDARD, SwapTerms
 
-TRADING_DAYS = 252  # 年率の日数(プロジェクトの規約。BondOption・VolHVと同じ)
 START_LAG_DAYS = 2  # 満期日 → 原資産の起算日(営業日)
 
 _LABEL = re.compile(r"^\s*(\d+[MY])\s*X\s*(\d+[MY])\s*$", re.I)
@@ -61,11 +60,6 @@ def expiry_date(trade_date: date, expiry: str) -> date:
     """満期日 = 取引日 + 満期(休日なら翌営業日)。"""
     d = ql.Date.from_date(trade_date) + ql.PeriodParser.parse(expiry.strip().upper())
     return CALENDAR.adjust(d, ql.Following).to_date()
-
-
-def business_days(trade_date: date, expiry: date) -> int:
-    """満期までの営業日数。取引日から満期日の前日まで(当日を1日と数える)。"""
-    return CALENDAR.businessDaysBetween(ql.Date.from_date(trade_date), ql.Date.from_date(expiry), True, False)
 
 
 def vol_from_stdev(stdev: float, days: int) -> float:

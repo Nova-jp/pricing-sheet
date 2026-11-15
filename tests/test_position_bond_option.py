@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from engine.common import bond  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
+from engine.common.option import term  # noqa: E402
 from engine.common.option.bond import hv, pricer, vol  # noqa: E402
 from engine.position import bond_options, bonds, vega  # noqa: E402
 from tests.test_position import FRIDAY, _curves  # noqa: E402
@@ -94,7 +95,7 @@ class MarketRowsTest(unittest.TestCase):
         self.assertAlmostEqual(rows[0][8], vol.bond_option_vol(VOL_ROWS, FRIDAY, te, jgb.maturity), places=12)
         closes = {d: 1.70 + 0.005 * (i % 2) for i, d in enumerate(self.days)}
         self.assertAlmostEqual(rows[0][9], hv.vol_ratio(jgb, closes, _Rates(self.days), FRIDAY, 3).ratio, places=12)
-        self.assertEqual(rows[0][10], pricer.option_term(FRIDAY, te))
+        self.assertEqual(rows[0][10], term.option_term(FRIDAY, te))
         self.assertEqual(rows[1], [""] * bond_options.MARKET_COLUMNS)
         self.assertIn("Expired", rows[2][-1])
         self.assertEqual(rows[2][:-1], [""] * (bond_options.MARKET_COLUMNS - 1))

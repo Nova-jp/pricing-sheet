@@ -20,8 +20,9 @@ import QuantLib as ql  # noqa: E402
 from engine.common import swaption_source  # noqa: E402
 from engine.common.curve import bootstrap_curve  # noqa: E402
 from engine.common.option.swaption.convert import (  # noqa: E402
-    PremiumConverter, business_days, expiry_date, parse_label, vol_from_stdev,
+    PremiumConverter, expiry_date, parse_label, vol_from_stdev,
 )
+from engine.common.option.term import business_days  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 T0 = date(2026, 10, 23)  # 金曜

@@ -36,11 +36,16 @@ UDFは銘柄コードではなく利率・償還日のセルの値を受け取�
 | 満期日(行使日) te | 入力 |
 | 行使後の受渡日 se | teのT+lag(lag = 1または2、行ごとの入力) |
 | 利払日 | 償還日から半年ごとに遡る。休日調整なし。初回が変則の銘柄も名目の利払日から経過利子を数える |
-| 期間T | 営業日数(t0→te、`ql.Japan()`)/ 252 |
+| 期間T | 満期までの営業日数(t0→te、`ql.Japan()`、当日を含み満期日を含まない)/ 252(`engine/common/option/term.py`) |
 
-シートでは、営業日は`WORKDAY`・`NETWORKDAYS`にHolidaysシートの祝日(`JapanHolidays`、`ql.Japan()`の祝日から
-土日を除いたもの)を渡して数える。s0 = `WORKDAY(t0, 1, Holidays)`、se = `WORKDAY(te, lag, Holidays)`、
-T = `NETWORKDAYS(t0, te − 1, Holidays)/252`。QuantLibの`businessDaysBetween`・`advance`と2万通りの日付で一致を確認した。
+シートでは、受渡日は`WORKDAY`にHolidaysシートの祝日(`JapanHolidays`、`ql.Japan()`の祝日から土日を除いたもの)を
+渡して数える。s0 = `WORKDAY(t0, 1, Holidays)`、se = `WORKDAY(te, lag, Holidays)`。QuantLibの`advance`と2万通りの日付で
+一致を確認した。
+
+Tだけは表UDF`OptionTermTable`(AW8にスピル)で、スワップションのvolの換算・ボラの格子の補間と同じ関数
+(`engine/common/option/term.py`)から取る。volを割った日数とTの日数がずれると、同じプレミアムを再現できなくなるため。
+満期日の15時に残り0とする日中の数え方(`docs/roadmap.md`の16)もここだけを変える。以前の式
+`NETWORKDAYS(t0, te − 1, Holidays)/252`と同じ値になることはテストで確かめている。
 
 ## 計算式
 
@@ -74,7 +79,7 @@ LAMBDAとF6のシートの式は、Pythonの関数と2,759通り(負の利回り
 (単価・単利は完全一致、経過利子・先渡価格は1e-13未満の差)。
 
 切り捨ての前の`ROUND(…, 9)`は、浮動小数点の誤差(91.30099999…)で1つ下がらないため(Pythonの`truncate3`と同じ)。
-Pythonの`bond.py`・`pricer.forward_price`・`option_term`は、サンプルとの照合(テスト)とシートの式の確認に残している。
+Pythonの`bond.py`・`pricer.forward_price`は、サンプルとの照合(テスト)とシートの式の確認に残している。
 
 ## スキームとストライク
 
@@ -203,6 +208,7 @@ F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T �
 | `ValuationDate(評価日)` | 評価日(空欄=今日) |
 | `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄 |
 | `JapanHolidays(開始日, 終了日)` | 日本の祝日(土日を除く)を縦に |
+| `OptionTermTable(銘柄, 満期, 取引日)` | 全行の T(年)の縦1列。銘柄が空欄の行は空欄、計算できない行(満期が取引日以前等)は理由の文字列(下流の表UDFのmessageに出る) |
 | `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, CX(F12), ノーマルvol(補間), message] |
 | `ItmBuyWriteTable(Strike basis, 先渡clean, スポット単価, 価格ボラ, T)` | 全行の [F11のK, message](Strike basisが"ITMBW"の行だけ) |
 | `PremiumTable(種類, 先渡clean, K, 価格ボラ, T)` | 全行の [プレミアム(額面100円あたりの円), message] |
@@ -248,7 +254,7 @@ UDFは銘柄コードを受けず、利率・償還日のセルの値を受け�
 | Vol | W Swaption vol(補間値), X・Y Vol ratio(override │ 使う値), Z・AA Normal vol(override │ 使う値), AB・AC bp vol, AD・AE Price vol |
 | Premium | AF Premium(銭), AG 円, AH Strike + premium(ITMBWの確認), AI Quote text, AJ Message |
 | Greeks(AK以外は額面を掛けた百万円) | AK Delta(%), AL Delta(百万円/bp), AM Gamma(百万円/bp²), AN Vega(百万円/normal vol bp), AO Theta(百万円/営業日) |
-| Details(折りたたみ) | AP〜AS 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AT Type(対応表から), AU〜AW スポット受渡日・行使後の受渡日・T, AX〜BA 経過利子×2・期中の利払・Fwd dirty, BB〜BF Fwd yield comp(複利)・DD・MD・CX・ノーマルvolの補間値, BG〜BJ 現物のHV・スワップのHV・HVの窓の最初と最後の日付(計算用のセルを参照) |
+| Details(折りたたみ) | AP〜AS 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AT Type(対応表から), AU〜AV スポット受渡日・行使後の受渡日, AW T(`OptionTermTable`のスピル), AX〜BA 経過利子×2・期中の利払・Fwd dirty, BB〜BF Fwd yield comp(複利)・DD・MD・CX・ノーマルvolの補間値, BG〜BJ 現物のHV・スワップのHV・HVの窓の最初と最後の日付(計算用のセルを参照) |
 | Calc(折りたたみ) | BL `OptionMarketTable`, BR `ItmBuyWriteTable`, BT `PremiumTable`, BV `GreeksTable`, CA `VolRatioTable`(8行目にスピル), CJ3 ライブのボラ(`LiveQuotes("vol")`) |
 
 Quote text(客先に返す文面、ユーザーが決定)は「Scheme 銘柄 Expiry ATMのスライド 価格ボラ% プレミアムc」を空白区切りで並べる

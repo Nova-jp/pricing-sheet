@@ -9,6 +9,7 @@ Excelの式のまま残す。
 シートでは表UDFを右の計算用の領域にスピルさせ、表示の列はそのセルを参照するだけにする。表示の
 セルを手で上書きすれば、下流の式(とその先の表UDF)はその値で計算される。
 
+  term_table        : [期間T](満期までの時間。engine/common/option/term.py)
   market_table      : [先渡複利, 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(補間), message](F7・F8・F12・ボラの補間)
   itm_buy_write_table: [ストライク, message](F11。Strike basisが"ITMBW"の行だけ)
   premium_table     : [プレミアム(額面100円あたりの円), message](F10)
@@ -26,6 +27,7 @@ from datetime import date
 from typing import Callable, List, Sequence
 
 from engine.common import bond, udf_common
+from engine.common.option import term
 from engine.common.option.bond import hv, pricer, vol
 
 ITMBW = "ITMBW"
@@ -66,6 +68,21 @@ def _try(f: Callable, errors: List[str], label: str):
     except Exception as e:
         errors.append(f"{label}: {e}")
         return ""
+
+
+def term_table(bonds: Sequence, expiries: Sequence, trade_date: date) -> List[list]:
+    """行ごとの [期間T(年)](term.option_term)。銘柄が空欄の行は空欄。計算できない行(満期が取引日以前等)は
+    理由の文字列を返す(message列が無いため。下流の表UDFのmessageにそのまま出る)。"""
+    out = []
+    for code, expiry in _rows(bonds, expiries):
+        if udf_common._is_blank(code):
+            out.append([""])
+            continue
+        try:
+            out.append([term.option_term(trade_date, as_date(expiry, "満期"))])
+        except Exception as e:
+            out.append([f"Term: {e}"])
+    return out
 
 
 def market_table(
