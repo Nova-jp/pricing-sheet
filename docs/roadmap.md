@@ -83,7 +83,7 @@ VolPCAの既定は満期×原資産の格子の全点(ユーザー指示「と�
 ## 16. スワップションのボラ(営業日ベース)の残り
 
 - 当日の数え方: 今は当日を1日と数える。日中は時間がたつにつれて当日分を減らしていく(ユーザー:「将来的に変えていく」)。
-  変えるのは`engine/common/swaption.py`の`business_days`の1か所。
+  変えるのは`engine/common/option/swaption/convert.py`の`business_days`の1か所。
 - `historical_data.xlsx`のVol系のシート(Vol設定/RawVol/Vol/VolMatrix)はバッチが読まなくなった。ブックから消す
   (Excelでの作業。雛形も作り直す)。
 - フィードのライブの値が東京時間に実際に更新されるか(`PRIMACT_1`)を、平日の日中に確かめる。

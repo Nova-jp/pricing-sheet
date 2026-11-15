@@ -22,11 +22,12 @@ from typing import List, Optional, Tuple
 import QuantLib as ql
 import xlwings as xw
 
-from engine.common import swaption, udf_common
+from engine.common import udf_common
 from engine.common.conventions import CALENDAR
 from engine.common.curve import spot_date_for
 from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
+from engine.common.option.swaption import convert as swaption
 from engine.common.udf_common import _is_blank, _to_date
 from engine.position import bond_options, bonds, intraday, trades, vega
 

@@ -1,5 +1,5 @@
 """
-現物オプションのヒストリカル・ボラの比(engine/common/jgb_option/hv.py・table.vol_ratio_table)のテスト。
+現物オプションのヒストリカル・ボラの比(engine/common/option/bond/hv.py・table.vol_ratio_table)のテスト。
 
 架空の銘柄・平らなカーブ(日ごとに水準を動かす)で、窓の日付の選び方・HVの定義(2乗平均の平方根)・
 行ごとのエラーを確かめる。
@@ -21,9 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from engine.bond_option import table  # noqa: E402
-from engine.common.jgb_option import hv  # noqa: E402
 from engine.common.bond import Jgb, compound_yield  # noqa: E402
 from engine.common.conventions import CALENDAR  # noqa: E402
+from engine.common.option.bond import hv  # noqa: E402
 
 BOND = Jgb(1.0, date(2031, 3, 20))  # 架空の5年債
 

@@ -19,12 +19,13 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import swaption_forward, udf_common  # noqa: E402
+from engine.common import udf_common  # noqa: E402
 from engine.common.curve import bootstrap_curve  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.market_data import Market  # noqa: E402
+from engine.common.option.swaption import forward as swaption_forward  # noqa: E402
+from engine.common.option.swaption.convert import underlying  # noqa: E402
 from engine.common.swap_pricer import par_rate  # noqa: E402
-from engine.common.swaption import underlying  # noqa: E402
 from engine.vol import hv, udf  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_swaption_forward import (  # noqa: E402

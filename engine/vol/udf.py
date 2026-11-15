@@ -66,7 +66,7 @@ def VolHistory(labels) -> List[list]:
 def VolFwdLive(labels, real_time_range) -> List[list]:
     """
     ライブのカーブ(今日)での、銘柄(「満期x原資産」)の原資産のFwdスワップレート(%、labels と同じ並びの縦1列。
-    空欄の行は空欄を返す)。契約はVolHistoryのFwdの各日の決め方と同じ(swaption.underlying)。
+    空欄の行は空欄を返す)。契約はVolHistoryのFwdの各日の決め方と同じ(option/swaption/convert.underlying)。
     real_time_range: フラグ/Ticker/Value の範囲(シートのカーブ用の範囲の TAKE(…#,,3)。pricingと同じ引き方)。
     """
     cells = list(labels or [])

@@ -2,7 +2,7 @@
 スワップションのATMノーマルvol(満期×原資産の格子)から、債券オプションのボラを補間する。
 
 格子はフィード(live_feed.toml の "vol"。TraditionのATMプレミアムから計算した営業日ベースのノーマルvol、
-bp/年 = bp/日×√252。engine/common/swaption.py)で、LiveQuotes("vol") が返す行 [銘柄(例 1Mx10Y), RIC, 値] の
+bp/年 = bp/日×√252。engine/common/option/swaption/convert.py)で、LiveQuotes("vol") が返す行 [銘柄(例 1Mx10Y), RIC, 値] の
 銘柄と値を使う。
 
 ■ 補間(ユーザーと決めた方式)
@@ -25,7 +25,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 import QuantLib as ql
 
 from engine.common.bond import NO_LEAP
-from engine.common.swaption import business_days, expiry_date
+from engine.common.option.swaption.convert import business_days, expiry_date
 
 _LABEL = re.compile(r"^\s*(\d+[MY])\s*X\s*(\d+[MY])\s*$", re.I)
 

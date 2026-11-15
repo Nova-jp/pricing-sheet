@@ -1,5 +1,5 @@
 """
-スワップションのプレミアム → 営業日ベースのvol(engine/common/swaption.py)と、
+スワップションのプレミアム → 営業日ベースのvol(engine/common/option/swaption/convert.py)と、
 Traditionのプレミアムの取得(engine/common/swaption_source.py、LSEGには接続しない)のテスト。
 
 実行方法:
@@ -19,7 +19,7 @@ import QuantLib as ql  # noqa: E402
 
 from engine.common import swaption_source  # noqa: E402
 from engine.common.curve import bootstrap_curve  # noqa: E402
-from engine.common.swaption import (  # noqa: E402
+from engine.common.option.swaption.convert import (  # noqa: E402
     PremiumConverter, business_days, expiry_date, parse_label, vol_from_stdev,
 )
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402

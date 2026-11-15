@@ -165,7 +165,7 @@
     (値は9桁の行と同じ)。
 - **スワップションのボラはTraditionのATMプレミアムから自前で計算した、営業日ベースのノーマルvol**(ユーザー指示)。
   市場で実際にクォートされているのはプレミアム。LSEGの計算したvol(暦日ベース)を営業日の252で割ると、休日の数だけずれる
-  (1Mx10Yで−1.4%〜+5%)。計算は`engine/common/swaption.py`。
+  (1Mx10Yで−1.4%〜+5%)。計算は`engine/common/option/swaption/convert.py`。
   - **プレミアムの定義**(実機と実DBのカーブで確認): `JPY{満期}{原資産}TOATM=TRDT`のリアルタイム`PRIMACT_1`・
     ヒストリカル`FWPM_OCPHM`は、ATMストラドルの、原資産の起算日へのフォワード・プレミアム(想定元本のbp)。
     満期日=取引日+満期(Following)、起算日=満期日+2営業日、ストラドル=2×年金×σ√T×φ(0)。自前のカーブの年金から
@@ -176,8 +176,8 @@
     VolHV・BondOptionの`VolDays`)の単位を変えないため。
   - **PositionSheetのVol moveだけは暦日ベースに直す**(2026-11-10、ユーザー指示)。会社のベガは暦日の年率のvolで
     微分した値なので、ベガに掛けるボラの動きもそれに揃える。掛け目 = √(営業日数/252) × √(365/暦日数)
-    (`swaption.calendar_factor`。満期までの標準偏差は同じで、年率に直す日数だけ替える)。DB・フィード・他のブックは営業日ベースのまま。
-  - **契約はvolの換算・原資産のFwd(`swaption_forwards`)・BondOptionの補間で1つ**(`swaption.underlying`)。
+    (`option/swaption/convert.calendar_factor`。満期までの標準偏差は同じで、年率に直す日数だけ替える)。DB・フィード・他のブックは営業日ベースのまま。
+  - **契約はvolの換算・原資産のFwd(`swaption_forwards`)・BondOptionの補間で1つ**(`option/swaption/convert.underlying`)。
   - **ライブの換算はフィードで行う**。フィードは同じプロセスで`"swap"`も購読しているのでそのカーブで換算し、
     どのブックも同じvolを見る。QuantLibの計算がUDFサーバと取り合わない。採らなかった案: UDFで換算する(3シートの数式の
     書き換えが要る)、前日のDBのカーブで換算する(日中に金利が動くと年金がずれる)。

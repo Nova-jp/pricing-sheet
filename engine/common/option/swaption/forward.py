@@ -2,7 +2,7 @@
 スワップションの原資産のFwd(DBの swaption_forwards)を、保存済みの日次カーブから計算する(朝バッチの⑧)。
 
 ■ 何を持つか
-  日付×銘柄(満期x原資産、格子の全銘柄)ごとに、その日の契約(engine/common/swaption.underlying。volの換算と
+  日付×銘柄(満期x原資産、格子の全銘柄)ごとに、その日の契約(engine/common/option/swaption/convert.underlying。volの換算と
   同じ契約)の満期日・起算日・原資産の満期日・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価した
   Fwd(forward_prev)。日次変化 = forward − forward_prev は同じ契約どうしの差なのでロールダウンを含まない
   (VolHVのHV)。前の日付はDBでカーブのある直前の日(最初の日付は NULL)。
@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Protocol, Sequence
 
 from engine.common.forward import ForwardPricer, last_date
 from engine.common.historical_store import SwaptionForwardRow
-from engine.common.swaption import Underlying, annuity, underlying
+from engine.common.option.swaption.convert import Underlying, annuity, underlying
 
 # 計算方法の名前(契約の決め方・列の定義を変えたら変える。全日付を計算し直す)
 FORWARD_METHOD = "swaption-underlying-v1"
