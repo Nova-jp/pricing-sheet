@@ -25,7 +25,9 @@ from typing import NamedTuple
 
 import QuantLib as ql
 
-from engine.common.bond import NO_LEAP, ForwardPrice, Jgb, dollar_duration, forward_price, ql_bond, truncate3  # noqa: F401
+from engine.common.bond import (  # noqa: F401
+    NO_LEAP, ForwardPrice, Jgb, dollar_convexity, dollar_duration, forward_price, ql_bond, truncate3,
+)
 from engine.common.bond import compound_yield as bond_compound_yield
 from engine.common.conventions import CALENDAR
 
@@ -38,14 +40,17 @@ class ForwardDuration(NamedTuple):
     compound_yield: float  # 先渡複利(%、小数3桁で切り捨て)
     dollar_duration: float  # DD = −dP/dy(額面100円、利回り1%あたり)
     modified_duration: float  # MD = DD / 先渡dirty × 100
+    dollar_convexity: float  # d²P/dy²(額面100円、利回り1%の2乗あたり。グリークスのガンマを金利に換えるのに使う)
 
 
 def forward_duration(bond: Jgb, forward_dirty: float, forward_settle: date) -> ForwardDuration:
     """F7・F8: 先渡dirtyに一致する半年複利(うるう日除き/365、受渡日起点)を小数3桁で切り捨て、
-    その利回りでの −dP/dy を DD、DD/先渡dirty を MD とする(分母はレポで計算した先渡dirty)。"""
+    その利回りでの −dP/dy を DD、DD/先渡dirty を MD とする(分母はレポで計算した先渡dirty)。
+    同じ利回りでの d²P/dy² も返す(F12。金利1bpの2乗あたりのガンマの2項目)。"""
     compound_yield = bond_compound_yield(bond, forward_dirty, forward_settle)
     dd = dollar_duration(bond, compound_yield, forward_settle)
-    return ForwardDuration(compound_yield, dd, dd / forward_dirty * 100)
+    return ForwardDuration(compound_yield, dd, dd / forward_dirty * 100,
+                           dollar_convexity(bond, compound_yield, forward_settle))
 
 
 def option_term(trade_date: date, expiry: date) -> float:

@@ -26,7 +26,7 @@ from engine.common.jgb_option import pricer, vol  # noqa: E402
 from engine.bond_option import udf as bo_udf  # noqa: E402
 from engine.common import udf_common  # noqa: E402
 from engine.common.bond import (  # noqa: E402
-    Jgb, accrued_interest, coupon_dates, price_from_simple_yield, settlement_date,
+    Jgb, accrued_interest, coupon_dates, dollar_duration, price_from_simple_yield, settlement_date,
     simple_yield_from_price, truncate3, years_to_maturity,
 )
 from engine.common.historical_store import HistoricalStore  # noqa: E402
@@ -127,6 +127,15 @@ class ForwardTest(unittest.TestCase):
         self.assertEqual(d.compound_yield, truncate3(d.compound_yield))  # 小数3桁で切り捨て済み
         self.assertAlmostEqual(d.modified_duration, d.dollar_duration / fwd.dirty * 100, places=12)
         self.assertTrue(4.0 < d.modified_duration < 4.5, d)  # 残存約4.3年
+
+    def test_convexity_is_slope_of_dollar_duration(self):
+        """F12: d²P/dy² は同じ利回りでの DD(= −dP/dy)の傾きの符号を変えたもの(どちらもQuantLib)。"""
+        se = date(2026, 11, 18)
+        d = pricer.forward_duration(BOND, pricer.forward_price(BOND, 99.0, self.S0, se, 0.5).dirty, se)
+        h = 0.01
+        slope = (dollar_duration(BOND, d.compound_yield - h, se) - dollar_duration(BOND, d.compound_yield + h, se)) / (2 * h)
+        self.assertGreater(d.dollar_convexity, 0)
+        self.assertAlmostEqual(d.dollar_convexity, slope, delta=abs(slope) * 1e-4)
 
 
 class OptionTest(unittest.TestCase):
@@ -259,7 +268,7 @@ class UdfTest(unittest.TestCase):
     def test_row_chain(self):
         """シートの1行と同じ組み合わせ(UDFの部分)が計算できる。利率・償還日はセルの値で渡す。"""
         t0, expiry, se = date(2026, 10, 16), date(2026, 11, 16), date(2026, 11, 18)
-        _, _, md = bo_udf.JgbForwardRisk(2.0, date(2031, 3, 20), 100.5, se)[0]
+        md = bo_udf.JgbForwardRisk(2.0, date(2031, 3, 20), 100.5, se)[0][2]
         normal = bo_udf.SwaptionVol([["1Mx1Y", "R", 40.0], ["1Mx10Y", "R", 80.0]], t0, expiry, date(2031, 3, 20))
         price_vol = normal / math.sqrt(252) * math.sqrt(252) * md / 100
         premium = bo_udf.BlackPremium("Put", 100.0, 99.9, price_vol, 20 / 252)
@@ -286,18 +295,18 @@ class TableUdfTest(unittest.TestCase):
         expected = bo_udf.JgbForwardRisk(2.0, self.MAT, 100.5, se)[0] + [
             bo_udf.SwaptionVol(self.VOLS, self.T0, date(2026, 11, 16), self.MAT), ""]
         self.assertEqual(rows[0], expected)
-        self.assertEqual(rows[1], [""] * 5)  # 銘柄が空欄の行
-        self.assertEqual(rows[2][:4], [""] * 4)  # 償還日が日付でない行はその行だけエラー
-        self.assertIn("償還日は日付です", rows[2][4])
+        self.assertEqual(rows[1], [""] * 6)  # 銘柄が空欄の行
+        self.assertEqual(rows[2][:5], [""] * 5)  # 償還日が日付でない行はその行だけエラー
+        self.assertIn("償還日は日付です", rows[2][5])
 
     def test_market_table_without_vols_keeps_risk(self):
         rows = bo_udf.OptionMarketTable(
             ["JS999"], [2.0], [self.MAT], [100.5], [datetime.datetime(2026, 11, 18)],
             [datetime.datetime(2026, 11, 16)], [["", "", ""]], self.T0,
         )
-        self.assertNotEqual(rows[0][2], "")
-        self.assertEqual(rows[0][3], "")
-        self.assertIn("Vol", rows[0][4])
+        self.assertNotEqual(rows[0][3], "")  # 先渡のリスクは計算する
+        self.assertEqual(rows[0][4], "")
+        self.assertIn("Vol", rows[0][5])
 
     def test_itm_buy_write_table_only_itmbw_rows(self):
         rows = bo_udf.ItmBuyWriteTable(
@@ -317,6 +326,17 @@ class TableUdfTest(unittest.TestCase):
         self.assertEqual(rows[1], ["", ""])
         self.assertEqual(rows[2][0], "")
         self.assertIn("ストライクが空です", rows[2][1])
+
+    def test_greeks_table(self):
+        rows = bo_udf.GreeksTable(
+            ["Put", "", "Call"], [100.0, "", 100.0], [99.9, "", None], [3.0, "", 3.0], [20 / 252, "", 20 / 252],
+        )
+        g = pricer.black_greeks("Put", 100.0, 99.9, 3.0, 20 / 252)
+        self.assertEqual(rows[0], [g.delta, g.gamma, g.vega, g.theta, ""])
+        self.assertAlmostEqual(g.premium, bo_udf.BlackPremium("Put", 100.0, 99.9, 3.0, 20 / 252), places=12)
+        self.assertEqual(rows[1], [""] * 5)
+        self.assertEqual(rows[2][:4], [""] * 4)
+        self.assertIn("ストライクが空です", rows[2][4])
 
 
 @unittest.skipUnless(SAMPLES.exists(), "ユーザーのサンプル(data/bond_option_samples.toml)はローカルにだけある")

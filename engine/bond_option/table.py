@@ -9,9 +9,11 @@ Excelの式のまま残す。
 シートでは表UDFを右の計算用の領域にスピルさせ、表示の列はそのセルを参照するだけにする。表示の
 セルを手で上書きすれば、下流の式(とその先の表UDF)はその値で計算される。
 
-  market_table      : [先渡複利, 先渡DD, 先渡MD, ノーマルvol(補間), message](F7・F8・ボラの補間)
+  market_table      : [先渡複利, 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(補間), message](F7・F8・F12・ボラの補間)
   itm_buy_write_table: [ストライク, message](F11。Strike basisが"ITMBW"の行だけ)
   premium_table     : [プレミアム(額面100円あたりの円), message](F10)
+  greeks_table      : [デルタ, ガンマ, ベガ, セータ, message](F13。Black式、額面100円あたりの円。金利・ノーマルvol・
+                      銭への換算はシートの式)
   vol_ratio_table   : [現物のHV, スワップのHV, 比, 変化の数, 窓の最初の日付, 最後の日付, message](hv.py)
 
 ■ エラー
@@ -70,7 +72,8 @@ def market_table(
     bonds: Sequence, coupons: Sequence, maturities: Sequence, forward_dirty: Sequence,
     forward_settle: Sequence, expiries: Sequence, vol_rows: Sequence, trade_date: date,
 ) -> List[list]:
-    """行ごとの [先渡複利(%), 先渡DD, 先渡MD, ノーマルvol(bp/年、補間), message]。銘柄が空欄の行は空欄。"""
+    """行ごとの [先渡複利(%), 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(bp/年、補間), message]。
+    銘柄が空欄の行は空欄。"""
     grid_errors: List[str] = []
     grid = _try(lambda: vol.build_grid([list(r) for r in (vol_rows or []) if r is not None], trade_date),
                 grid_errors, "Vol")
@@ -78,7 +81,7 @@ def market_table(
     for code, coupon, maturity, dirty, settle, expiry in _rows(
             bonds, coupons, maturities, forward_dirty, forward_settle, expiries):
         if udf_common._is_blank(code):
-            out.append([""] * 5)
+            out.append([""] * 6)
             continue
         errors: List[str] = []
         risk = _try(lambda: pricer.forward_duration(
@@ -91,7 +94,7 @@ def market_table(
         else:
             normal = _try(lambda: vol.grid_vol(grid, trade_date, as_date(expiry, "満期"), as_date(maturity, "償還日")),
                           errors, "Vol")
-        row = list(risk) if risk != "" else ["", "", ""]
+        row = list(risk) if risk != "" else ["", "", "", ""]
         out.append(row + [normal, " / ".join(errors)])
     return out
 
@@ -129,6 +132,27 @@ def premium_table(
             as_number(price_vol, "価格ボラ"), as_number(term, "期間"),
         ), errors, "Premium")
         out.append([premium, " / ".join(errors)])
+    return out
+
+
+def greeks_table(
+    types: Sequence, forwards: Sequence, strikes: Sequence, price_vols: Sequence, terms: Sequence,
+) -> List[list]:
+    """行ごとの [デルタ(∂プレミアム/∂先渡clean), ガンマ(∂²/∂先渡clean²), ベガ(価格ボラ1%あたりの円),
+    セータ(1営業日の円), message](額面100円あたり、割引なし。pricer.black_greeks)。引数は premium_table と同じ。
+    種類(Call/Put)が空欄の行は空欄。"""
+    out = []
+    for option_type, forward, strike, price_vol, term in _rows(types, forwards, strikes, price_vols, terms):
+        if udf_common._is_blank(option_type):
+            out.append([""] * 5)
+            continue
+        errors: List[str] = []
+        g = _try(lambda: pricer.black_greeks(
+            option_type, as_number(forward, "先渡価格"), as_number(strike, "ストライク"),
+            as_number(price_vol, "価格ボラ"), as_number(term, "期間"),
+        ), errors, "Greeks")
+        row = [g.delta, g.gamma, g.vega, g.theta] if g != "" else [""] * 4
+        out.append(row + [" / ".join(errors)])
     return out
 
 
