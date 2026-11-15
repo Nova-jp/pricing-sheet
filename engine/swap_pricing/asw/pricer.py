@@ -9,7 +9,7 @@
   - MMS: 起算日=スポット(T+2)、満期日=償還日(Modified Following)、償還日から遡る日程(roll conv=BWD)、
     固定側 Act/365・PA/SA、変動側も同じ頻度のOISのパーレート(swap_pricerの経路。PricingSheetの
     パーレートと同じカーブ)。PA/SAの差がNeonと0.01bpの範囲で一致することを確認済み(2026-09-25のDB)。
-■ 約定したASWのヘッジ(ASWPricerシートのAA:AD)
+■ 約定したASWのヘッジ(ASWPricerシートのTraded ASWのブロック)
   ASWを固定するとMMSの1bpは複利の1bpなので、現物のリスクは複利を1bp動かしたときの利含み単価の変化で測り
   (bond_bpv)、スワップはアニュイティデルタ(pricing表のadj_notionalと同じ基準)で合わせる。
   ヘッジ比率とノーショナルの掛け算・MMSのレート(複利−約定ASW)はシートの式で計算する。
