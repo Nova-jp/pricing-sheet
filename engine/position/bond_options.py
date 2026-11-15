@@ -4,7 +4,7 @@
 会社のファイルには入っていないので、約定(Raw_BondOptionに貼る)から基準日の引けの値で計算し、Positionシートの
 Bondのデルタ・ガンマとセータに足す(ユーザー決定、2026-11-10)。ベガの格子はスワップション(会社の値)だけで、
 現物オプションのベガは約定ごとの表示だけ(2026-11-10、ユーザー指示)。リアルタイムでは計算しない。
-計算はBondOption.xlsmと同じ部品(engine/common/jgb_option/、式は docs/bond_option.md)。
+計算はBondOption.xlsmと同じ部品(engine/common/option/bond/、式は docs/bond_option.md)。
 
 ■ 分担(BondOptionと同じ。中身のある計算は表UDF、符号・額面・単位の換算と合計はシートの数式)
   market_rows : 行ごとの [利率, 償還日, 引けの単利, 引けの日付, スポット単価, 先渡clean, 先渡MD, 先渡DD,
@@ -30,8 +30,8 @@ from datetime import date
 from typing import Dict, List, NamedTuple, Optional, Sequence
 
 from engine.common import bond, udf_common
-from engine.common.jgb_option import hv, pricer, vol
 from engine.common.market import CurveSet
+from engine.common.option.bond import hv, pricer, vol
 from engine.position.bonds import BondPosition, bond_risk, bucket, pillar_dates
 
 SPOT_LAG = 1

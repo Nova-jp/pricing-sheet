@@ -332,7 +332,7 @@ class VolCalculatorTest(unittest.TestCase):
         import QuantLib as ql
 
         from engine.common.curve import bootstrap_curve
-        from engine.common.swaption import PremiumConverter
+        from engine.common.option.swaption.convert import PremiumConverter
         from tests.test_curve_repricing import SPOT_RATES
 
         trade_date = T0.date()

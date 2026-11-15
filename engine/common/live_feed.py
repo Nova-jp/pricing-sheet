@@ -27,7 +27,7 @@ RICを購読し続け、最新の値を data/live.db(engine/common/live_store.py
 ■ ボラ(kind="vol")はプレミアムから計算して書く
   購読するのはTraditionのATMストラドルのフォワード・プレミアム(JPY{満期}{原資産}TOATM=TRDT の PRIMACT_1)。
   書くたびに、curve で指定した kind="ois" のデータセットのライブのレートでカーブを組み
-  (テナー・構築方法は historical_curve.toml = 日次カーブDBと同じ)、engine/common/swaption.py で
+  (テナー・構築方法は historical_curve.toml = 日次カーブDBと同じ)、engine/common/option/swaption/convert.py で
   営業日ベースのvolに換える(取引日 = 書く時刻の日付)。どちらかの値が変われば計算し直す。
   カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。QuantLibの計算はこのプロセスの
   メインのスレッドだけで行う(UDFサーバと取り合わない)。
@@ -279,7 +279,7 @@ class VolCalculator:
         """[銘柄, RIC, プレミアム] → [銘柄, RIC, vol]。カーブを組めなければ例外。"""
         import QuantLib as ql
 
-        from engine.common.swaption import PremiumConverter
+        from engine.common.option.swaption.convert import PremiumConverter
 
         quotes = {str(r[0]).strip().upper(): r[1] for r in swap_rows if r and r[1] is not None}
         selected = {t: quotes[t] for t in self.tenors if t in quotes}

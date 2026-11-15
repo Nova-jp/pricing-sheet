@@ -1,5 +1,5 @@
 """
-スワップションの原資産のFwd(engine/common/swaption_forward.py、DBの swaption_forwards)のテスト。
+スワップションの原資産のFwd(engine/common/option/swaption/forward.py、DBの swaption_forwards)のテスト。
 
 実行方法:
     python -m unittest tests.test_swaption_forward -v
@@ -21,14 +21,14 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import QuantLib as ql  # noqa: E402
 
-from engine.common import swaption_forward  # noqa: E402
 from engine.common.curve import bootstrap_curve  # noqa: E402
 from engine.common.historical_store import (  # noqa: E402
     GRID_DAYS, HistoricalStore, StoredCurve, _grid_dates, discount_grid,
 )
 from engine.common.market_data import Market  # noqa: E402
+from engine.common.option.swaption import forward as swaption_forward  # noqa: E402
+from engine.common.option.swaption.convert import PremiumConverter, underlying  # noqa: E402
 from engine.common.swap_pricer import par_rate  # noqa: E402
-from engine.common.swaption import PremiumConverter, underlying  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 DATES = [date(2026, 9, 24), date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29)]  # 営業日(土日をまたぐ)
@@ -57,7 +57,7 @@ class BootstrapSource:
 
 
 def par(source, as_of_date, label, contract_date):
-    """contract_date の契約(swaption.underlying)を、as_of_date のカーブで評価したパーレート(%)。"""
+    """contract_date の契約(convert.underlying)を、as_of_date のカーブで評価したパーレート(%)。"""
     boot = source.load(as_of_date)
     terms = underlying(contract_date, label).terms
     return par_rate(Market(as_of_date, boot.curve, boot.index, {}), terms).target_fixrate

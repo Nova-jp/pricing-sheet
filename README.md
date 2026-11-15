@@ -36,7 +36,7 @@ LSEG Workspace(起動・ログイン中)
 | `engine/common/` | 共有の計算エンジン・データ層(カーブ、プライサー、DB、朝バッチ、リアルタイムのフィード) |
 | `engine/swap_pricing/` | PricingSheet.xlsmのUDF(`pricing/`・`historical/`・`asw/`) |
 | `engine/pca/` ・ `vol/` ・ `fwd/` ・ `fut/` ・ `boj/` | SwapAnalysis.xlsmのPCA・ボラ・Fwdの監視・国債先物・BOJ会合 |
-| `engine/bond_option/` | BondOption.xlsmの表UDF(計算の部品は`engine/common/jgb_option/`、PositionSheetと共用) |
+| `engine/bond_option/` | BondOption.xlsmの表UDF(計算の部品は`engine/common/option/bond/`、PositionSheetと共用) |
 | `engine/position/` | PositionSheet.xlsmのポジション・リスク管理 |
 | `historical_data.xlsx` | LSEGのヒストリカル生データを取得するブック(作業用で`.gitignore`済み) |
 | `live_feed.toml` | リアルタイムのフィードの設定(購読するRIC・秒数) |

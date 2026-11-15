@@ -9,7 +9,7 @@ LSEG(Python API、lseg.data)から Tradition のスワップションATMプレ�
   頼るため。ユーザー指示、2026-11-09)。フィード(live_feed.toml の "vol")も同じ規則で除く。満期2M・6Y・8Y・9Yは市場にクオートが無いので使わない(2Mのリアルタイムは2021-07-28で
   止まった値、6Y・8Y・9Yは値が無い。2026-10-26に確認)。間の満期は読む側が補間する(ユーザー了承)。
 
-■ 項目(engine/common/swaption.py の「プレミアムの定義」)
+■ 項目(engine/common/option/swaption/convert.py の「プレミアムの定義」)
   FWPM_OCPHM = ATMストラドルのフォワード・プレミアム(bp)、ATM_STRIKE = ATMのストライク(%、記録用)。
   ExcelのRDP.HistoricalPricingはこの項目名を受け付けないため、Python APIで取る(JGBの引け値と同じ)。
 

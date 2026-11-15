@@ -102,7 +102,7 @@ UDFを消した)。
   原資産6Y → 5Yと7Yに半分ずつ、原資産9M → 6Mと1Yに半分ずつ)。
   SetupのD22:F22で「生シートの合計」と「表の合計」の差を見る(表記を読めない行があると0にならない)。
 - **24〜40行目 Vol move (bp)**: `ライブのvol × 掛け目(今日) − 基準日の引けのvol × 掛け目(基準日)`。どちらのvolも
-  TraditionのATMストラドルのプレミアムから`engine/common/swaption.py`で換算した営業日ベースのノーマルvol(ライブはフィード、
+  TraditionのATMストラドルのプレミアムから`engine/common/option/swaption/convert.py`で換算した営業日ベースのノーマルvol(ライブはフィード、
   引けは朝バッチのDBの`vol_quotes`)で、掛け目 √(営業日数/252) × √(365/暦日数)(`PosVolCalendarFactor`)で**暦日ベース**に
   直してから差を取る。会社のベガが暦日の年率のvolで微分した値のため(2026-11-10、ユーザー指示)。1W・2Wの行は1Mの行の
   値を使う(市場のボラが無いので1Mを延ばす)。原資産6Mの列は同じ満期の1Yの値を使う(LSEGのどのブローカーにも原資産6Mの
@@ -142,7 +142,7 @@ UDFを消した)。
 
 会社のファイルに入っていないので、`Raw_BondOption`に貼った全約定から基準日の引けの値でグリークスを計算し、Positionの
 Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの表示だけで、Positionのベガの格子には入れない(2026-11-10、ユーザー指示)。リアルタイムでは計算しない(F9で計算)。計算の部品はBondOption.xlsmと同じ
-(`engine/common/jgb_option/`。式は[bond_option.md](bond_option.md))。分担もBondOptionと同じで、中身のある計算は表UDF
+(`engine/common/option/bond/`。式は[bond_option.md](bond_option.md))。分担もBondOptionと同じで、中身のある計算は表UDF
 (右の折りたたみのAH:AZにスピル)、表示の列はそれを参照し、符号・額面・単位の換算はシートの数式にする。
 
 - **入力**: `Raw_BondOption`の列を見出しの名前で引く(SetupのH10:J18)。Bond = `JGBCode`、Type = `OptionType`(CALL/PUT)、

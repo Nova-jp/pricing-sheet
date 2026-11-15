@@ -25,9 +25,10 @@ import QuantLib as ql
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import bond, market, swaption, udf_common  # noqa: E402
+from engine.common import bond, market, udf_common  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
+from engine.common.option.swaption import convert as swaption  # noqa: E402
 from engine.position import bonds, intraday, trades, udf  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402

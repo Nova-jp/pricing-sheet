@@ -1,5 +1,5 @@
 """
-PositionSheetの現物オプションのグリークス(engine/position/bond_options.py、jgb_option.pricer.black_greeks)のテスト。
+PositionSheetの現物オプションのグリークス(engine/position/bond_options.py、option.bond.pricer.black_greeks)のテスト。
 
 - Black式のグリークス: プレミアムはF10(black_premium)と一致し、デルタ・ガンマ・ベガは差分と一致、
   セータは期間を1営業日縮めた差
@@ -24,8 +24,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import bond  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
-from engine.common.jgb_option import hv, pricer, vol  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
+from engine.common.option.bond import hv, pricer, vol  # noqa: E402
 from engine.position import bond_options, bonds, vega  # noqa: E402
 from tests.test_position import FRIDAY, _curves  # noqa: E402
 

@@ -1,13 +1,13 @@
 """
 インプライド(スワップションATMノーマルvol)と比べるヒストリカル・ボラの材料(分析ブックのVolHVシート)と、
 ボラの水準とFwdの水準の散布図(VolLevelシート)の系列。Fwdは朝バッチが計算してDBに置いた
-swaption_forwards(engine/common/swaption_forward.py)を読むだけで、ここではQuantLibを使わない。
+swaption_forwards(engine/common/option/swaption/forward.py)を読むだけで、ここではQuantLibを使わない。
 窓の集計・年率換算・ボラの差(カーブ・フライ)・回帰はExcelの数式で行う。
 
 ■ 何と比べるか
   Tm x U(例 1Yx10Y)のIVは「満期日の2営業日後スタート・U年」のFwdスワップレートのボラなので、HVも同じFwdの
   変化で測る(スポットのU年で代用すると、短い原資産・長い満期ほどずれる)。契約はvolの換算と同じ
-  engine/common/swaption.underlying(満期日=取引日+満期、起算日=満期日+2営業日)。
+  engine/common/option/swaption/convert.underlying(満期日=取引日+満期、起算日=満期日+2営業日)。
 
 ■ 日次変化(bp)
   日付Dの変化 = 「Dの契約」を、Dのカーブと前の日付のカーブで評価した差(DBの forward − forward_prev)。
@@ -21,7 +21,7 @@ from datetime import date
 from typing import List, Mapping, Optional, Sequence
 
 from engine.common.historical_store import SwaptionForwardRow
-from engine.common.swaption import parse_label, underlying
+from engine.common.option.swaption.convert import parse_label, underlying
 from engine.common.terms import SwapTerms
 
 __all__ = ["VolSeries", "compute", "live_terms", "normalize", "parse_label"]
@@ -34,7 +34,7 @@ def normalize(label) -> str:
 
 
 def live_terms(labels: Sequence[str], as_of_date: date) -> List[SwapTerms]:
-    """ライブ(今日のカーブ)で評価する、今日の契約の原資産。DBの各日の契約と同じ決め方(swaption.underlying)。"""
+    """ライブ(今日のカーブ)で評価する、今日の契約の原資産。DBの各日の契約と同じ決め方(option/swaption/convert.underlying)。"""
     return [underlying(as_of_date, label).terms for label in labels]
 
 

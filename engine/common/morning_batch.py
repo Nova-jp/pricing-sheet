@@ -42,11 +42,11 @@
   ⑥ LSEG(Python API、engine/common/swaption_source.py)から TraditionのスワップションATMプレミアムを
      差分で取得し、swaption_premiums に保存する(前回の最終日の少し前から。初回と、格子に足した銘柄は2022-01-12から)。
      失敗してもここだけスキップする。--skip-vol で行わない。
-  ⑦ プレミアムと②のその日のカーブから、営業日ベースのノーマルvol(engine/common/swaption.py)を計算し、
+  ⑦ プレミアムと②のその日のカーブから、営業日ベースのノーマルvol(engine/common/option/swaption/convert.py)を計算し、
      vol_quotes に保存する(分析ブックのPCA・VolHV用。カーブには使わない)。入力(カーブの入力ハッシュ・
      プレミアム・計算方法)が前回と同じ日は計算し直さない。プレミアムのある最終日までで、プレミアムかカーブの
      無い日の vol_quotes は消す(以前のLSEG計算系列 =R の値を残さない)。プレミアムが1件も無ければ消さない。
-  ⑧ ②のカーブから、スワップションの原資産(⑦と同じ契約、engine/common/swaption_forward.py)の格子の全銘柄の
+  ⑧ ②のカーブから、スワップションの原資産(⑦と同じ契約、engine/common/option/swaption/forward.py)の格子の全銘柄の
      Fwd・年金と、同じ契約の前の日付のカーブでのFwdを計算し、swaption_forwards に保存する(分析ブックの
      VolHV・VolLevelが読む)。入力(その日と前の日付のカーブの入力ハッシュ・銘柄・計算方法)が前回と同じ日は
      計算し直さない。カーブの無くなった日の行は消す。
@@ -66,12 +66,13 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import futures_source, jgb_futures, jgb_source, swaption_forward, swaption_source
+from engine.common import futures_source, jgb_futures, jgb_source, swaption_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
+from engine.common.option.swaption import forward as swaption_forward
+from engine.common.option.swaption.convert import PremiumConverter
 from engine.common.paths import HISTORICAL_DB_PATH, REPO_ROOT
-from engine.common.swaption import PremiumConverter
 
 DEFAULT_XLSX = REPO_ROOT / "historical_data.xlsx"
 DEFAULT_CONFIG = REPO_ROOT / "historical_curve.toml"

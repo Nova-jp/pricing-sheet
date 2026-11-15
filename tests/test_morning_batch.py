@@ -218,7 +218,7 @@ class CurveBatchTest(unittest.TestCase):
         import QuantLib as ql
         from unittest import mock
 
-        from engine.common.swaption import PremiumConverter
+        from engine.common.option.swaption.convert import PremiumConverter
         from engine.common.swaption_source import FIRST_DATE
 
         with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=self._premiums()) as fetch:
@@ -236,7 +236,7 @@ class CurveBatchTest(unittest.TestCase):
     def test_swaption_forwards_are_built_for_the_whole_grid(self):
         import QuantLib as ql
 
-        from engine.common.swaption import PremiumConverter
+        from engine.common.option.swaption.convert import PremiumConverter
         from engine.common.swaption_source import labels
 
         self._run()

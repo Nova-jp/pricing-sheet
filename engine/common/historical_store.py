@@ -12,12 +12,12 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - swaption_premiums : TraditionのスワップションATMストラドルのフォワード・プレミアム(bp)とATMのストライク(%)。
               銘柄は「満期x原資産」(例 1Yx10Y)。LSEG(Python API、engine/common/swaption_source.py)から朝バッチが取得する
   - vol_quotes : スワップションATMノーマルvol(営業日ベース、bp/年 = bp/日×√252)。朝バッチが swaption_premiums と
-              その日のカーブから計算する(engine/common/swaption.py)。分析ブック(PCA・VolHV)が読む。カーブには使わない
+              その日のカーブから計算する(engine/common/option/swaption/convert.py)。分析ブック(PCA・VolHV)が読む。カーブには使わない
   - vol_inputs : vol_quotes を計算した入力(その日のカーブの入力ハッシュとプレミアム)のハッシュ。同じなら計算し直さない
-  - swaption_forwards : スワップションの原資産(engine/common/swaption.underlying の契約)の、日付×銘柄ごとの
+  - swaption_forwards : スワップションの原資産(engine/common/option/swaption/convert.underlying の契約)の、日付×銘柄ごとの
               満期日・起算日・満期日(原資産)・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd
               (forward_prev。最初の日付は NULL)。朝バッチが格子の全銘柄(プレミアムの有無によらない)について
-              その日と前の日付のカーブから計算する(engine/common/swaption_forward.py)。分析ブック(VolHV・VolLevel)が
+              その日と前の日付のカーブから計算する(engine/common/option/swaption/forward.py)。分析ブック(VolHV・VolLevel)が
               読み、将来はベガのリスクの分解(Fwd→TONAのデルタ)にも使う。IVは vol_quotes と日付・銘柄で突き合わせる
   - swaption_forward_inputs : swaption_forwards を計算した入力(計算方法・その日と前の日付のカーブの入力ハッシュ・
               銘柄)のハッシュ。同じなら計算し直さない
