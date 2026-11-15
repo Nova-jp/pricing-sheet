@@ -3,7 +3,7 @@
 ## 目的
 
 JPY OIS(TONA)スワップのプライシング(`PricingSheet.xlsm`)を中心に、分析(`SwapAnalysis.xlsm`)・現物オプション
-(`BondOption.xlsm`)・ポジション管理(`PositionSheet.xlsm`)のブックを、Python/QuantLibのUDF(xlwings)で計算する。
+(`BondOption.xlsm`)・ポジション管理(`PositionSheet.xlsm`)・リアルタイムの画面(`LiveScreen.xlsm`、自動計算・`RtGet`)のブックを、Python/QuantLibのUDF(xlwings)で計算する。
 LSEG Workspaceのデータを、日中はライブのフィードから、過去分は朝バッチが作るローカルのDBから読む。
 設計判断は[decisions.md](decisions.md)、ブックごとの構成は下の「ブックごとのドキュメント」。
 
@@ -137,6 +137,7 @@ engine/
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプションの表UDF(計算の部品は common/option/bond/)
   position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス)
+  live_screen/     # LiveScreen.xlsm固有のリアルタイムの画面(スポットの日付・日数の調整幅・プレミアム→σ√T。自動計算+RtGet)
 ```
 
 
@@ -182,6 +183,7 @@ engine/
 | `SwapAnalysis.xlsm` | `engine/pca/`・`vol/`・`fwd/`・`fut/`・`boj/` | [analysis.md](analysis.md) |
 | `BondOption.xlsm` | `engine/bond_option/` | [bond_option.md](bond_option.md) |
 | `PositionSheet.xlsm` | `engine/position/` | [position.md](position.md) |
+| `LiveScreen.xlsm` | `engine/live_screen/` | [live_screen.md](live_screen.md) |
 
 ## テスト(`tests/`)
 
@@ -205,6 +207,7 @@ engine/
 | `test_bond_option.py` | 現物オプション(ローカルにサンプルがあればプライサーとの一致も) |
 | `test_bond_option_hv.py` | 現物オプションのVol ratio(現物とスワップのHVの比) |
 | `test_position.py` | ポジション・リスク管理 |
+| `test_live_screen.py` | LiveScreen(スポットの日付・日数の調整幅・プレミアム→σ√Tと日数) |
 | `test_position_bond_option.py` | ポジション・リスク管理の現物オプション(グリークス・ピラーへの分解)と会社のベガの振り分け |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |
 

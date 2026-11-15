@@ -185,6 +185,14 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
      止まっていればエラーになるので、そのときはB2を`Fixed`にする。
   - ブックを開いたまま日をまたいだら、Ctrl+Alt+F9で基準日から計算し直す。
 
+## 5.4 リアルタイムの画面(LiveScreen.xlsm)
+
+- 構成は[live_screen.md](live_screen.md)。PricingSheetと同じxlwings・venvで動く(VBAのxlwings参照は雛形に入っている)。
+- **別のExcelのインスタンスで開く**(Altを押しながらExcelを起動、または`excel.exe /x`)。ブックは自動計算で保存して
+  あり、そのExcelは自動計算になる。手動計算のブック(PricingSheet等)と同じExcelで開かない(計算方法はExcelごとに1つ)。
+- 初回とUDFの変更時は「Restart UDF Server」→「Import Functions」(`LiveScreen.py`から`SwapLengthAdjust`等を登録)。
+- レートはLSEGのアドインの`RtGet`で読む(フィードは要らない)。日付が変わったらCtrl+Alt+F9を1回。
+
 ## 6. コードを更新したとき(git pull後など)
 
 - **xlwingsリボンの「Restart UDF Server」を押す**。Excelの裏で動くPython(UDFサーバ)は
