@@ -1,6 +1,7 @@
 """
 ASWシート用のUDF(JGB銘柄別ASWスプレッドのヒストリカル推移)と、ASWPricerシート用のUDF
-(AswPricingTable。リアルタイムのカーブと引け値+スライドでASWを計算する。本体は table.py・pricer.py)。
+(AswPricingTable。リアルタイムのカーブと引け値+スライドでASWを計算する。本体は table.py・pricer.py。
+AswUnwindTable。約定済みのMMSのアンワインドPV。本体は unwind.py)。
 
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
@@ -17,7 +18,7 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.historical_store import AswRate
-from engine.swap_pricing.asw import table
+from engine.swap_pricing.asw import table, unwind
 
 _CONVENTIONS = ("PA", "SA")
 _MAX_LEGS = 3
@@ -116,3 +117,21 @@ def AswPricingTable(asw_table, real_time_range, valuation_date=None) -> List[lis
     curves = udf_common._market(real_time_range, valuation_date)
     with udf_common._historical_store() as store:
         return table.price_table(asw_table, curves, store)
+
+
+@xw.func
+@xw.arg("unwind_table", ndim=2)
+@xw.arg("real_time_range", ndim=2)
+def AswUnwindTable(unwind_table, real_time_range, valuation_date=None) -> List[list]:
+    """
+    約定済みのMMSのアンワインドの unwind start・unwind end(休日調整後の起算日・満期日)・unwind pv(円、評価日時点。
+    pricing表のPVと同じ計算)・unwind message を1回で返す(1行目は見出し、以降は入力の行と同じ並び。
+    計算はflag=1で約定の入力がそろった行だけ。詳細はasw/unwind.py)。
+
+    unwind_table: 見出し行から最終行まで。列は見出し名で探し、末尾の単位「 (100M)」等は無視する
+        (flag, maturity, fix freq, fix dcf, float freq, roll conv, pay/rec, trade start, traded MMS rate,
+        swap notional used(億円))。maturityはAswPricingTableが返した償還日のセル。
+        このUDFの出力の列を含めると循環参照になる。
+    real_time_range: AswPricingTableと同じ(そのシートの TAKE(カーブ用の範囲#,,3))。
+    """
+    return unwind.price_table(unwind_table, udf_common._market(real_time_range, valuation_date))

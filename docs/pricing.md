@@ -22,9 +22,10 @@
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない)。FIXED/ROLLING(下の「ヒストリカル」) |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約) |
-| `asw/udf.py` | ASWシートの`AswHistoricalRate`/`AswHistoricalRates`(DBの`asw_quotes`を読むだけ)、ASWPricerシートの`AswPricingTable` |
+| `asw/udf.py` | ASWシートの`AswHistoricalRate`/`AswHistoricalRates`(DBの`asw_quotes`を読むだけ)、ASWPricerシートの`AswPricingTable`・`AswUnwindTable` |
 | `asw/pricer.py` | ASWPricerの計算: 現物の単価・複利(スポット受渡T+1、`bond.compound_yield`)、複利1bpのBPV(`bond.dollar_duration`)、par-par ASW(`ql.AssetSwap`)。MMSは`pricing/measures.py`の`par` |
 | `asw/table.py` | `AswPricingTable`の本体(pricing表と同じく見出し名で列を探し、flag=1の行だけ、行ごとのエラーはmessageへ) |
+| `asw/unwind.py` | `AswUnwindTable`の本体: 約定済みのMMSのアンワインドPV(pricing表のPVと同じ`measures.pv`) |
 
 テスト: `test_market_risk.py`(カーブの共有・デルタ・RiskGrid・評価日・startのテナー・HistChart)、`test_past_start.py`、
 `test_imm.py`、`test_historical.py`、`test_hedge.py`、`test_asw.py`、`test_asw_pricer.py`。
@@ -44,7 +45,7 @@
   他のシートから参照しても問題ない)。
 - 各シートのカーブ用の範囲(`=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`
   =採否/Ticker/値/起算日/満期日)がこの並びでライブのレートを引き当て、UDFには`TAKE(範囲#,,3)`を渡す。
-  ライブのレート・カーブ用の範囲のセル: Main H3/M3、pricing AF4/AK4(LCH: AX4/BC4)、HistChart AJ3/AO3、ASWPricer AF4/AK4。
+  ライブのレート・カーブ用の範囲のセル: Main H3/M3、pricing AF4/AK4(LCH: AX4/BC4)、HistChart AJ3/AO3、ASWPricer AK7/AP7。
 
 ## ブローカーの切り替え(pricing!F1)
 
@@ -208,13 +209,26 @@ JGB銘柄別のASWスプレッド(DBの`asw_quotes`、朝バッチがNeonから�
 - **par-par ASWは参考値**(ユーザー要望)。`ql.AssetSwap`(parAssetSwap=True)のfairSpread。TONAでは変動側の日程を渡す必要がある。
   `bond.schedule`(NullCalendar)のままだと受渡日が土曜になるので日本のカレンダーで組んだ債券を使う。起算日が評価日より前の行は
   計算しない(変動側の実績を登録しないため)。
-- **delta→想定元本はpricing表と同じ`notional_for_delta`をMMSに適用**。PV・デルタは今は出さない(ユーザー判断)。
-- **約定したASWからMMSのレートとノーショナルを出す(AA:AD、2026-11-04)**。入力は現物のノーショナル(億円)と約定ASW(bp)、スライドは既存のC列。
+- **delta→想定元本はpricing表と同じ`notional_for_delta`をMMSに適用**。スポット起算のMMSのPV・デルタは出さない(ユーザー判断。約定済みのMMSのPVは下のUnwind)。
+- **約定したASWからMMSのレートとノーショナルを出す(Traded ASW、Z:AC)**。入力は現物のノーショナル(億円)と約定ASW(bp)、スライドは既存のC列。
   MMSのレート = 複利 − 約定ASW/100、MMSのノーショナル = 現物のノーショナル × hedge ratio(どちらもシートの式。UDFの入力範囲は変えない)。
   - 現物のリスクは**その銘柄の複利の修正デュレーション×利含み単価**(`bond bpv`、複利1bpあたり。カーブはバンプしない。ユーザー判断)。ASWを固定するとMMSの1bpは複利の1bpなので、
     ASWの定義(複利 − MMS)と整合する。単利の1bp・カーブの平行シフト+Zスプレッド固定は採らない。
   - スワップ側は`adj_notional`と同じアニュイティデルタ。`hedge ratio` = `bond bpv`に合うMMSの想定元本/現物の額面で、PAY/RECによらず正の数。
     向きはK列(現物を買うならPAY)。現物はT+1受渡時点の価値、スワップのアニュイティは評価日時点で、その差(1日分の割引)は無視する。端数は丸めない。
-- 配置: 入力A〜K(4〜53行。flag・bond・slide(bp)・yield override・delta・start・fix freq・fix dcf・float freq・roll conv(既定`BWD`)・
-  pay/rec)、表示L〜Z、約定AA〜AD、計算AQ3`=AswPricingTable($A$3:$K$53,TAKE($AK$4#,,3),評価日)`(AF:BFは折りたたみ)。
+- **約定済みのMMSのアンワインドPV(Unwind、AD:AH)**。入力はtrade start(約定当初の起算日)・traded MMS rate(約定時のMMSのレート、%)・
+  notional override(億円)。そのMMSを評価日のカーブで評価したPV(円)を出す。
+  - **計算はpricing表のPVと同じ`measures.pv`**(評価日時点の価値。起算日が過去なら評価日前日までのTONA実績をDBから使い、欠けていればエラー)。
+    実際のアンワインドの受渡(T+2)までの割引は無視する(ユーザー了承)。
+  - **満期日は償還日で、エンド日の入力は持たない**(ユーザー判断。MMSの定義と同じ)。規約・pay/recはその行のG〜K列。
+  - **スワップの額面の既定はTraded ASWのswap notional(現物の額面×hedge ratio)、手で上書きできる**(ユーザー指示)。
+    AG(swap notional used) = override があればその値、なければAC(シートの式)。hedge ratioは評価日のものなので、約定時の額面を使うなら上書きする。
+  - **別のUDF`AswUnwindTable`にする**。額面の既定値が`AswPricingTable`の出力(hedge ratio)から来るので、同じUDFの入力にすると循環参照になる。
+    入力は`HSTACK`でflag・maturity(`AswPricingTable`の出力のM列)・G:K・AD:AGを渡し、列は見出し名で探す(末尾の単位「 (100M)」等は無視)。
+  - 計算はflag=1で約定の3つの入力がそろった行だけ。par-par ASWは出さない(ユーザー判断)。
+- **配置はBondOptionのOptionシートにならう**(2026-11-15)。1〜4行目が取得モードと説明、5行目がブロック名の帯(灰色)、6行目が見出し、
+  7〜56行目(50行)が1行1銘柄。入力は黄色。縦の太線はブロックの境目、横の細線は5行ごと。ブロックは Bond input(A:D)・MMS terms(E:K)・
+  Bond (spot T+1)(L:S)・MMS / ASW(T:Y)・Traded ASW(Z:AC)・Unwind(AD:AH)・Status(AI、両方のUDFのmessageを`TEXTJOIN`)。
+  計算用(AK:BP)は折りたたみ: AK7ライブ・AP7カーブ・AV6`=AswPricingTable($A$6:$K$56,TAKE($AP$7#,,3),評価日)`・
+  BM6`=AswUnwindTable(HSTACK(…),TAKE($AP$7#,,3),評価日)`。ASW(bp)の引き算はW列の式。
 - 先物ASW・リファレンスの列は[roadmap.md](roadmap.md)の11。
