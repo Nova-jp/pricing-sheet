@@ -73,7 +73,7 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 - **ライブのレート**: `=IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))`(Ticker/値/起算日/満期日)。
   PricingSheetは`"swap"`の代わりに定義名`LiveSwap`(LCHは`LiveSwapLCH`)を渡し、ブローカーを切り替える(pricing.md)。
   単独のセルに置き、加工は別のセルでする。列(下表のライブのレート〜カーブ用の範囲)は列のグループで
-  折りたたんである(Main H:Q、pricing AF:BG(PricingTableの出力・LCHのレートを含む)、ASWPricer AF:BF(AswPricingTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
+  折りたたんである(Main H:Q、pricing AF:BG(PricingTableの出力・LCHのレートを含む)、ASWPricer AK:BP(AswPricingTable・AswUnwindTableの出力を含む)、HistChart AJ:AS、PCA CA:CD、PCAGrid CA:HZ(計算領域ごと)、VolPCA LA:LC、VolHV AA:BK(計算領域ごと)、VolLevel AA:ZZ(計算領域ごと)、BOJ K:W)。
 - **カーブ用の範囲**(PricingSheetのシート): `=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,
   INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`=採否/Ticker/値/起算日/満期日(44行、Mainのテナーの並び)。
   UDFには`TAKE(範囲#,,3)`(採否/Ticker/値)を渡す。フィードに無いTickerは`#N/A`。
@@ -84,7 +84,7 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 | pricing | AF4 | AK4 |
 | pricing(LCH) | AX4(`"swap_lch"`) | BC4 |
 | HistChart | AJ3 | AO3 |
-| ASWPricer | AF4 | AK4 |
+| ASWPricer | AK7 | AP7 |
 | PCA(SwapAnalysis) | CA4(Ticker/値を`CHOOSECOLS`で渡す) | なし |
 | PCAGrid(SwapAnalysis) | CD4(PCAと同じ渡し方) | なし |
 | VolPCA(SwapAnalysis) | LA3(`"vol"`、銘柄/RIC/値をそのまま渡す) | なし |

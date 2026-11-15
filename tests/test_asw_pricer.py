@@ -5,6 +5,7 @@ ASWPricerシートのUDF(AswPricingTable、engine/swap_pricing/asw/table.py・pr
 - 受渡日(T+1)・MMSの起算日(空欄=スポット)・満期日(償還日、休日調整)の決め方
 - MMSは行の規約で組んだOISのパーレート(PricingSheetと同じ経路)、roll conv=BWDは償還日から遡ること
 - par-par ASW・adj_notional・bond bpv・hedge ratioの列と、行ごとのエラーをmessageに閉じ込めること
+- アンワインド(AswUnwindTable、asw/unwind.py): 約定当初の起算日〜償還日のMMSを約定レートで組んだPV
 値そのもの(複利・パーレート・スプレッド)はQuantLibを正とし、手計算の照合はしない。
 
 実行方法:
@@ -29,9 +30,9 @@ from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 from engine.common.risk import annuity_delta  # noqa: E402
 from engine.common.swap_pricer import _build_swap  # noqa: E402
-from engine.common.terms import PAY, SwapConvention, SwapTerms  # noqa: E402
+from engine.common.terms import PAY, REC, SwapConvention, SwapParams, SwapTerms  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
-from engine.swap_pricing.asw import table  # noqa: E402
+from engine.swap_pricing.asw import table, unwind  # noqa: E402
 from engine.swap_pricing.pricing import measures  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402
 
@@ -197,6 +198,93 @@ class AswPricingTableTest(unittest.TestCase):
         with mock.patch.object(udf_common, "_historical_store", lambda: self.store):
             out = udf.AswPricingTable([_HEADER, _row()], self.rt)
         self.assertEqual(out[1], [*self._price(_row())[0].values()])
+
+
+# シートの見出しと同じ表記(末尾の単位は無視して探す)
+_UNWIND_HEADER = [
+    "flag", "maturity", "fix freq", "fix dcf", "float freq", "roll conv", "pay/rec",
+    "trade start", "traded MMS rate (%)", "swap notional override (100M)", "swap notional used (100M)",
+]
+TRADE_START = date(2026, 8, 4)
+
+
+def _unwind_row(start=TRADE_START, rate=1.2, notional=10.0, pay_rec="PAY", conv=SA, maturity=MATURITY, flag=1):
+    return [flag, maturity, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv, pay_rec,
+            start, rate, None, notional]
+
+
+class AswUnwindTableTest(unittest.TestCase):
+    def setUp(self):
+        market._cache.clear()
+        self.rt = _rt_range()
+        # 約定当初(TRADE_START)から評価日前日までのTONA実績
+        self.fixings = {date(2026, 8, 1) + timedelta(days=i): 0.48 for i in range((FRIDAY - date(2026, 8, 1)).days)}
+        self.patches = [
+            mock.patch.object(udf_common, "_db_fixings", lambda: self.fixings),
+            mock.patch.object(udf_common, "_today", lambda: FRIDAY),
+        ]
+        for p in self.patches:
+            p.start()
+        self.curves = udf_common._market(self.rt, None)
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+
+    def _price(self, *rows):
+        out = unwind.price_table([_UNWIND_HEADER, *rows], self.curves)
+        self.assertEqual(out[0], list(unwind.OUTPUT_HEADER))
+        return [dict(zip(unwind.OUTPUT_HEADER, r)) for r in out[1:]]
+
+    def test_pv_is_the_seasoned_mms_at_the_traded_rate(self):
+        (r,) = self._price(_unwind_row())
+        self.assertEqual(r["unwind message"], "")
+        terms = SwapTerms(TRADE_START, SA, end=MATURITY)
+        expected = measures.pv(self.curves, SwapParams(terms, 10.0 * 1e8, PAY, 1.2))
+        self.assertEqual(r["unwind pv"], expected)
+        self.assertEqual((r["unwind start"], r["unwind end"]), (TRADE_START, MATURITY))
+
+    def test_pay_and_rec_are_opposite(self):
+        pay, rec = self._price(_unwind_row(), _unwind_row(pay_rec="rec"))
+        self.assertAlmostEqual(pay["unwind pv"], -rec["unwind pv"], places=4)
+
+    def test_paying_a_lower_rate_is_worth_more(self):
+        low, high = self._price(_unwind_row(rate=1.0), _unwind_row(rate=1.5))
+        self.assertGreater(low["unwind pv"], high["unwind pv"])
+
+    def test_spot_start_at_the_mms_rate_is_zero(self):
+        terms = SwapTerms(self.curves.spot_date, SA, end=MATURITY)
+        par = measures.fair_rate(self.curves, terms)
+        (r,) = self._price(_unwind_row(start=self.curves.spot_date, rate=par))
+        self.assertAlmostEqual(r["unwind pv"], 0.0, delta=1e-3)
+
+    def test_end_is_adjusted_maturity(self):
+        (r,) = self._price(_unwind_row(maturity=SUNDAY_MATURITY))
+        self.assertEqual(r["unwind end"], date(2054, 12, 21))
+
+    def test_rows_without_a_trade_are_blank(self):
+        rows = self._price(
+            _unwind_row(flag=0), _unwind_row(start=None), _unwind_row(rate=None), _unwind_row(notional=None),
+        )
+        for r in rows:
+            self.assertTrue(all(v == "" for v in r.values()))
+
+    def test_row_errors_go_to_message(self):
+        no_side, no_fixing, bad_rate = self._price(
+            _unwind_row(pay_rec=None), _unwind_row(start=date(2026, 7, 1), conv=PA, maturity=date(2027, 3, 1)), _unwind_row(rate="x"),
+        )
+        self.assertIn("pay/rec", no_side["unwind message"])
+        self.assertEqual(no_side["unwind pv"], "")
+        self.assertIn("2026-07", no_fixing["unwind message"])  # 欠けているTONA実績の日付
+        self.assertIn("traded MMS rate", bad_rate["unwind message"])
+
+    def test_missing_header_is_an_error(self):
+        with self.assertRaises(ValueError):
+            unwind.price_table([_UNWIND_HEADER[:-1], _unwind_row()[:-1]], self.curves)
+
+    def test_udf(self):
+        out = udf.AswUnwindTable([_UNWIND_HEADER, _unwind_row()], self.rt)
+        self.assertEqual(out[1], [*self._price(_unwind_row())[0].values()])
 
 
 if __name__ == "__main__":
