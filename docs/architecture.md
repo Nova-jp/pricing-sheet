@@ -16,16 +16,17 @@ LSEG Workspaceのデータを、日中はライブのフィードから、過去
   - Fixingシート: TONA実績(JPONMU=RR)。バッチがDBに取り込み、過去起算とO/Nのピラーに使う
         │
         ▼  朝に手動実行: python -m engine.common.morning_batch
-[朝バッチ engine/common/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)
+[朝バッチ engine/common/morning_batch.py]  設定: historical_curve.toml(引き方・使うテナー)・settings.toml(取得の開始日)
   ① Mid/Fixingを読み、DBのquotes/fixingsに取り込む(過去に取り込んだ日も残る)
   ② 日付ごとに選択テナー(O/Nはその日のTONA実績)でカーブを構築 → 暦日ごとのDFを保存
      (欠損テナーは外して構築、日本の非営業日は作らない、入力が変わった日だけ作り直す)
   ③ (欠番)ASWスプレッドは取得しない(Neonからの取得は廃止。DBのasw_quotesは取得済みの値を残す)
   (①〜⑥のどれも、保存するのは昨日までの日付だけ。今日の値はブックがライブで見る)
-  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(JCLの履歴、直近10日分)を取得
-     (現物オプション用。Workspaceに繋がらなくても①②は続行する。--skip-jgbで行わない)
-     --jgb-history-from を付けたときは、引け値の過去分も取る(10年債はその日から、他の年限はスワップと同じ期間。JCL、無い日は大和・みずほで補う)
-  ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(2020年から、差分)
+  (④〜⑥は settings.toml の開始日以降でDBに足りない分を取る。何日以降を取得済みかはDBの fetch_coverage に記録)
+  ④ engine/common/jgb_source.py経由でLSEG(Python API)からJGBの銘柄情報・引け値(みずほ→大和→JCLの履歴、直近10日分)を取得
+     (現物オプション・先物のベーシス用。Workspaceに繋がらなくても①②は続行する。--skip-jgbで行わない)
+     開始日からの過去分が足りなければ全銘柄で一緒に取る(優先順位を変えたときも、開始日から取り直す)
+  ⑤ engine/common/futures_source.py経由でLSEGから長期国債先物の限月ごとの清算値を取得(開始日の期近から、差分)
      (国債先物のベーシス・CTD・つなぎ足用。計算は engine/common/jgb_futures.py。--skip-jgbで④と一緒に行わない)
   ⑥⑦ LSEGからスワップションのプレミアムを差分取得し、その日のカーブで営業日ベースのvolにする(vol_quotes)
   ⑧ スワップションの原資産(⑦と同じ契約)の格子の全銘柄のFwd・年金・前の日付のカーブでのFwdを計算(swaption_forwards)
@@ -151,13 +152,14 @@ engine/
 | `market.py` | 評価日のマーケット(今日=ライブのレート、過去日=ヒストリカルDBのその日のレート。TONA実績はどちらもDB。清算機関(JSCC/LCH)ごとのスナップショット)と、全行・全UDFで共有するカーブ一式(基準カーブと全テナーを0.1bp動かしたカーブ。必要になったときに1回だけ作る。テナー別のバンプはカーブを作らず、基準カーブのクォートを一時的に動かして戻す。バンプはカーブに使っているテナーだけで、デルタは10倍して1bpあたりにする(risk.per_bp)。キャッシュは清算機関ごとに最新の1組だけで、ヒストリカル系UDFは入口で`release_curves`で手放す)。計算には`Market`を渡す |
 | `risk.py` | 並行/バケットデルタ(`market`のカーブ一式を使う。バケットは`bucketed_deltas`で全ポジションをまとめて、テナーごとにクォートを1回だけ動かす)、notional逆算 |
 | `historical_store.py` | ヒストリカル日次カーブDB(`data/historical.db`)の読み書き。カーブは評価日から暦日1日刻み・50年分のDFとして保存し、`ql.DiscountCurve`で復元する(引き方に依存しない形式。理由は[decisions.md](decisions.md))。生レート・TONA実績・ASWスプレッド(`asw_quotes`、JGB銘柄別、カーブには使わない参照データ)・スワップションのvol(`vol_quotes`)と原資産のFwd(`swaption_forwards`)も保存。`engine/common/history.py`(PCA)も`HistoricalStore`をここから読む |
-| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`option/swaption/forward.py`) |
+| `morning_batch.py` | 日次カーブDBを作るバッチ(手動実行)。`historical_data.xlsx`を読み、`historical_curve.toml`の設定(引き方・使うテナー)でカーブを構築して保存。取得の開始日は`settings.toml`(`settings.py`)。スワップションのプレミアムを差分取得し(`swaption_source.py`)、その日のカーブで営業日ベースのvolにして`vol_quotes`に保存する(入力が同じ日は計算し直さない)。続けてスワップションの原資産のFwdを`swaption_forwards`に保存する(`option/swaption/forward.py`) |
+| `settings.py` | 全体の設定(リポジトリ直下の`settings.toml`、めったに変えない値)を読む。今はヒストリカルの取得の開始日(`[history]`の共通の`start`と、データごとの上書き)だけ |
 | `live_feed.py` | リアルタイムのフィード(常駐プロセス、`python -m engine.common.live_feed`)。`live_feed.toml`を読み、LSEG(`lseg.data`のデスクトップセッション)でRICを購読し続け、ブックが読む形の行とデータセットごとの状態(ハートビート)を`live_store`に書く。切断時の開き直し、二重起動の防止 |
 | `live_store.py` | リアルタイムのレートの受け渡しDB(`data/live.db`)。データセット("swap"・"vol")ごとに最新の行(JSON、日付は型を保って)と値が最後に変わった時刻、シートごとの固定の値、フィードの状態(`feed`)を持つ。値が変わらなければ書かない。ライブで読むときはフィードの状態を確かめる。WALで、書き込み中も別のプロセスから読める |
 | `live_udf.py` | `live_store`のUDF(読むだけ)。`LiveQuotes`/`LiveSnapshot`/`LiveInfo`(PricingSheet・SwapAnalysis・BondOption共通。`LiveQuotes`はvolatileで最新の行を読み、シートごとの固定の値として保存する。フィードが止まっていればエラー。`LiveSnapshot`はその固定の値を返す。`LiveInfo`はその時刻) |
 | `forward.py` | 保存済みの日次カーブで多数のFwdスワップレートを日付ごとに評価する`ForwardPricer`(同じ取引条件のスワップを1回だけ組み、カーブのハンドルをつなぎ替えて`fairRate`を読む。値は`swap_pricer.par_rate`と一致)。`engine/vol/`・`engine/fwd/`が使う |
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
-| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(`{RIC}JCL`の履歴の単利、JCLに無い日は大和・みずほで補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`--jgb-history-from`のときは過去分も同じ取り方) |
+| `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(みずほ`=MZST`の履歴の単利、無い日は大和`=DWAT`→`{RIC}JCL`で補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`settings.toml`の開始日からの過去分が足りなければそれも同じ取り方) |
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `option/` | オプションの部品。スワップション(`swaption/`、原資産=フォワード・スワップレート、バシュリエ=レートが正規分布)と国債店頭オプション(`bond/`、原資産=債券の先渡clean単価、Black=単価が対数正規分布)。LSEGからのプレミアムの取得(`swaption_source.py`)はデータの取得の層なので`common/`の直下に置く |
@@ -194,6 +196,7 @@ engine/
 | `test_market_risk.py`・`test_pricing_table.py`・`test_lch_curve.py` | カーブの共有・デルタ・RiskGrid・PricingTable・LCHのカーブ |
 | `test_historical.py`・`test_hedge.py` | ヒストリカル(FIXED/ROLLING・先読みしないフィキシング)、ヘッジの重ね表示 |
 | `test_historical_store.py`・`test_morning_batch.py` | 日次カーブDBの保存・復元精度と朝バッチ |
+| `test_settings.py` | 全体の設定ファイル(`settings.toml`)の読み込み |
 | `test_asw.py`・`test_asw_pricer.py` | ASWシート・ASWPricer |
 | `test_live.py`・`test_live_feed.py`・`test_paths.py` | ライブのレートの受け渡し・フィード・worktreeのパス |
 | `test_option_term.py` | 満期までの時間(営業日数・T・セータの1営業日)と、volの換算・格子の補間・Tが同じ数え方を使うこと |

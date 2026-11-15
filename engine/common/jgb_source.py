@@ -8,10 +8,11 @@ LSEG(Python API、lseg.data)から JGB の銘柄情報と引け値を取得す�
 ■ 取得するもの
   - 銘柄一覧: 検索API(GOV_CORP_INSTRUMENTS)で年限ごとに現存銘柄を引く。チェーン 0#JPTSY= は
     10/20/30/40年債しか含まないため使わない。RIC・ISIN・利率・償還日。
-  - 引け値: ld.get_history の単利(小数3桁)。{RIC}JCL(MULTI CONTRIBUTORS EOD)の MID_YLD_1 を使い、
-    JCLに無い日だけ 大和(=DWAT の B_YLD_1)→ みずほ(=MZST の B_YLD_1)の順で補う。JCLはユーザーと決めた配信元
-    (docs/decisions.md。2026-10-25〜26の間だけ大和 =DWAT にしていた)。JCLの過去分は2021年9月からしか無く、
-    大和の過去分は営業日の約9%が本当に欠けている(JCLと照合済み)。
+  - 引け値: ld.get_history の単利(小数3桁、0.5bp刻み)。みずほ(=MZST の B_YLD_1)を使い、みずほに無い日だけ
+    大和(=DWAT の B_YLD_1)→ JCL({RIC}JCL、MULTI CONTRIBUTORS EOD の MID_YLD_1)の順で補う(2026-11-15、ユーザー判断)。
+    日本証券業協会の売買参考統計値(NeonのJSDA)と突き合わせると、0.5bp以内に入る割合がみずほ99.6%・大和99.2%・
+    JCL96.8%で、JCLは2025年7〜10月に古い値のまま止まる日が多かった(docs/decisions.md)。みずほは40年債の配信が無く、
+    他の年限も2〜3%(2年債は8%)欠けるので大和で補う。大和・みずほの両方に無い日は約1.3%。
     日本相互証券(=BBCL、BB引け値)・日本証券業協会(=JSDA)は契約外で取れない。
   - 毎朝の取得(fetch_jgbs)も過去分(fetch_close_history、先物のベーシスの過去分用)も同じ取り方で、期間だけが違う。
     スナップショットの CF_CLOSE は使わない(2026-10-27の朝、CF_CLOSE は前の営業日の引け 10/23 の値なのに
@@ -38,7 +39,7 @@ KINDS: Dict[str, Tuple[str, str]] = {
 _RIC = re.compile(r"^JP(\d{4})00(\d{2})=$")
 
 # 引け値の配信元と単利のフィールド(先にあるものを優先する)
-HISTORY_SOURCES: Tuple[Tuple[str, str], ...] = (("JCL", "MID_YLD_1"), ("DWAT", "B_YLD_1"), ("MZST", "B_YLD_1"))
+HISTORY_SOURCES: Tuple[Tuple[str, str], ...] = (("MZST", "B_YLD_1"), ("DWAT", "B_YLD_1"), ("JCL", "MID_YLD_1"))
 _HISTORY_CHUNK = 50  # get_history 1回あたりのRIC数
 
 
@@ -153,7 +154,7 @@ def _fetch_close_history(ld, bonds: List[JgbRecord], start: date, end: date) -> 
 
 
 def fetch_close_history(bonds: List[JgbRecord], start: date, end: date) -> List[JgbClose]:
-    """bonds の start〜end の引け値の単利(JCL、無い日は大和・みずほで補う)。"""
+    """bonds の start〜end の引け値の単利(HISTORY_SOURCES の順に、先の配信元に無い日を後の配信元で補う)。"""
     import lseg.data as ld
 
     ld.open_session()

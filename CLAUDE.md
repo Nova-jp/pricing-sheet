@@ -18,7 +18,7 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
 ## 触ってよい範囲
 
 - `engine/`(共有の`common/`と、ブックごとの並列パッケージ)、`PricingSheet.py`、
-  `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`tests/`、`docs/`、
+  `PricingSheet.xlsm`、`historical_data.xlsx`、`historical_curve.toml`、`settings.toml`、`tests/`、`docs/`、
   `tools/`、`templates/`が本プロジェクト。分析ブック`SwapAnalysis.xlsm`・`SwapAnalysis.py`
   (`engine/pca/`・`engine/vol/`・`engine/boj/`・`engine/fwd/`・`engine/fut/`、PCA・IV vs HV・BOJ会合・
   Fwdの監視・国債先物のベーシス等、pricingとは別ブック)も含む。

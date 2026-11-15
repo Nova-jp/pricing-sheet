@@ -149,7 +149,7 @@ Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの
 - **入力**: `Raw_BondOption`の列を見出しの名前で引く(SetupのH10:J18)。Bond = `JGBCode`、Type = `OptionType`(CALL/PUT)、
   Side = `BuySell`(B/S)、Expiry = `ExerciseDate`、Settle = `EffectiveDate`(行使後の受渡日)、Strike(clean単価)、
   Notional(円、表示は百万円)。行使日が基準日以前の約定は計算しない(Messageに`Expired`)。200行まで。
-- **市場(`PosBondOptMarket`)**: 取引日 = 基準日。利率・償還日はDBの銘柄情報、スポット単価は基準日の引けの単利(JCL)から
+- **市場(`PosBondOptMarket`)**: 取引日 = 基準日。利率・償還日はDBの銘柄情報、スポット単価は基準日の引けの単利(DB)から
   F1(起点 = 基準日のT+1)、先渡はSetupのレポ(1つ、黄色)でF6、MD・DDはF7・F8。ボラは基準日のDBのスワップションのvolから
   BondOptionと同じ補間 × Vol ratio(窓はSetupの`HV window`)。T = 営業日数/252。
 - **グリークス(`PosBondOptGreeks`)**: Black式(割引なし)のプレミアム・デルタ・ガンマ・ベガ(価格ボラ1%あたり)・
@@ -163,8 +163,8 @@ Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの
   単価の変化とその2階)。銘柄の満期が入る区間の長いほうのピラーに全部載せる。先渡と現物の単価の比
   (1 + レポ × 期間)は1とみなす。
 - **セータ**: デルタと同じく原資産の銘柄のピラーに載せる(百万円/営業日。PositionのPLのTheta列)。
-- Vol ratioのHVの窓に足りる引け値の履歴が無い銘柄は、Messageにその旨が出てボラ以降が空欄になる(朝バッチの
-  `--jgb-history-from`で過去分を取る)。
+- Vol ratioのHVの窓に足りる引け値の履歴が無い銘柄は、Messageにその旨が出てボラ以降が空欄になる(朝バッチを流せば
+  `settings.toml`の開始日からの過去分が揃う)。
 
 ## 現物(`engine/position/bonds.py`、2026-11-10、ユーザーと決定)
 
