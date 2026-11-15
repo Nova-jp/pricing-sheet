@@ -90,6 +90,18 @@ def _resolve_valuation_date(valuation_date) -> datetime.date:
     return d if d is not None else _today()
 
 
+def _now() -> datetime.datetime:
+    """今の時刻(テストで差し替えられるように1か所にまとめる)。"""
+    return datetime.datetime.now()
+
+
+def _valuation_moment(valuation_date):
+    """オプションの満期までの残りを数える時点。評価日が今日(空欄を含む)なら今の時刻(日中の残りも数える)、
+    過去・将来の日付ならその日付(その日の引け時点。engine/common/option/term.py)。"""
+    d = _resolve_valuation_date(valuation_date)
+    return _now() if d == _today() else d
+
+
 def _historical_store() -> HistoricalStore:
     """ヒストリカルの日次カーブDB(朝バッチ engine/common/morning_batch.py が作成)。
     with 文で使うと、計算中はDB接続を1本だけ開いて使い回す。"""

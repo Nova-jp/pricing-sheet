@@ -243,7 +243,7 @@ class LiveFeedTest(unittest.TestCase):
         self.assertEqual(self.store.read("vol").rows, [["1Mx1Y", R1, 2.881], ["1Mx2Y", R2, None]])
         premiums, swap_rows, trade_date = self.vol_calc.calls[-1]
         self.assertEqual(swap_rows[0][:2], ["O/N", 1.25])
-        self.assertEqual(trade_date, T0.date())
+        self.assertEqual(trade_date, at(0))  # 満期までの残りは書く時刻で数える
         # スワップだけが動いても計算し直す。どちらも動かなければ計算しない
         n = len(self.vol_calc.calls)
         self.feed.datasets["swap"].on_update({"BID": 1.22}, "JP1DONI=TRDT", now=at(0.5))
@@ -251,6 +251,17 @@ class LiveFeedTest(unittest.TestCase):
         self.assertEqual(len(self.vol_calc.calls), n + 1)
         self.feed.step(at(2))
         self.assertEqual(len(self.vol_calc.calls), n + 1)
+
+    def test_vol_is_recalculated_at_the_refresh_interval_without_ticks(self):
+        # 満期までの日中の残りが減っていくので、値が動かなくても vol_refresh_sec ごとに計算し直す
+        self.feed._reconnect()
+        self.feed.step(at(0))
+        n = len(self.vol_calc.calls)
+        self.feed.step(at(30))
+        self.assertEqual(len(self.vol_calc.calls), n)
+        self.feed.step(at(60))
+        self.assertEqual(len(self.vol_calc.calls), n + 1)
+        self.assertEqual(self.vol_calc.calls[-1][2], at(60))
 
     def test_vol_failure_blanks_values_and_is_reported(self):
         self.feed._reconnect()
@@ -338,17 +349,17 @@ class VolCalculatorTest(unittest.TestCase):
         trade_date = T0.date()
         swap_rows = [["O/N", 0.477, None, None]] + [[t, r, None, None] for t, r in SPOT_RATES.items()]
         swap_rows.append(["M1", 0.6, None, None])  # historical_curve.toml に無いTickerは使わない
-        rows = live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0], ["2Mx6Y", "Y", None]], swap_rows, trade_date)
+        rows = live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0], ["2Mx6Y", "Y", None]], swap_rows, T0)
         quotes = {"O/N": 0.477, **SPOT_RATES}
         result = bootstrap_curve(trade_date, quotes)
         ql.Settings.instance().evaluationDate = ql.Date.from_date(trade_date)
-        expected = PremiumConverter(result.curve, trade_date).convert("1Yx10Y", 450.0).vol
+        expected = PremiumConverter(result.curve, trade_date, when=T0).convert("1Yx10Y", 450.0).vol
         self.assertAlmostEqual(rows[0][2], expected, places=10)
         self.assertEqual(rows[1], ["2Mx6Y", "Y", None])
 
     def test_no_swap_rates_is_an_error(self):
         with self.assertRaisesRegex(ValueError, "スワップのレート"):
-            live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0]], [["O/N", 0.477]], T0.date())
+            live_feed.VolCalculator().rows([["1Yx10Y", "X", 450.0]], [["O/N", 0.477]], T0)
 
 
 if __name__ == "__main__":

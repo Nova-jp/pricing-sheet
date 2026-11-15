@@ -122,15 +122,15 @@ def PosCloseVols(expiries, tails, as_of_date) -> List[list]:
         raise ValueError(f"{d}のvolがDBにありません")
     return [[vols.get(normalize_label(f"{e}x{t}"), "") for t in _labels(tails)] for e in _labels(expiries)]
 
-@xw.func
+@xw.func(volatile=True)
 @xw.arg("expiries", ndim=1)
 def PosVolCalendarFactor(expiries, trade_date=None) -> List[list]:
     """営業日ベースのvol(DB・フィード)→ 暦日ベースのvol(bp/年)の掛け目の縦1列(満期の並び)。
     = √(取引日から満期日までの営業日数/252) × √(365/暦日数)。会社のベガは暦日の年率のvolで微分した値なので、
     Positionのボラの動きは暦日ベースで見る(ユーザー指示、2026-11-10)。trade_date: 空欄なら今日(ライブのvol)。
-    引けのvolには基準日を渡す。"""
-    d = _to_date(trade_date) or udf_common._today()
-    return [[swaption.calendar_factor(d, e)] for e in _labels(expiries)]
+    引けのvolには基準日を渡す。今日なら今の時刻で数える(ライブのvolと同じ。日中に変わるので volatile)。"""
+    when = udf_common._valuation_moment(trade_date)
+    return [[swaption.calendar_factor(when, e)] for e in _labels(expiries)]
 
 
 @xw.func

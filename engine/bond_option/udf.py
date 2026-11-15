@@ -123,16 +123,17 @@ def ItmBuyWriteStrike(forward, target, price_vol, term) -> float:
 
 # ---- 表UDF(Optionシートの全行を1回で計算する。本体は table.py) ----
 
-@xw.func
+@xw.func(volatile=True)
 @xw.arg("bonds", ndim=1)
 @xw.arg("expiries", ndim=1)
 def OptionTermTable(bonds, expiries, trade_date) -> List[list]:
-    """全行の期間T(年、満期までの営業日数/252)の縦1列。引数は同じ行数の列の範囲(銘柄・満期)と取引日。
+    """全行の期間T(年、満期日の15時までの残りの営業日数/252)の縦1列。引数は同じ行数の列の範囲(銘柄・満期)と取引日。
+    取引日が今日なら今の時刻で数える(日中の残りが減っていくので volatile。F9のたびに数え直す)。
     銘柄が空欄の行は空欄。計算できない行は理由の文字列。"""
-    return table.term_table(bonds, expiries, udf_common._resolve_valuation_date(trade_date))
+    return table.term_table(bonds, expiries, udf_common._valuation_moment(trade_date))
 
 
-@xw.func
+@xw.func(volatile=True)
 @xw.arg("bonds", ndim=1)
 @xw.arg("coupons", ndim=1)
 @xw.arg("maturities", ndim=1)
@@ -145,10 +146,11 @@ def OptionMarketTable(
 ) -> List[list]:
     """全行の [先渡複利(%), 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(bp/年、補間), message]
     (JgbForwardRisk・SwaptionVolの表版)。
-    引数は同じ行数の列の範囲(銘柄・利率・償還日・先渡dirty・行使後の受渡日・満期)と、ボラの範囲・取引日。"""
+    引数は同じ行数の列の範囲(銘柄・利率・償還日・先渡dirty・行使後の受渡日・満期)と、ボラの範囲・取引日。
+    ボラの補間の満期の軸は OptionTermTable と同じ時点で数える(今日なら今の時刻なので volatile)。"""
     return table.market_table(
         bonds, coupons, maturities, forward_dirty, forward_settle, expiries, vol_range,
-        udf_common._resolve_valuation_date(trade_date),
+        udf_common._valuation_moment(trade_date),
     )
 
 

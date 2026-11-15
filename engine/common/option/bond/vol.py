@@ -7,7 +7,7 @@ bp/年 = bp/日×√252。engine/common/option/swaption/convert.py)で、LiveQuo
 
 ■ 補間(ユーザーと決めた方式)
   - 軸: 満期 = 取引日→オプション満期、テナー = オプション満期→償還日(行使時点の債券の残存)。
-    満期は営業日数(engine/common/option/term.py。volと同じ数え方)。格子の点はスワップションの満期日(取引日+期間、
+    満期は残りの営業日数(engine/common/option/term.py。volと同じ数え方。ライブは日中の残りも数える)。格子の点はスワップションの満期日(取引日+期間、
     休日なら翌営業日)までの営業日数。テナーは暦日/365(うるう日除き)。
   - テナー方向: 満期ごとに vol を線形補間。
   - 満期方向: 分散(σ²t)を線形補間。
@@ -26,7 +26,7 @@ import QuantLib as ql
 
 from engine.common.bond import NO_LEAP
 from engine.common.option.swaption.convert import expiry_date
-from engine.common.option.term import business_days
+from engine.common.option.term import When, as_date, remaining_days
 
 _LABEL = re.compile(r"^\s*(\d+[MY])\s*X\s*(\d+[MY])\s*$", re.I)
 
@@ -43,9 +43,9 @@ def _years(start: date, end: date) -> float:
     return NO_LEAP.dayCount(ql.Date.from_date(start), ql.Date.from_date(end)) / 365
 
 
-def _expiry_days(trade_date: date, period: ql.Period) -> int:
-    """満期の点: スワップションの満期日までの営業日数(オプション満期と同じ物差し)。"""
-    return business_days(trade_date, expiry_date(trade_date, str(period)))
+def _expiry_days(when: When, period: ql.Period) -> float:
+    """満期の点: スワップションの満期日までの残りの営業日数(オプション満期と同じ物差し)。"""
+    return remaining_days(when, expiry_date(as_date(when), str(period)))
 
 
 def _tenor_years(period: ql.Period) -> float:
@@ -74,7 +74,7 @@ def _linear(xs: Sequence[float], ys: Sequence[float], x: float) -> float:
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
-def build_grid(rows: Iterable[Sequence], trade_date: date) -> Dict[float, List[Tuple[float, float]]]:
+def build_grid(rows: Iterable[Sequence], trade_date: When) -> Dict[float, List[Tuple[float, float]]]:
     """[銘柄, …, 値] の行 → {満期までの営業日数: [(原資産の年数, vol)](原資産の昇順)}。"""
     grid: Dict[float, Dict[float, float]] = {}
     for row in rows:
@@ -106,17 +106,18 @@ def interpolate(
     return math.sqrt(variance / expiry_days)
 
 
-def bond_option_vol(rows: Iterable[Sequence], trade_date: date, expiry: date, maturity: date) -> float:
+def bond_option_vol(rows: Iterable[Sequence], trade_date: When, expiry: date, maturity: date) -> float:
     """取引日・オプション満期・債券の償還日 → 補間したノーマルvol(bp/年)。"""
     return grid_vol(build_grid(rows, trade_date), trade_date, expiry, maturity)
 
 
 def grid_vol(
-    grid: Dict[float, List[Tuple[float, float]]], trade_date: date, expiry: date, maturity: date,
+    grid: Dict[float, List[Tuple[float, float]]], trade_date: When, expiry: date, maturity: date,
 ) -> float:
-    """作り済みの格子から補間する(表UDFは格子を表全体で1回だけ作る)。"""
-    if expiry <= trade_date:
-        raise ValueError(f"満期 {expiry} が取引日 {trade_date} 以前です")
+    """作り済みの格子から補間する(表UDFは格子を表全体で1回だけ作る)。trade_date は格子を作ったときと同じもの。"""
+    days = remaining_days(trade_date, expiry)
+    if days <= 0:
+        raise ValueError(f"満期 {expiry} が取引日 {as_date(trade_date)} 以前です")
     if maturity <= expiry:
         raise ValueError(f"償還日 {maturity} がオプション満期 {expiry} 以前です")
-    return interpolate(grid, business_days(trade_date, expiry), _years(expiry, maturity))
+    return interpolate(grid, days, _years(expiry, maturity))
