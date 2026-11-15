@@ -19,6 +19,8 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
+import QuantLib as ql
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -28,10 +30,11 @@ from engine.common.bond import (  # noqa: E402
     Jgb, accrued_interest, coupon_dates, dollar_duration, price_from_simple_yield, settlement_date,
     simple_yield_from_price, truncate3, years_to_maturity,
 )
+from engine.common.conventions import CALENDAR  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord, code_from_ric  # noqa: E402
 from engine.common.option.bond import pricer, vol  # noqa: E402
-from engine.common.option.swaption.convert import business_days  # noqa: E402
+from engine.common.option.term import business_days, option_term  # noqa: E402
 
 SAMPLES = REPO_ROOT / "data" / "bond_option_samples.toml"
 BOND = Jgb(2.0, date(2031, 3, 20))  # 架空の5年債(利払 3/20・9/20)
@@ -141,7 +144,7 @@ class ForwardTest(unittest.TestCase):
 class OptionTest(unittest.TestCase):
     def test_term_is_business_days_over_252(self):
         # 2026-10-16 → 2026-11-16: 11/3が祝日で20営業日
-        self.assertEqual(pricer.option_term(date(2026, 10, 16), date(2026, 11, 16)), 20 / 252)
+        self.assertEqual(option_term(date(2026, 10, 16), date(2026, 11, 16)), 20 / 252)
 
     def test_put_call_parity_without_discounting(self):
         f, k, v, t = 99.5, 99.0, 4.0, 0.25
@@ -284,6 +287,28 @@ class TableUdfTest(unittest.TestCase):
     VOLS = [["1Mx1Y", "R", 40.0], ["1Mx10Y", "R", 80.0], ["", "", ""]]
     MAT = datetime.datetime(2031, 3, 20)  # xlwingsは日付をdatetimeで渡す
 
+    def test_term_table(self):
+        rows = bo_udf.OptionTermTable(
+            ["JS999", None, "JS999", "JS999"],
+            [datetime.datetime(2026, 11, 16), None, datetime.datetime(2026, 10, 16), "M31"], self.T0,
+        )
+        self.assertEqual(rows[0], [option_term(self.T0, date(2026, 11, 16))])
+        self.assertEqual(rows[1], [""])  # 銘柄が空欄の行
+        self.assertIn("取引日", rows[2][0])  # 満期が取引日以前の行は理由の文字列
+        self.assertIn("満期は日付です", rows[3][0])
+
+    def test_term_table_matches_the_old_networkdays_formula(self):
+        # 置き換える前のシートの式 NETWORKDAYS(TradeDate, 満期 − 1, Holidays)/252(両端を含む平日−祝日)と同じ値
+        holidays = {d for d in (self.T0 + datetime.timedelta(n) for n in range(800)) if not CALENDAR.isBusinessDay(
+            ql.Date.from_date(d)) and d.weekday() < 5}
+        for t0 in (self.T0 + datetime.timedelta(n) for n in range(0, 370, 7)):
+            expiries = [t0 + datetime.timedelta(n) for n in range(1, 400, 3)]
+            rows = bo_udf.OptionTermTable(["JS999"] * len(expiries), expiries, t0)
+            for te, (t,) in zip(expiries, rows):
+                old = sum(1 for n in range((te - t0).days) if (d := t0 + datetime.timedelta(n)).weekday() < 5
+                          and d not in holidays)
+                self.assertEqual(t, old / 252, (t0, te))
+
     def test_market_table(self):
         se = datetime.datetime(2026, 11, 18)
         rows = bo_udf.OptionMarketTable(
@@ -366,7 +391,7 @@ class UserSamplesTest(unittest.TestCase):
                 swap_vol = s.get("swap_vol", self.SWAP_VOLS.get(s["id"]))
                 price_vol = swap_vol * math.sqrt(252) * md / 100
                 self.assertAlmostEqual(price_vol, s["bs_price_vol"], delta=2e-5)
-                premium = pricer.black_premium(s["type"], fwd.clean, strike, price_vol, pricer.option_term(t0, te))
+                premium = pricer.black_premium(s["type"], fwd.clean, strike, price_vol, option_term(t0, te))
                 self.assertEqual(round(premium * 100, 4), s["premium"])
 
     def test_customer_forward_quotes(self):

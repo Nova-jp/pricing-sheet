@@ -31,6 +31,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence
 
 from engine.common import bond, udf_common
 from engine.common.market import CurveSet
+from engine.common.option import term
 from engine.common.option.bond import hv, pricer, vol
 from engine.position.bonds import BondPosition, bond_risk, bucket, pillar_dates
 
@@ -163,7 +164,7 @@ def market_rows(
             except Exception as e:
                 errors.append(f"HV: {e}")
         try:
-            row[10] = pricer.option_term(base_date, te)
+            row[10] = term.option_term(base_date, te)
         except Exception as e:
             errors.append(f"T: {e}")
         out.append(row + [" / ".join(errors)])

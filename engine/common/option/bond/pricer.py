@@ -5,18 +5,17 @@ ITMバイライトのストライク。
 式は docs/bond_option.md の F6〜F11。ユーザーのプライサー(正)の4サンプルとプレミアム4桁まで一致。
 利回り・レポ・価格ボラは%、単価は額面100円あたりの円。
 BondOption.xlsmでは、先渡価格(F6)と期間はExcelの式で同じ計算をする(手で値を上書きしても動くように)。
-forward_price(F6、実体は engine/common/bond.py。国債先物のベーシスと共用)・option_term は、
-サンプルとの照合(テスト)とシートの式の確認に使う。
+forward_price(F6、実体は engine/common/bond.py。国債先物のベーシスと共用)は、
+サンプルとの照合(テスト)とシートの式の確認に使う。期間Tは engine/common/option/term.py(シートは表UDF OptionTermTable)。
 
 ■ QuantLibとの分担
-  - 先渡複利・デュレーション(BondFunctions.bondYield/duration)、営業日数(ql.Japan())、
-    Black式(ql.blackFormula)は QuantLib。
+  - 先渡複利・デュレーション(BondFunctions.bondYield/duration)、Black式(ql.blackFormula)は QuantLib。
   - 先渡価格だけは自前の式。ql.BondForward は期中の利払を曲線のDFで割り引く
     (c(1+rT)/(1+r·tc))が、JGBのレポの慣行は c(1+r(T−tc))で、レポ20%・6Mで約0.0011円ずれる。
     スポット価格も曲線から計算する作りで、市場の単価を入れられない。
 
 ■ 期間と年率
-  T = 営業日数(取引日→満期)/252、価格ボラ = bp vol(bp/日) × √252 × MD。
+  T = 満期までの営業日数/252(term.option_term)、価格ボラ = bp vol(bp/日) × √252 × MD。
   標準偏差 = 価格ボラ × √T = bp vol × MD × √営業日数 なので、252はプレミアムには効かない。
 """
 
@@ -29,9 +28,8 @@ from engine.common.bond import (  # noqa: F401
     NO_LEAP, ForwardPrice, Jgb, dollar_convexity, dollar_duration, forward_price, ql_bond, truncate3,
 )
 from engine.common.bond import compound_yield as bond_compound_yield
-from engine.common.conventions import CALENDAR
+from engine.common.option.term import ONE_DAY
 
-TRADING_DAYS = 252
 CALL = "CALL"
 PUT = "PUT"
 
@@ -51,14 +49,6 @@ def forward_duration(bond: Jgb, forward_dirty: float, forward_settle: date) -> F
     dd = dollar_duration(bond, compound_yield, forward_settle)
     return ForwardDuration(compound_yield, dd, dd / forward_dirty * 100,
                            dollar_convexity(bond, compound_yield, forward_settle))
-
-
-def option_term(trade_date: date, expiry: date) -> float:
-    """T = 営業日数(取引日→満期、ql.Japan())/252。"""
-    if expiry <= trade_date:
-        raise ValueError(f"満期 {expiry} が取引日 {trade_date} 以前です")
-    days = CALENDAR.businessDaysBetween(ql.Date.from_date(trade_date), ql.Date.from_date(expiry))
-    return days / TRADING_DAYS
 
 
 def parse_option_type(value) -> int:
@@ -84,7 +74,7 @@ class BlackGreeks(NamedTuple):
     delta: float  # ∂プレミアム/∂先渡clean(コールは0〜1、プットは−1〜0)
     gamma: float  # ∂²プレミアム/∂先渡clean²(1円あたり)
     vega: float  # 価格ボラ1%(%/年)あたりのプレミアムの変化(円)
-    theta: float  # 1営業日(T − 1/252、先渡・ボラは同じ)でのプレミアムの変化(円、ふつうマイナス)
+    theta: float  # 1営業日(T − term.ONE_DAY、先渡・ボラは同じ)でのプレミアムの変化(円、ふつうマイナス)
 
 
 def black_greeks(option_type, forward: float, strike: float, price_vol: float, term: float) -> BlackGreeks:
@@ -95,7 +85,7 @@ def black_greeks(option_type, forward: float, strike: float, price_vol: float, t
     kind = parse_option_type(option_type)
     calc = ql.BlackCalculator(ql.PlainVanillaPayoff(kind, strike), forward, price_vol / 100 * term ** 0.5, 1.0)
     premium = calc.value()
-    later = max(term - 1 / TRADING_DAYS, 0.0)
+    later = max(term - ONE_DAY, 0.0)
     after = ql.blackFormula(kind, strike, forward, price_vol / 100 * later ** 0.5) if later > 0 else (
         max(forward - strike, 0.0) if kind == ql.Option.Call else max(strike - forward, 0.0))
     return BlackGreeks(premium, calc.deltaForward(), calc.gammaForward(), calc.vega(term) / 100, after - premium)
