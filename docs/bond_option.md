@@ -1,6 +1,6 @@
 # 現物オプション・プライサー(`BondOption.xlsm`、`engine/bond_option/`)
 
-国債店頭オプション(ヨーロピアン、現物受渡)のプレミアム・価格ボラ・先渡価格・先渡利回りを、1行1オプションで
+国債店頭オプション(ヨーロピアン、現物受渡)のプレミアム・グリークス・価格ボラ・先渡価格・先渡利回りを、1行1オプションで
 計算するブック。先物オプションは対象外。
 
 **構成の方針(ユーザー指示)**: LSEGの銘柄データはBondsシートにスピルで出して行ごとに`XLOOKUP`で引き、QuantLibが必要な計算
@@ -57,6 +57,8 @@ T = `NETWORKDAYS(t0, te − 1, Holidays)/252`。QuantLibの`businessDaysBetween`
 | F9 価格ボラ | σP = σy × √252 × MD / 100 | シートの数式 | |
 | F10 プレミアム | Black式(F = 先渡clean、K = ストライク単価、標準偏差 = σP/100 × √T)。割引なし | 表UDF `PremiumTable`(`ql.blackFormula`) | `pricer.black_premium` |
 | F11 ITMバイライトのストライク | K + C(K) = スポット単価 を満たすK(Cはコールのプレミアム、F10)を⌊ ⌋₃ | 表UDF `ItmBuyWriteTable`(`ql.Brent`) | `pricer.itm_buy_write_strike` |
+| F12 先渡のコンベクシティ | CX = d²P/dy²(y = F7の切り捨て後、起点 se、利回り1%の2乗あたり) | `OptionMarketTable`の4列目(QuantLibの`convexity` × dirty) | `pricer.forward_duration` |
+| F13 グリークス | 「グリークス」の節 | 表UDF `GreeksTable`(`ql.BlackCalculator`)+ シートの換算 | `pricer.black_greeks` |
 
 ATM単利 = 引け値の単利(JCL)+ ATMのスライド(bp)/100。
 
@@ -126,6 +128,26 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
 - QuantLibの債券のクーポン額(日数比例でc/2ちょうどではない)をc/2ちょうどにする方法。プライサーとの一致(MD・価格ボラ)が
   悪くなるので、プライサーも日数比例で計算していると判断し、QuantLibのままにした。
 
+## グリークス(2026-11-14、ユーザー決定)
+
+F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T で微分したもの(`GreeksTable`、額面100円あたりの円)を、
+シートの式で金利・ノーマルvol・額面に換える。Delta(%)以外は**額面(Notional、億円)を掛けた百万円**(10億の10年スワップの
+デルタがおよそ1になる大きさ。額面100円あたりの円 × 額面(億円)= 百万円)。オプションの買いの向きの値で、売り
+(BW・CC・TB・ITMBWはこちらが売り)の符号は付けない。額面が空欄の行は空欄。
+
+| 表示 | 単位 | 式(Δ・Γ・ν・θ は`GreeksTable`の値、N = 額面(億円)) |
+|---|---|---|
+| Delta (%) | % | Δ × 100(Δ = ∂プレミアム/∂F。コール 0〜100、プット −100〜0。額面は掛けない) |
+| Delta (mn JPY/bp) | 百万円/bp | −Δ × DD/100 × N(先渡の複利が1bp上がったときのプレミアムの変化。DD/100 = 1bpあたりの先渡の円) |
+| Gamma (mn JPY/bp²) | 百万円/bp² | (Γ × (DD/100)² + Δ × CX/10⁴) × N(F12。2項目は先渡価格の曲がり) |
+| Vega (mn JPY/normal vol bp) | 百万円/bp | ν × √(252/VolDays) × MD/100 × N(ν = 価格ボラ1%あたりの円。Normal vol(AA)1bp = 価格ボラ √(252/VolDays) × MD/100 %) |
+| Theta (mn JPY/bd) | 百万円/営業日 | θ × N(Tを1営業日縮めた値との差。先渡・ボラは据え置き、キャリーは入れない。満期まで1営業日以内なら本源的価値との差) |
+
+- 金利は**先渡の複利**(F7)、DD・MDも先渡(F8)。価格ボラを先渡MDで作っているのに揃える。スポットの利回りの1bpとほぼ同じ
+  (PositionSheetのBondOptシートはスポットの単価の感応度で、ここだけ違う)。
+- ストライクを動かしたときは、6つの入力列でストライクを変えれば、プレミアムとグリークスがそのストライクで計算される。
+  ボラはストライクによらない(スマイルなし。必要ならボラのoverrideで行ごとに入れる)。
+
 ## ボラ
 
 - 供給元: フィード(`live_feed.toml`の`"vol"`)。TraditionのATMストラドルのプレミアム(`JPY{満期}{原資産}TOATM=TRDT`)を
@@ -181,17 +203,18 @@ JB380 call 1M 91.360→91.364、6M 91.684→91.693)。プライサーの誤り�
 | `ValuationDate(評価日)` | 評価日(空欄=今日) |
 | `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄 |
 | `JapanHolidays(開始日, 終了日)` | 日本の祝日(土日を除く)を縦に |
-| `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, ノーマルvol(補間), message] |
+| `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, CX(F12), ノーマルvol(補間), message] |
 | `ItmBuyWriteTable(Strike basis, 先渡clean, スポット単価, 価格ボラ, T)` | 全行の [F11のK, message](Strike basisが"ITMBW"の行だけ) |
 | `PremiumTable(種類, 先渡clean, K, 価格ボラ, T)` | 全行の [プレミアム(額面100円あたりの円), message] |
+| `GreeksTable(種類, 先渡clean, K, 価格ボラ, T)` | 全行の [Δ, Γ, ν(価格ボラ1%あたり), θ(1営業日), message](額面100円あたりの円。換算はシートの式、「グリークス」の節) |
 | `VolRatioTable(銘柄, 利率, 償還日, 取引日, 窓)` | 全行の [現物のHV, スワップのHV(bp/日), 比, 日次変化の数, 窓の最初の日付, 最後の日付, message] |
 | `JgbForwardRisk`・`SwaptionVol`・`BlackPremium`・`ItmBuyWriteStrike` | 上の表UDFの1行用(単独の確認用。シートでは使わない) |
 
 **表UDF(ユーザー指示)**: 1行ごとにUDFを置くと、再計算の時間がUDFのセルの数で決まる(1セルごとに
 Excelとの往復がかかる。[decisions.md](decisions.md)の「Excelとの分担」)。全行を1回で計算する表UDF
 (本体は`engine/bond_option/table.py`)にする。四則演算程度の計算は
-Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(BF〜BU)に
-スピルさせ、表示の列(Fwd yield・DD・MD・ボラの補間値・Vol ratio・ITMBWのストライク・プレミアム)はそのセルを参照するだけに
+Excelの式のまま残す(手で上書きしたときに対応しやすいため、ユーザー指示)。表UDFは右の計算用の領域(BL〜CG)に
+スピルさせ、表示の列(Fwd yield・DD・MD・CX・ボラの補間値・Vol ratio・ITMBWのストライク・プレミアム・グリークス)はそのセルを参照するだけに
 する。表示のセルを手で上書きすれば、下流の式とその先の表UDFはその値で計算される(スピルの中を上書きして
 #SPILL!になることもない)。1行の入力の誤りで表全体をエラーにせず、計算できなかった値は空欄(表示の列は#N/A)、
 理由はmessage列(表示はMessage列にまとめる)。ITMBWのストライクとプレミアムを別の表UDFにしているのは、
@@ -210,7 +233,7 @@ UDFは銘柄コードを受けず、利率・償還日のセルの値を受け�
   `RepoOffer`)、F5 HVの窓(営業日数、名前`HvWindow`、既定20)、H1:J5 スキームの対応表(名前`SchemeTable` = H2:J5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
   黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
   入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
-  明細(AK〜BD)と計算用(BF〜BX)は折りたたみ(BEは2つのグループを分ける隙間)。ずらし幅の入力(ATM slide・Spot +sen・
+  明細(AP〜BJ)と計算用(BL〜CL)は折りたたみ(BKは2つのグループを分ける隙間)。ずらし幅の入力(ATM slide・Spot +sen・
   Fwd +sen・Fwd +bp・ATM +bp)は+付き・負は赤の表示形式
   (`+General;[Red]-General;0`。日本語版ExcelのCOMは`[Red]`を受け付けないので`NumberFormatLocal`の
   `+G/標準;[赤]-G/標準;0`で設定する)。
@@ -224,8 +247,9 @@ UDFは銘柄コードを受けず、利率・償還日のセルの値を受け�
 | Strike | T Strike basis(どの入力を使うか、または入力の誤りのメッセージ), U Strike price, V Strike yield(se起点) |
 | Vol | W Swaption vol(補間値), X・Y Vol ratio(override │ 使う値), Z・AA Normal vol(override │ 使う値), AB・AC bp vol, AD・AE Price vol |
 | Premium | AF Premium(銭), AG 円, AH Strike + premium(ITMBWの確認), AI Quote text, AJ Message |
-| Details(折りたたみ) | AK〜AN 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AO Type(対応表から), AP〜AR スポット受渡日・行使後の受渡日・T, AS〜AV 経過利子×2・期中の利払・Fwd dirty, AW〜AZ Fwd yield comp(複利)・DD・MD・ノーマルvolの補間値, BA〜BD 現物のHV・スワップのHV・HVの窓の最初と最後の日付(計算用のセルを参照) |
-| Calc(折りたたみ) | BF `OptionMarketTable`, BK `ItmBuyWriteTable`, BM `PremiumTable`, BO `VolRatioTable`(8行目にスピル), BX3 ライブのボラ(`LiveQuotes("vol")`) |
+| Greeks(AK以外は額面を掛けた百万円) | AK Delta(%), AL Delta(百万円/bp), AM Gamma(百万円/bp²), AN Vega(百万円/normal vol bp), AO Theta(百万円/営業日) |
+| Details(折りたたみ) | AP〜AS 利率・償還日・引け値・引けの日付(列ごとに`BondList`からXLOOKUP), AT Type(対応表から), AU〜AW スポット受渡日・行使後の受渡日・T, AX〜BA 経過利子×2・期中の利払・Fwd dirty, BB〜BF Fwd yield comp(複利)・DD・MD・CX・ノーマルvolの補間値, BG〜BJ 現物のHV・スワップのHV・HVの窓の最初と最後の日付(計算用のセルを参照) |
+| Calc(折りたたみ) | BL `OptionMarketTable`, BR `ItmBuyWriteTable`, BT `PremiumTable`, BV `GreeksTable`, CA `VolRatioTable`(8行目にスピル), CJ3 ライブのボラ(`LiveQuotes("vol")`) |
 
 Quote text(客先に返す文面、ユーザーが決定)は「Scheme 銘柄 Expiry ATMのスライド 価格ボラ% プレミアムc」を空白区切りで並べる
 (例 `TB JB380 2026-12-15 +0.5 3.25% 45.2c`)。スライドはATM slide(bp)を符号付き(0は`0`)、価格ボラは使う値(AE)を

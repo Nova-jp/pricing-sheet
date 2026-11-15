@@ -129,6 +129,16 @@ def dollar_duration(bond: Jgb, compound_yield_pct: float, settle: date) -> float
     return ql.BondFunctions.duration(b, rate, ql.Duration.Modified, qd) * dirty / 100
 
 
+def dollar_convexity(bond: Jgb, compound_yield_pct: float, settle: date) -> float:
+    """半年複利(%)での d²P/dy²(利含み単価、額面100円、利回り1%の2乗あたり。dollar_durationと同じ利回り・日数)。
+    1bpの2乗あたりはこの値 / 10^4。"""
+    b = ql_bond(bond, "no_leap")
+    rate = ql.InterestRate(compound_yield_pct / 100, NO_LEAP, ql.Compounded, ql.Semiannual)
+    qd = _qd(settle)
+    dirty = ql.BondFunctions.cleanPrice(b, rate, qd) + ql.BondFunctions.accruedAmount(b, qd)
+    return ql.BondFunctions.convexity(b, rate, qd) * dirty / 10000
+
+
 class ForwardPrice(NamedTuple):
     clean: float
     dirty: float
