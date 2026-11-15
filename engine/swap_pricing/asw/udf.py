@@ -1,7 +1,8 @@
 """
 ASWシート用のUDF(JGB銘柄別ASWスプレッドのヒストリカル推移)と、ASWPricerシート用のUDF
 (AswPricingTable。リアルタイムのカーブと引け値+スライドでASWを計算する。本体は table.py・pricer.py。
-AswUnwindTable。約定済みのMMSのアンワインドPV。本体は unwind.py)。
+AswUnwindTable。約定済みのMMSのアンワインドPV。本体は unwind.py。
+AswCloseTable。引け時点の複利とMMS。ライブのレートに依存させない。本体は close.py)。
 
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
@@ -18,7 +19,7 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.historical_store import AswRate
-from engine.swap_pricing.asw import table, unwind
+from engine.swap_pricing.asw import close, table, unwind
 
 _CONVENTIONS = ("PA", "SA")
 _MAX_LEGS = 3
@@ -135,3 +136,21 @@ def AswUnwindTable(unwind_table, real_time_range, valuation_date=None) -> List[l
     real_time_range: AswPricingTableと同じ(そのシートの TAKE(カーブ用の範囲#,,3))。
     """
     return unwind.price_table(unwind_table, udf_common._market(real_time_range, valuation_date))
+
+
+@xw.func
+@xw.arg("close_table", ndim=2)
+def AswCloseTable(close_table, valuation_date=None) -> List[list]:
+    """
+    ASWPricer表の全行の引け時点の close compound yield(引け日のスポット受渡T+1の複利)・close swap rate
+    (引け日のスポットT+2〜償還日のMMS、DBの引け日のカーブ)・close message を1回で返す
+    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はasw/close.py)。
+    引けのASW(bp) = (close compound yield − close swap rate)×100 と今のASWとの差はシートの式で計算する。
+
+    ライブのレートの範囲は引数に取らない(非volatile。Shift+F9でライブのレートが動いても計算し直さない)。
+    close_table: 見出し行から最終行まで。列は見出し名で探す(flag, bond, fix freq, fix dcf, float freq, roll conv)。
+        このUDFの出力の列を含めると循環参照になる。
+    valuation_date: 評価日(空欄=今日)。その日以前で直近の引け値を使う。
+    """
+    with udf_common._historical_store() as store:
+        return close.price_table(close_table, udf_common._resolve_valuation_date(valuation_date), store)

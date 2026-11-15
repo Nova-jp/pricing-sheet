@@ -6,6 +6,8 @@ ASWPricerシートのUDF(AswPricingTable、engine/swap_pricing/asw/table.py・pr
 - MMSは行の規約で組んだOISのパーレート(PricingSheetと同じ経路)、roll conv=BWDは償還日から遡ること
 - par-par ASW・adj_notional・bond bpv・hedge ratioの列と、行ごとのエラーをmessageに閉じ込めること
 - アンワインド(AswUnwindTable、asw/unwind.py): 約定当初の起算日〜償還日のMMSを約定レートで組んだPV
+- 引け(AswCloseTable、asw/close.py): 引け日の受渡・スポットで組んだ複利とMMS(DBの引け日のカーブ)。
+  スライド等を使わず、ライブのカーブのキャッシュに触れないこと
 値そのもの(複利・パーレート・スプレッド)はQuantLibを正とし、手計算の照合はしない。
 
 実行方法:
@@ -26,13 +28,13 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import bond, market, udf_common  # noqa: E402
 from engine.common.conventions import CALENDAR, ROLL_BWD, rule_and_eom  # noqa: E402
-from engine.common.historical_store import HistoricalStore  # noqa: E402
+from engine.common.historical_store import HistoricalStore, discount_grid  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 from engine.common.risk import annuity_delta  # noqa: E402
 from engine.common.swap_pricer import _build_swap  # noqa: E402
 from engine.common.terms import PAY, REC, SwapConvention, SwapParams, SwapTerms  # noqa: E402
 from engine.swap_pricing import udf  # noqa: E402
-from engine.swap_pricing.asw import table, unwind  # noqa: E402
+from engine.swap_pricing.asw import close, table, unwind  # noqa: E402
 from engine.swap_pricing.pricing import measures  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402
 
@@ -68,7 +70,9 @@ class BackwardRollTest(unittest.TestCase):
         self.assertEqual(dates[1], date(2027, 3, 23))  # 3/20(土)・3/21(日、春分の日)・3/22(振替休日)の翌営業日
 
 
-class AswPricingTableTest(unittest.TestCase):
+class _AswDbCase(unittest.TestCase):
+    """銘柄・引け値のDBとFRIDAYのライブのカーブ(AswPricingTable・AswCloseTableのテストで共通)。"""
+
     def setUp(self):
         market._cache.clear()
         self.tmp = tempfile.TemporaryDirectory()
@@ -102,6 +106,8 @@ class AswPricingTableTest(unittest.TestCase):
         self.assertEqual(out[0], list(table.OUTPUT_HEADER))
         return [dict(zip(table.OUTPUT_HEADER, r)) for r in out[1:]]
 
+
+class AswPricingTableTest(_AswDbCase):
     def test_bond_dates_and_yields(self):
         (r,) = self._price(_row(slide=2.5))
         self.assertEqual(r["message"], "")
@@ -289,3 +295,79 @@ class AswUnwindTableTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SATURDAY = date(2026, 9, 26)
+_CLOSE_HEADER = list(close.INPUT_COLUMNS)
+
+
+def _close_row(bond_code="JB999", conv=SA, flag=1):
+    return [flag, bond_code, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv]
+
+
+class AswCloseTableTest(_AswDbCase):
+    """AswPricingTableTestのDB(銘柄・引け値)に、FRIDAYの引けのカーブ(ライブのカーブと同じもの)を足す。"""
+
+    def setUp(self):
+        super().setUp()
+        boot = self.curves.base_curve
+        self.store.save_curve(FRIDAY, "test", "hash", boot.used_tenors, [], discount_grid(boot.curve, FRIDAY))
+
+    def _close(self, rows, valuation_date=FRIDAY, header=_CLOSE_HEADER):
+        with self.store:
+            out = close.price_table([header, *rows], valuation_date, self.store)
+        self.assertEqual(out[0], list(close.OUTPUT_HEADER))
+        return [dict(zip(close.OUTPUT_HEADER, r)) for r in out[1:]]
+
+    def test_close_matches_the_pricer_without_slide(self):
+        """引けの日の評価日・スライドなしのAswPricingTableと同じ複利・MMS(カーブはDBの日次のグリッド)。"""
+        for conv in (SA, PA):
+            (live,) = self._price(_row(conv=conv))
+            (r,) = self._close([_close_row(conv=conv)])
+            self.assertEqual(r["close message"], "")
+            self.assertEqual(r["close compound yield"], live["compound yield"])
+            self.assertAlmostEqual(r["close swap rate"], live["swap rate"], places=8)
+
+    def test_slide_and_override_are_ignored(self):
+        """AswPricingTableと同じ範囲を渡しても、引けの値はスライド・yield override・startを使わない。"""
+        (plain,) = self._close([_close_row()])
+        (slid,) = self._close([_row(slide=5, override=2.0, start=date(2026, 10, 1))], header=_HEADER)
+        self.assertEqual(slid, plain)
+
+    def test_later_valuation_date_uses_the_close_date(self):
+        """評価日が引け日より後なら、引け日の受渡・スポット(週末をまたがない)で計算する。"""
+        (friday,) = self._close([_close_row()])
+        (saturday,) = self._close([_close_row()], SATURDAY)
+        self.assertEqual(saturday, friday)
+
+    def test_close_differs_from_live_when_the_slide_moves_the_bond(self):
+        (live,) = self._price(_row(slide=2.0))
+        (r,) = self._close([_close_row()])
+        self.assertGreater(live["compound yield"], r["close compound yield"])
+
+    def test_live_curve_cache_is_untouched(self):
+        cached = dict(market._cache)
+        self._close([_close_row()])
+        self.assertEqual(market._cache, cached)
+
+    def test_row_errors_go_to_message(self):
+        no_close, unknown, off = self._close([_close_row("JN999"), _close_row("JZ1"), _close_row(flag=0)])
+        self.assertIn("引け値", no_close["close message"])
+        self.assertIn("JZ1", unknown["close message"])
+        self.assertTrue(all(v == "" for v in off.values()))
+        # 引け日(9/24)のカーブがDBに無い: 複利は出し、MMSはエラー
+        (no_curve,) = self._close([_close_row()], date(2026, 9, 24))
+        self.assertNotEqual(no_curve["close compound yield"], "")
+        self.assertEqual(no_curve["close swap rate"], "")
+        self.assertIn("2026-09-24", no_curve["close message"])
+
+    def test_missing_header_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self._close([_close_row()[:-1]], header=_CLOSE_HEADER[:-1])
+
+    def test_udf(self):
+        with mock.patch.object(udf_common, "_historical_store", lambda: self.store):
+            out = udf.AswCloseTable([_CLOSE_HEADER, _close_row()], FRIDAY)
+            blank_is_today = udf.AswCloseTable([_CLOSE_HEADER, _close_row()], None)
+        self.assertEqual(out[1], [*self._close([_close_row()])[0].values()])
+        self.assertEqual(blank_is_today, out)

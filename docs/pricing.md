@@ -22,10 +22,11 @@
 | `historical/pricer.py` | 保存済みの日次カーブから、任意コンベンションのヒストリカル・パーレート系列を計算(ブートストラップしない)。FIXED/ROLLING(下の「ヒストリカル」) |
 | `historical/udf.py` | HistChartシートのUDF: `HistoricalRate`/`HistoricalRates`/`HedgeHistoricalRates` |
 | `historical/hedge.py` | ヘッジの重ね表示用に、スポットのテナーごとのパーレートを指定した日付の並びで返す(`historical/pricer.py`と同じ経路、標準の規約) |
-| `asw/udf.py` | ASWシートの`AswHistoricalRate`/`AswHistoricalRates`(DBの`asw_quotes`を読むだけ)、ASWPricerシートの`AswPricingTable`・`AswUnwindTable` |
+| `asw/udf.py` | ASWシートの`AswHistoricalRate`/`AswHistoricalRates`(DBの`asw_quotes`を読むだけ)、ASWPricerシートの`AswPricingTable`・`AswUnwindTable`・`AswCloseTable` |
 | `asw/pricer.py` | ASWPricerの計算: 現物の単価・複利(スポット受渡T+1、`bond.compound_yield`)、複利1bpのBPV(`bond.dollar_duration`)、par-par ASW(`ql.AssetSwap`)。MMSは`pricing/measures.py`の`par` |
 | `asw/table.py` | `AswPricingTable`の本体(pricing表と同じく見出し名で列を探し、flag=1の行だけ、行ごとのエラーはmessageへ) |
 | `asw/unwind.py` | `AswUnwindTable`の本体: 約定済みのMMSのアンワインドPV(pricing表のPVと同じ`measures.pv`) |
+| `asw/close.py` | `AswCloseTable`の本体: 引け時点の複利とMMS(DBに保存した引け日のカーブ、ライブのレートに依存しない) |
 
 テスト: `test_market_risk.py`(カーブの共有・デルタ・RiskGrid・評価日・startのテナー・HistChart)、`test_past_start.py`、
 `test_imm.py`、`test_historical.py`、`test_hedge.py`、`test_asw.py`、`test_asw_pricer.py`。
@@ -45,7 +46,7 @@
   他のシートから参照しても問題ない)。
 - 各シートのカーブ用の範囲(`=LET(q,ライブ#,t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))`
   =採否/Ticker/値/起算日/満期日)がこの並びでライブのレートを引き当て、UDFには`TAKE(範囲#,,3)`を渡す。
-  ライブのレート・カーブ用の範囲のセル: Main H3/M3、pricing AF4/AK4(LCH: AX4/BC4)、HistChart AJ3/AO3、ASWPricer AK7/AP7。
+  ライブのレート・カーブ用の範囲のセル: Main H3/M3、pricing AF4/AK4(LCH: AX4/BC4)、HistChart AJ3/AO3、ASWPricer AO7/AT7。
 
 ## ブローカーの切り替え(pricing!F1)
 
@@ -226,9 +227,21 @@ JGB銘柄別のASWスプレッド(DBの`asw_quotes`、以前に朝バッチがNe
   - **別のUDF`AswUnwindTable`にする**。額面の既定値が`AswPricingTable`の出力(hedge ratio)から来るので、同じUDFの入力にすると循環参照になる。
     入力は`HSTACK`でflag・maturity(`AswPricingTable`の出力のM列)・G:K・AD:AGを渡し、列は見出し名で探す(末尾の単位「 (100M)」等は無視)。
   - 計算はflag=1で約定の3つの入力がそろった行だけ。par-par ASWは出さない(ユーザー判断)。
+- **引けのASW(Close)**。現物もスワップも引けの日にそろえたASWと、今のASWとの差を出す(ユーザー要望)。
+  - 現物は評価日以前で直近の引け値の単利をそのまま使い(スライド・yield overrideは使わない)、**引け日のスポット受渡(T+1)**で
+    単価・複利を出す。MMSは**引け日のスポット(T+2)**〜償還日で、規約はその行のG〜J列。Neonの`ASW_data`と同じく各日の受渡で計算する
+    (今日の受渡のまま引けのカーブを当てると1日分のキャリーが混ざる)。過去日の評価日のAswPricingTable(スライドなし)と1e-5bp以内で一致する。
+  - カーブは**朝バッチがDBに保存した引け日のカーブ**(`historical_store.load`、HistoricalRates等と同じ)。ライブのカーブのキャッシュ
+    (`market.curve_set`、清算機関ごとに1組)には入れない(入れるとライブのカーブが追い出され、次のShift+F9で組み直しになる)。
+  - **別のUDF`AswCloseTable`にし、ライブのレートの範囲を引数に取らない**(ユーザー判断)。AswPricingTableはvolatileの`LiveQuotes`に
+    依存するのでShift+F9のたびに計算し直されるが、引けの値は銘柄・規約・評価日が変わったときだけ計算すればよい。入力は計算に使う列
+    (flag・bond・G:J)だけを`HSTACK`で渡す(slide等を入れると、それを変えるたびに計算し直される)。
+  - 朝バッチでDBが新しい日になっても、開いたままのブックでは計算し直されない(依存するセルが変わらないため)。Ctrl+Alt+F9か開き直す。
+  - 引けのASW(bp) = (close compound yield − close swap rate)×100 と、今のASWとの差はシートの式。
 - **配置はBondOptionのOptionシートにならう**(2026-11-15)。1〜4行目が取得モードと説明、5行目がブロック名の帯(灰色)、6行目が見出し、
   7〜56行目(50行)が1行1銘柄。入力は黄色。縦の太線はブロックの境目、横の細線は5行ごと。ブロックは Bond input(A:D)・MMS terms(E:K)・
-  Bond (spot T+1)(L:S)・MMS / ASW(T:Y)・Traded ASW(Z:AC)・Unwind(AD:AH)・Status(AI、両方のUDFのmessageを`TEXTJOIN`)。
-  計算用(AK:BP)は折りたたみ: AK7ライブ・AP7カーブ・AV6`=AswPricingTable($A$6:$K$56,TAKE($AP$7#,,3),評価日)`・
-  BM6`=AswUnwindTable(HSTACK(…),TAKE($AP$7#,,3),評価日)`。ASW(bp)の引き算はW列の式。
+  Bond (spot T+1)(L:S)・MMS / ASW(T:Y)・Close(Z:AC)・Traded ASW(AD:AG)・Unwind(AH:AL)・Status(AM、3つのUDFのmessageを`TEXTJOIN`)。
+  計算用(AO:BW)は折りたたみ: AO7ライブ・AT7カーブ・AZ6`=AswPricingTable($A$6:$K$56,TAKE($AT$7#,,3),評価日)`・
+  BQ6`=AswUnwindTable(HSTACK(…),TAKE($AT$7#,,3),評価日)`・BU6`=AswCloseTable(HSTACK($A$6:$B$56,$G$6:$J$56),評価日)`。
+  ASW(bp)の引き算はW列、引けのASW・差はAB・AC列の式。
 - 先物ASW・リファレンスの列は[roadmap.md](roadmap.md)の11。
