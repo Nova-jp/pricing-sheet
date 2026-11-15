@@ -92,7 +92,7 @@ def _build_swap(
         overnightLegPaymentFrequency=FREQ_TO_QL_FREQUENCY[conv.float_freq],
         fixedLegDayCount=day_counter(conv.fix_dcf),
         convention=ql.ModifiedFollowing,
-        terminationDateConvention=ql.ModifiedFollowing,
+        terminationDateConvention=ql.ModifiedFollowing if terms.adjust_end else ql.Unadjusted,
         dateGenerationRule=rule,
         endOfMonth=end_of_month,
     )

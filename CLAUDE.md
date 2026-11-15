@@ -3,7 +3,8 @@
 JPY OIS(TONA)スワップのプライシングシート。Excel(UDF専用、VBAなし) +
 Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decisions.md`)。現物オプションのブック
 `BondOption.xlsm`(`engine/bond_option/`、`docs/bond_option.md`)と、ポジション・リスク管理の
-`PositionSheet.xlsm`(`engine/position/`、`docs/position.md`)も含む。
+`PositionSheet.xlsm`(`engine/position/`、`docs/position.md`)、リアルタイムの画面`LiveScreen.xlsm`(`engine/live_screen/`、
+`docs/live_screen.md`。自動計算・RtGet)も含む。
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
@@ -35,6 +36,7 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(table/udf)。計算の部品は`engine/common/option/bond/`(pricer/vol/hv、PositionSheetも使う)、JGBの規約は`engine/common/bond.py`
   - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/bond_options/trades/udf)。
     `common/`だけを使う
+  - `engine/live_screen/` — LiveScreen.xlsm固有のリアルタイムの画面(day_length/vol/udf)。`common/`だけを使う
 - `notebooks/` — 手元で動かす分析ノートブック(ブック・UDFとは無関係、DBを読むだけ)。**出力を消してからコミットする**
 
 ## 設計方針(必ず守る)

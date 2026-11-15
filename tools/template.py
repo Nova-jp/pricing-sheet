@@ -43,6 +43,7 @@ RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
         "Raw_IR": 1, "Raw_IRVOL": 1, "Raw_Swaption": 1, "Raw_BondOption": 1, "Raw_JGB": 1, "Setup": "B3",
         "Position": "B42:J91",
     },
+    "LiveScreen.xlsm": {},
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
@@ -93,6 +94,7 @@ UDF_MODULES = (
     ROOT / "engine" / "vol" / "udf.py",
     ROOT / "engine" / "bond_option" / "udf.py",
     ROOT / "engine" / "position" / "udf.py",
+    ROOT / "engine" / "live_screen" / "udf.py",
     ROOT / "engine" / "common" / "live_udf.py",
 )
 

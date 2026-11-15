@@ -10,6 +10,7 @@ JPY OIS(TONA)スワップのプライシングシートと周辺のブック(Exc
 | [analysis.md](analysis.md) | `SwapAnalysis.xlsm`(PCA・ボラ・FwdMonitor・FutBasis・BOJ)の構成と判断 |
 | [bond_option.md](bond_option.md) | `BondOption.xlsm`(現物オプション)の計算規則・構成と判断 |
 | [position.md](position.md) | `PositionSheet.xlsm`(ポジション・リスク管理)の手法・構成と判断 |
+| [live_screen.md](live_screen.md) | `LiveScreen.xlsm`(スワップとボラのリアルタイムの画面、自動計算)の構成と判断 |
 | [roadmap.md](roadmap.md) | まだ済んでいない保留中の項目 |
 | [setup_windows.md](setup_windows.md) | 会社PC(Windows)でのセットアップ・毎日の手順・トラブルシューティング |
 

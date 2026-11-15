@@ -66,12 +66,16 @@ class SwapTerms:
     """1本の具体的なスワップ(起算日と期間が決まったもの)。tenor と end はどちらか一方だけ。
 
     start は休日調整前の起算日(QuantLibのスケジュール生成が調整する)。tenor は '5y' 等の表記。
+    adjust_end: 満期日を休日調整するか(既定 True = Modified Following)。False は end の日付をそのまま
+    満期日にする(LiveScreenの日数の調整で、満期日だけを前日と同じ日数にずらしたスワップを組むため。
+    休日に落ちても翌営業日へ寄せない)。
     """
 
     start: date
     convention: SwapConvention
     tenor: Optional[str] = None
     end: Optional[date] = None
+    adjust_end: bool = True
 
     def __post_init__(self) -> None:
         if (self.tenor is None) == (self.end is None):
