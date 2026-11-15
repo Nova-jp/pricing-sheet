@@ -80,6 +80,8 @@ class CurveBatchTest(unittest.TestCase):
         self.xlsx, self.config, self.db = tmp / "historical_data.xlsx", tmp / "c.toml", tmp / "h.db"
         _write_workbook(self.xlsx)
         _write_config(self.config, ["O/N"] + TENORS)
+        self.settings = tmp / "settings.toml"
+        self.settings.write_text("[history]\nstart = 2022-01-12\n", encoding="utf-8")
         # LSEGには接続しない。モックしていない取得は失敗扱い(バッチはその取得だけスキップする)。
         # 個々のテストのmock.patchはこれより内側なので、そちらが優先される
         offline = RuntimeError("テストではLSEGに接続しない")
@@ -99,6 +101,7 @@ class CurveBatchTest(unittest.TestCase):
     def _run(self, **kwargs):
         kwargs.setdefault("skip_jgb", True)  # LSEGに接続しない(JGBの取得はモックで別に確かめる)
         kwargs.setdefault("skip_vol", True)  # 同じく(プレミアムの取得はモックで別に確かめる)
+        kwargs.setdefault("settings_path", self.settings)
         return morning_batch.run(self.xlsx, self.config, self.db, log=lambda *_: None, **kwargs)
 
     def test_builds_curve_equal_to_direct_bootstrap_with_tona_as_on(self):
@@ -258,7 +261,8 @@ class CurveBatchTest(unittest.TestCase):
             self._run(skip_vol=False)
         logs = []
         with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
-            morning_batch.run(self.xlsx, self.config, self.db, log=logs.append, skip_jgb=True, skip_vol=False)
+            morning_batch.run(self.xlsx, self.config, self.db, log=logs.append, skip_jgb=True, skip_vol=False,
+                              settings_path=self.settings)
         self.assertEqual(fetch.call_args_list[0].args[0],
                          date(2026, 9, 26) - timedelta(days=morning_batch.PREMIUM_OVERLAP_DAYS))
         self.assertIn("ボラ計算: 新規/更新 0日 / 変更なし 2日", "\n".join(logs))
@@ -278,6 +282,24 @@ class CurveBatchTest(unittest.TestCase):
         start, end, names = fetch.call_args_list[1].args
         self.assertEqual((start, end), (FIRST_DATE, overlap - timedelta(days=1)))
         self.assertEqual(set(names), set(labels()) - {"1Yx10Y", "1Mx1Y"})  # 保存済みの銘柄は取り直さない
+
+    def test_missing_past_premiums_are_fetched_from_the_start(self):
+        # 取得済みの最初の日が設定の開始日より後なら、足りない過去分を全銘柄で取り、2回目は取らない
+        from unittest import mock
+
+        from engine.common.swaption_source import FIRST_DATE, PremiumQuote, labels
+
+        HistoricalStore(self.db).save_swaption_premiums(
+            [PremiumQuote(date(2026, 9, 24), n, 450.0, 2.9) for n in labels()],
+        )
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
+            self._run(skip_vol=False)
+        # 毎朝の差分(9/24の PREMIUM_OVERLAP_DAYS 日前から)の前日まで
+        self.assertEqual(fetch.call_args_list[-1].args, (FIRST_DATE, date(2026, 9, 13)))
+        self.assertEqual(HistoricalStore(self.db).fetch_coverage(morning_batch.SWAPTION_COVERAGE), FIRST_DATE)
+        with mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=[]) as fetch:
+            self._run(skip_vol=False)
+        self.assertEqual(len(fetch.call_args_list), 1)  # 差分だけ
 
     def test_old_vol_rows_without_premiums_are_removed(self):
         from unittest import mock
@@ -331,7 +353,7 @@ class CurveBatchTest(unittest.TestCase):
         with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, closes)) as jgbs,                 mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fut) as futs,                 mock.patch.object(morning_batch.swaption_source, "fetch_premiums", return_value=premiums) as prem:
             summary = self._run(skip_jgb=False, skip_vol=False, today=today)
         until = date(2026, 9, 27)
-        self.assertEqual(jgbs.call_args.args, (until - timedelta(days=morning_batch.CLOSE_LOOKBACK_DAYS), until))
+        self.assertEqual(jgbs.call_args.args, (date(2022, 1, 12), until))  # 空のDBは設定の開始日から
         self.assertEqual(futs.call_args.args[1], until)
         self.assertEqual(prem.call_args.args[1], until)
         self.assertEqual(summary.built, DAYS[:2])  # 9/28 のMidは取り込まない

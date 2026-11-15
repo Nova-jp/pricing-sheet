@@ -132,10 +132,10 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
    欠損テナーを外して作った日・日本の非営業日として除外した日・失敗した日が表示される。
    `data/historical.db`(LSEG由来のデータ、コミットしない)が作成・更新される。
    保存するのは**昨日までの日付だけ**(今日の値はブックがライブで見る)。夕方に流しても今日の行は入らない。
-   **初回だけ**: `python -m engine.common.morning_batch --jgb-history-from 2020-01-01`で引け値の
-   過去分を埋める(10年債は2020年から(国債先物のベーシス用)、他の年限はスワップと同じ期間(現物オプションのヒストリカル・ボラ用))。レポの階段(TONA実績)を2020年まで遡るときは、`historical_data.xlsx`の設定シートの
-   `入力_フィキシング開始日`(B11)に`2020/01/01`を入れて更新・保存する(任意。カーブを作るのはMidのある日だけなので
-   影響しない)。先物の清算値は毎回の実行で2020年から差分で取る(取り終えた限月は取らない)。
+   JGBの引け値・先物の清算値・スワップションのプレミアムは、`settings.toml`の`[history]`の開始日(共通の`start`、
+   データごとに上書き可)以降で、DBに足りない分をLSEGから取る。新しいPCでは初回に全期間を取るので時間がかかる
+   (2回目以降は直近の分だけ)。開始日を早めると、次の実行で足りない過去分だけを取る。スワップのMid・TONA実績の
+   期間は`historical_data.xlsx`の設定シート(取得営業日数・開始日、`入力_フィキシング開始日`(B11))のまま。
 3. カーブに使うテナーや引き方は`historical_curve.toml`で変更する(変更後に再実行すると、
    影響する日だけ作り直される)。全日付を作り直すときは`--rebuild`を付ける。
 4. 評価日はMainシートのB4(空欄=今日)。`TODAY()`は使っていないので、日付が変わっても
@@ -160,7 +160,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - 計算規則とシートの構成は[bond_option.md](bond_option.md)。PricingSheetと同じxlwings・venvで動く
   (VBAのxlwings参照は雛形に入っている)。初回とUDFの変更時は`BondOption.xlsm`を開いて「Restart UDF Server」→
   「Import Functions」(`BondOption.py`から`JgbForwardRisk`等を登録)。
-- JGBの銘柄情報・引け値(JCL)は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
+- JGBの銘柄情報・引け値は毎朝のバッチ(上の5.)がLSEGのPython APIで取る。**バッチを実行するときに
   LSEG Workspaceを起動・ログインしておく**(`requirements.txt`の`lseg-data`が必要。繋がらないとこの取得だけ
   スキップされ、「JGB取得: 失敗のためスキップ」と表示される)。カーブだけ作り直すときは`--skip-jgb`。
 - ボラはフィードの`"vol"`を読む(4.1のフィードを起動しておく)。B1が取得モード(Live/Fixed)。

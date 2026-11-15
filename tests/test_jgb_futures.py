@@ -25,6 +25,8 @@ from engine.common import jgb_futures as jf  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 
+START = date(2022, 1, 12)  # 設定の開始日(テストの値)
+
 
 class FakeColumn:
     def __init__(self, values):
@@ -227,9 +229,9 @@ class SourceTest(unittest.TestCase):
     def test_close_history_fills_missing_days_from_other_sources(self):
         d1, d2, d3 = date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)
         data = {
-            "MID_YLD_1:JCL": {"JP03730067=JCL": {d1: 2.71, d3: 2.6}, "JP03740067=JCL": {d1: 2.75}},
+            "B_YLD_1:MZST": {"JP03730067=MZST": {d1: 2.71, d3: 2.6}, "JP03740067=MZST": {d1: 2.75}},
             "B_YLD_1:DWAT": {"JP03730067=DWAT": {d1: 9.9, d2: 2.695}, "JP03740067=DWAT": {}},
-            "B_YLD_1:MZST": {"JP03730067=MZST": {d2: 8.8}, "JP03740067=MZST": {d2: 2.74, d3: float("nan")}},
+            "MID_YLD_1:JCL": {"JP03730067=JCL": {d2: 8.8}, "JP03740067=JCL": {d2: 2.74, d3: float("nan")}},
         }
 
         def get_history(rics, fields, start, end):
@@ -240,8 +242,8 @@ class SourceTest(unittest.TestCase):
         ld.get_history.side_effect = get_history
         closes = jgb_source._fetch_close_history(ld, self.BONDS, d1, d3)
         self.assertEqual(closes, [
-            JgbClose(d1, "JB373", 2.71), JgbClose(d1, "JB374", 2.75),  # JCLを優先
-            JgbClose(d2, "JB373", 2.695), JgbClose(d2, "JB374", 2.74),  # JCLに無い日は大和→みずほ
+            JgbClose(d1, "JB373", 2.71), JgbClose(d1, "JB374", 2.75),  # みずほを優先
+            JgbClose(d2, "JB373", 2.695), JgbClose(d2, "JB374", 2.74),  # みずほに無い日は大和→JCL
             JgbClose(d3, "JB373", 2.6),
         ])
 
@@ -250,7 +252,7 @@ class SourceTest(unittest.TestCase):
         d1, d2 = date(2026, 10, 23), date(2026, 10, 26)
         ld = mock.Mock()
         ld.get_history.side_effect = lambda rics, fields, start, end: FakeHistory(
-            {r: ({d1: 2.6, d2: 2.58} if r.endswith("JCL") else {}) for r in rics}
+            {r: ({d1: 2.6, d2: 2.58} if r.endswith("MZST") else {}) for r in rics}
         )
         closes = jgb_source._fetch_close_history(ld, self.BONDS[:1], d1, d1)
         self.assertEqual(closes, [JgbClose(d1, "JB373", 2.6)])
@@ -295,12 +297,12 @@ class BatchTest(unittest.TestCase):
         fetched = futures_source.FuturesFetch([(date(2026, 10, 23), "2026-12", 126.63)], [], ["警告の例"])
         logs = []
         with mock.patch.object(morning_batch.futures_source, "fetch_settles", return_value=fetched) as fetch:
-            morning_batch.sync_futures(self.store, logs.append, today=date(2026, 10, 25))
+            morning_batch.sync_futures(self.store, date(2020, 1, 1), logs.append, today=date(2026, 10, 25))
         plan, end = fetch.call_args.args
         self.assertEqual(end, date(2026, 10, 24))  # 昨日まで
         self.assertNotIn(jf.Contract(2026, 9), plan)  # 取引最終日まで取り終えた
         self.assertEqual(plan[jf.Contract(2026, 12)], date(2026, 10, 20))  # 保存済みの最終日から
-        self.assertEqual(plan[jf.Contract(2020, 3)], morning_batch.FUTURES_HISTORY_START)
+        self.assertEqual(plan[jf.Contract(2020, 3)], date(2020, 1, 1))  # 開始日の期近から
         self.assertEqual(max(plan), jf.Contract(2027, 6))  # 期近から3限月まで
         self.assertEqual(self.store.fut_settles()["2026-12"][date(2026, 10, 23)], 126.63)
         self.assertEqual(self.store.fut_last_dates()["2026-12"], date(2026, 10, 23))
@@ -309,40 +311,68 @@ class BatchTest(unittest.TestCase):
     def test_sync_futures_failure_is_skipped(self):
         logs = []
         with mock.patch.object(morning_batch.futures_source, "fetch_settles", side_effect=RuntimeError("繋がりません")):
-            morning_batch.sync_futures(self.store, logs.append, today=date(2026, 10, 25))
+            morning_batch.sync_futures(self.store, START, logs.append, today=date(2026, 10, 25))
         self.assertEqual(self.store.fut_settles(), {})
         self.assertTrue(any("スキップ" in x for x in logs))
 
-    def test_sync_jgb_history_10y_from_start_and_others_from_swap_start(self):
+    def test_sync_jgbs_fetches_everything_from_start_into_an_empty_db(self):
+        bonds = [JgbRecord("JB373", "JP03730067=", "", 0.6, date(2033, 12, 20))]
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, [])) as daily,                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history") as history:
+            morning_batch.sync_jgbs(self.store, START, lambda *_: None, until=date(2026, 10, 23))
+        self.assertEqual(daily.call_args.args, (START, date(2026, 10, 23)))  # 1回で全期間
+        history.assert_not_called()
+        self.assertEqual(self.store.fetch_coverage(morning_batch.JGB_COVERAGE), START)
+
+    def test_sync_jgbs_fills_the_past_once_when_coverage_is_unknown(self):
+        # 以前のDB(10年債だけ過去分がある等)。記録が無ければ、開始日からの過去分を全銘柄で取り直す
         self.store.save_jgb_bonds([
             JgbRecord("JB373", "JP03730067=", "", 0.6, date(2033, 12, 20)),
-            JgbRecord("JL180", "JP01800069=", "", 0.8, date(2042, 3, 20)),
-            JgbRecord("JN400", "JP04000042=", "", 0.1, date(2024, 6, 1)),  # スワップの期間の前に償還
+            JgbRecord("JN400", "JP04000042=", "", 0.1, date(2021, 6, 1)),  # 開始日より前に償還
         ])
-        self.store.save_quotes({date(2024, 10, 28): {"1Y": 0.1}, date(2024, 10, 29): {"1Y": 0.1}})
-        calls = []
+        self.store.save_jgb_closes([JgbClose(date(2026, 10, 1), "JB373", 1.5)])
+        bonds = [JgbRecord("JB373", "JP03730067=", "", 0.6, date(2033, 12, 20)),
+                 JgbRecord("JL180", "JP01800069=", "", 0.8, date(2042, 3, 20))]
+        past = [JgbClose(START, "JB373", 0.5)]
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, [])) as daily,                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=past) as history:
+            morning_batch.sync_jgbs(self.store, START, lambda *_: None, until=date(2026, 10, 23))
+        # DBの最終日(10/1)が直近10日より古いので、その日から取り直す
+        self.assertEqual(daily.call_args.args, (date(2026, 10, 1), date(2026, 10, 23)))
+        codes, start, end = [b.code for b in history.call_args.args[0]], *history.call_args.args[1:]
+        self.assertEqual((sorted(codes), start, end), (["JB373", "JL180"], START, date(2026, 9, 30)))
+        self.assertEqual(self.store.jgb_close("JB373", START), (START, 0.5))
+        self.assertEqual(self.store.fetch_coverage(morning_batch.JGB_COVERAGE), START)
+        # 2回目は過去分を取らない(毎朝は直近10日だけ)
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=(bonds, [])) as daily,                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history") as history:
+            morning_batch.sync_jgbs(self.store, START, lambda *_: None, until=date(2026, 10, 24))
+        self.assertEqual(daily.call_args.args, (date(2026, 10, 1), date(2026, 10, 24)))
+        history.assert_not_called()
 
-        def fetch(bonds, start, end):
-            calls.append(([b.code for b in bonds], start, end))
-            return [JgbClose(start, bonds[0].code, 0.5)]
-
-        with mock.patch.object(morning_batch.jgb_source, "fetch_close_history", side_effect=fetch):
-            morning_batch.sync_jgb_history(self.store, date(2020, 1, 1), lambda *_: None, end=date(2026, 10, 23))
-        self.assertEqual(calls, [
-            (["JB373"], date(2020, 1, 1), date(2026, 10, 23)),
-            (["JL180"], date(2024, 10, 28), date(2026, 10, 23)),
-        ])
-        self.assertEqual(
-            self.store.jgb_closes_between(date(2020, 1, 1), date(2026, 10, 23)),
-            {date(2020, 1, 1): {"JB373": 0.5}, date(2024, 10, 28): {"JL180": 0.5}},
-        )
-
-    def test_sync_jgb_history_later_start_wins(self):
+    def test_sync_jgbs_fetches_only_the_missing_part_when_start_moves_earlier(self):
         self.store.save_jgb_bonds([JgbRecord("JL180", "JP01800069=", "", 0.8, date(2042, 3, 20))])
-        self.store.save_quotes({date(2024, 10, 28): {"1Y": 0.1}})
-        with mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=[]) as fetch:
-            morning_batch.sync_jgb_history(self.store, date(2025, 6, 1), lambda *_: None, end=date(2026, 10, 23))
-        self.assertEqual(fetch.call_args.args[1], date(2025, 6, 1))
+        self.store.save_jgb_closes([JgbClose(date(2026, 10, 20), "JL180", 2.0)])
+        self.store.set_fetch_coverage(morning_batch.JGB_COVERAGE, date(2024, 1, 4))
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=([], [])),                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=[]) as history:
+            morning_batch.sync_jgbs(self.store, START, lambda *_: None, until=date(2026, 10, 23))
+        self.assertEqual(history.call_args.args[1:], (START, date(2024, 1, 3)))
+        self.assertEqual(self.store.fetch_coverage(morning_batch.JGB_COVERAGE), START)
+
+    def test_sync_jgbs_refetches_the_past_when_the_source_order_changes(self):
+        # 以前の順位(JCL優先)で開始日まで取得済みでも、今の順位では記録が無いので開始日から取り直す
+        self.store.save_jgb_closes([JgbClose(date(2026, 10, 20), "JL180", 2.0)])
+        self.store.set_fetch_coverage("jgb_closes/JCL,DWAT,MZST", START)
+        self.assertNotEqual(morning_batch.JGB_COVERAGE, "jgb_closes/JCL,DWAT,MZST")
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=([], [])),                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history", return_value=[]) as history:
+            morning_batch.sync_jgbs(self.store, START, lambda *_: None, until=date(2026, 10, 23))
+        self.assertEqual(history.call_args.args[1], START)
+
+    def test_sync_jgbs_retries_the_past_after_a_failure(self):
+        self.store.save_jgb_closes([JgbClose(date(2026, 10, 20), "JL180", 2.0)])
+        logs = []
+        with mock.patch.object(morning_batch.jgb_source, "fetch_jgbs", return_value=([], [])),                 mock.patch.object(morning_batch.jgb_source, "fetch_close_history", side_effect=RuntimeError("上限")):
+            morning_batch.sync_jgbs(self.store, START, logs.append, until=date(2026, 10, 23))
+        self.assertIsNone(self.store.fetch_coverage(morning_batch.JGB_COVERAGE))  # 翌朝に取り直す
+        self.assertTrue(any("引け値の過去分: 失敗" in x for x in logs))
+
 
 if __name__ == "__main__":
     unittest.main()

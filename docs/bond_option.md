@@ -65,7 +65,7 @@ Tだけは表UDF`OptionTermTable`(AW8にスピル)で、スワップションの
 | F12 先渡のコンベクシティ | CX = d²P/dy²(y = F7の切り捨て後、起点 se、利回り1%の2乗あたり) | `OptionMarketTable`の4列目(QuantLibの`convexity` × dirty) | `pricer.forward_duration` |
 | F13 グリークス | 「グリークス」の節 | 表UDF `GreeksTable`(`ql.BlackCalculator`)+ シートの換算 | `pricer.black_greeks` |
 
-ATM単利 = 引け値の単利(JCL)+ ATMのスライド(bp)/100。
+ATM単利 = 引け値の単利(DB)+ ATMのスライド(bp)/100。
 
 名前付きLAMBDA(ブックの名前の定義):
 - `JGB_YEARS(a, m)` = (m − a − (a, m]に含まれる2/29の数)/365(n、F1・F2の年数)
@@ -172,7 +172,7 @@ F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T �
 - **現物への調整(Vol ratio、ユーザー指示)**: 補間値はスワップのボラなので、現物のボラは
   補間値 × Vol ratio(= 現物のHV ÷ 同じ満期のスワップのHV)にする。比は表UDF`VolRatioTable`(`engine/common/option/bond/hv.py`)が
   行ごとに計算し、「override列 │ 使う値」の組で手で上書きできる(空欄ならUDFの比)。
-  - 現物: その行の銘柄のDBの引け値(JCLの単利)を、単利 → 単価(F1、起点 = その日のT+1)→ 半年複利(切り捨てない)に
+  - 現物: その行の銘柄のDBの引け値の単利を、単利 → 単価(F1、起点 = その日のT+1)→ 半年複利(切り捨てない)に
     換えた日次変化。価格ボラは複利ベースのMDを掛けるので複利でそろえる。
   - スワップ: 起算日 = その日のスポット(T+2)、満期日 = 銘柄の償還日のOISのパーレートを、その日のDBのカーブで評価した
     日次変化。現物もスワップも同じ満期日に向かって短くなる(ロールダウンは両方に同じように入る)のでそのまま比べる(ユーザー決定)。
@@ -192,14 +192,13 @@ F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T �
 ## データ(朝のバッチ)
 
 - `python -m engine.common.morning_batch`の④で、LSEG(Python API、`engine/common/jgb_source.py`)から
-  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、昨日までの引け値(`{RIC}JCL`の履歴の単利)を
+  現存するJGB全銘柄(2/5/10/20/30/40年)の銘柄情報と、昨日までの引け値(みずほ→大和→JCLの履歴の単利)を
   `data/historical.db`の`jgb_bonds`・`jgb_closes`に保存する。シートはDBを読むだけ(理由は[decisions.md](decisions.md))。
 - 銘柄コード: 年限の記号 + 回号(2年 JN、5年 JS、10年 JB、20年 JL、30年 JX、40年 JU。例 JB380)。
   RICは`JP{回号4桁}00{種別}=`(種別 42/45/67/69/68/54)。
 - 引け値は評価日以前で直近のもの(日付も表示する)。
-- 引け値の過去分は`--jgb-history-from`で取る(初回・抜けた日があるときに1回)。10年債は指定した日から(国債先物用)、
-  他の年限はスワップと同じ期間(DBのスワップのMidの最初の日付から。Vol ratioの窓に要るのは直近だけなので、古すぎる分は
-  取らない、ユーザー指示)。あとは毎朝の取得(直近10日分)から溜まる。
+- 引け値の過去分は、`settings.toml`の開始日(`[history]`の`jgb`、書かなければ共通の`start`)から朝バッチが自動で取る
+  (DBに足りない分だけ。新しいPCでも普通に流すだけで揃う)。毎朝は直近10日分を取り直す。
 
 ## UDF(`engine/bond_option/udf.py`、`BondOption.py`が再エクスポート)
 

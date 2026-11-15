@@ -28,10 +28,13 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
-  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はJCL。
-              過去分を埋めるときだけ、JCLに無い日を大和・みずほで補う。jgb_source.fetch_close_history)
+  - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はみずほ、
+              無い日は大和・JCLで補う。jgb_source.HISTORY_SOURCES)
   - fut_settles : 長期国債先物の限月ごとの清算値(日付×限月 "2026-12")。朝バッチが
               engine/common/futures_source.py で取得し、ベーシス・つなぎ足(engine/common/jgb_futures.py)が読む
+  - fetch_coverage : データ(jgb_closes 等)ごとに、LSEGから何日以降を取得済みか(first_date)。朝バッチが
+              設定ファイル(settings.toml)の開始日と比べ、足りない過去分だけを取る。銘柄ごとに発行日が違う
+              引け値は「DBの最初の日付」では取得済みの範囲が分からないため、取った範囲を記録する
 
 ■ なぜ暦日ごとのDFを保存するか(カーブの引き方に依存しないため)
   どんな引き方(Convex Monotone、将来のステップアップ等)で作ったカーブも、
@@ -146,6 +149,10 @@ CREATE TABLE IF NOT EXISTS fut_settles (
     contract TEXT NOT NULL,
     settle REAL NOT NULL,
     PRIMARY KEY (as_of_date, contract)
+);
+CREATE TABLE IF NOT EXISTS fetch_coverage (
+    dataset TEXT PRIMARY KEY,
+    first_date TEXT NOT NULL
 );
 """
 
@@ -564,6 +571,30 @@ class HistoricalStore:
         """保存済みのプレミアムの銘柄(「満期x原資産」)。"""
         with self._connect() as conn:
             return {label for (label,) in conn.execute("SELECT DISTINCT label FROM swaption_premiums")}
+
+    def jgb_closes_last_date(self) -> Optional[date]:
+        with self._connect() as conn:
+            (d,) = conn.execute("SELECT MAX(as_of_date) FROM jgb_closes").fetchone()
+        return date.fromisoformat(d) if d else None
+
+    def fetch_coverage(self, dataset: str) -> Optional[date]:
+        """dataset をLSEGから何日以降取得済みか(記録が無ければ None)。"""
+        with self._connect() as conn:
+            row = conn.execute("SELECT first_date FROM fetch_coverage WHERE dataset = ?", (dataset,)).fetchone()
+        return date.fromisoformat(row[0]) if row else None
+
+    def set_fetch_coverage(self, dataset: str, first_date: date) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO fetch_coverage (dataset, first_date) VALUES (?, ?) "
+                "ON CONFLICT(dataset) DO UPDATE SET first_date=excluded.first_date",
+                (dataset, _iso(first_date)),
+            )
+
+    def swaption_premiums_first_date(self) -> Optional[date]:
+        with self._connect() as conn:
+            (d,) = conn.execute("SELECT MIN(as_of_date) FROM swaption_premiums").fetchone()
+        return date.fromisoformat(d) if d else None
 
     def swaption_premiums_last_date(self) -> Optional[date]:
         with self._connect() as conn:
