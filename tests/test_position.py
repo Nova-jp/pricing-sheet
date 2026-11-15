@@ -16,6 +16,7 @@ import math
 import sys
 import tempfile
 import unittest
+import datetime
 from datetime import date
 from pathlib import Path
 from unittest import mock
@@ -182,8 +183,14 @@ class CloseRatesTest(unittest.TestCase):
         out = udf.PosVolCalendarFactor(["1M", "1Y"], FRIDAY)
         self.assertAlmostEqual(out[0][0], factor, places=12)
         self.assertEqual(len(out), 2)
-        with mock.patch.object(udf_common, "_today", lambda: FRIDAY):  # 空欄 = 今日(ライブ)
+        # 空欄 = 今日(ライブ)は今の時刻で数える。15時ちょうどなら引けと同じ。8:45はイブニング(1/3)が済んで残り2/3日が多い
+        close = datetime.datetime.combine(FRIDAY, datetime.time(15))
+        with mock.patch.object(udf_common, "_today", lambda: FRIDAY), mock.patch.object(udf_common, "_now", lambda: close):
             self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], "")[0][0], factor, places=12)
+        morning = datetime.datetime.combine(FRIDAY, datetime.time(8, 45))
+        with mock.patch.object(udf_common, "_today", lambda: FRIDAY), mock.patch.object(udf_common, "_now", lambda: morning):
+            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], "")[0][0],
+                                   math.sqrt((20 + 2 / 3) / 252) * math.sqrt(365 / (31 + 6.25 / 24)), places=12)
 
     def test_business_days_from_base_date(self):
         self.assertEqual(udf.PosBusinessDays(FRIDAY, date(2026, 9, 28)), 1)  # 金曜の引け → 月曜

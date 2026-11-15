@@ -297,17 +297,34 @@ class TableUdfTest(unittest.TestCase):
         self.assertIn("取引日", rows[2][0])  # 満期が取引日以前の行は理由の文字列
         self.assertIn("満期は日付です", rows[3][0])
 
+    def test_term_table_today_counts_the_remaining_time_of_the_day(self):
+        # 取引日が今日なら今の時刻で数える(8:45はイブニングが済んで、引けより2/3日多い)。格子の補間も同じ時点
+        expiry = datetime.datetime(2026, 11, 16)
+        morning = datetime.datetime(2026, 10, 16, 8, 45)
+        with mock.patch.object(udf_common, "_today", lambda: self.T0), \
+                mock.patch.object(udf_common, "_now", lambda: morning):
+            (t,), = bo_udf.OptionTermTable(["JS999"], [expiry], None)
+            normal = bo_udf.OptionMarketTable(["JS999"], [2.0], [self.MAT], [100.5], [datetime.datetime(2026, 11, 18)],
+                                              [expiry], self.VOLS, "")[0][4]
+        self.assertAlmostEqual(t, (business_days(self.T0, date(2026, 11, 16)) + 2 / 3) / 252, places=15)
+        self.assertEqual(normal, vol.grid_vol(vol.build_grid(self.VOLS, morning), morning, date(2026, 11, 16), date(2031, 3, 20)))
+
     def test_term_table_matches_the_old_networkdays_formula(self):
         # 置き換える前のシートの式 NETWORKDAYS(TradeDate, 満期 − 1, Holidays)/252(両端を含む平日−祝日)と同じ値
         holidays = {d for d in (self.T0 + datetime.timedelta(n) for n in range(800)) if not CALENDAR.isBusinessDay(
             ql.Date.from_date(d)) and d.weekday() < 5}
-        for t0 in (self.T0 + datetime.timedelta(n) for n in range(0, 370, 7)):
-            expiries = [t0 + datetime.timedelta(n) for n in range(1, 400, 3)]
-            rows = bo_udf.OptionTermTable(["JS999"] * len(expiries), expiries, t0)
-            for te, (t,) in zip(expiries, rows):
-                old = sum(1 for n in range((te - t0).days) if (d := t0 + datetime.timedelta(n)).weekday() < 5
-                          and d not in holidays)
-                self.assertEqual(t, old / 252, (t0, te))
+        # 過去の評価日(今日でない日付)は引け時点で数える。営業日が1日も無い組(旧式で0)はエラーの文字列
+        with mock.patch.object(udf_common, "_today", lambda: date(2000, 1, 1)):
+            for t0 in (self.T0 + datetime.timedelta(n) for n in range(0, 370, 7)):
+                expiries = [t0 + datetime.timedelta(n) for n in range(1, 400, 3)]
+                rows = bo_udf.OptionTermTable(["JS999"] * len(expiries), expiries, t0)
+                for te, (t,) in zip(expiries, rows):
+                    old = sum(1 for n in range((te - t0).days) if (d := t0 + datetime.timedelta(n)).weekday() < 5
+                              and d not in holidays)
+                    if old == 0:
+                        self.assertIn("以前です", t, (t0, te))
+                    else:
+                        self.assertEqual(t, old / 252, (t0, te))
 
     def test_market_table(self):
         se = datetime.datetime(2026, 11, 18)

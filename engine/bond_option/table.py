@@ -9,7 +9,7 @@ Excelの式のまま残す。
 シートでは表UDFを右の計算用の領域にスピルさせ、表示の列はそのセルを参照するだけにする。表示の
 セルを手で上書きすれば、下流の式(とその先の表UDF)はその値で計算される。
 
-  term_table        : [期間T](満期までの時間。engine/common/option/term.py)
+  term_table        : [期間T](満期までの時間。engine/common/option/term.py。今日なら今の時刻で数える)
   market_table      : [先渡複利, 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(補間), message](F7・F8・F12・ボラの補間)
   itm_buy_write_table: [ストライク, message](F11。Strike basisが"ITMBW"の行だけ)
   premium_table     : [プレミアム(額面100円あたりの円), message](F10)
@@ -70,7 +70,7 @@ def _try(f: Callable, errors: List[str], label: str):
         return ""
 
 
-def term_table(bonds: Sequence, expiries: Sequence, trade_date: date) -> List[list]:
+def term_table(bonds: Sequence, expiries: Sequence, trade_date: term.When) -> List[list]:
     """行ごとの [期間T(年)](term.option_term)。銘柄が空欄の行は空欄。計算できない行(満期が取引日以前等)は
     理由の文字列を返す(message列が無いため。下流の表UDFのmessageにそのまま出る)。"""
     out = []
@@ -87,7 +87,7 @@ def term_table(bonds: Sequence, expiries: Sequence, trade_date: date) -> List[li
 
 def market_table(
     bonds: Sequence, coupons: Sequence, maturities: Sequence, forward_dirty: Sequence,
-    forward_settle: Sequence, expiries: Sequence, vol_rows: Sequence, trade_date: date,
+    forward_settle: Sequence, expiries: Sequence, vol_rows: Sequence, trade_date: term.When,
 ) -> List[list]:
     """行ごとの [先渡複利(%), 先渡DD, 先渡MD, 先渡のd²P/dy², ノーマルvol(bp/年、補間), message]。
     銘柄が空欄の行は空欄。"""

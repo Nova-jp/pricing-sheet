@@ -104,8 +104,8 @@ Shift+F9はそのシートだけを再計算し、他のシートの値は計算
 - `"vol"`(kind=`vol`): 満期×原資産の格子(満期1M〜20Yの13本×原資産13本(1Y〜10Y・15Y・20Y・30Y。満期+原資産が40年を超える15Yx30Y・20Yx30Yは除く)。2M・6Y・8Y・9Y満期はクオートが無いので使わない)。行=[銘柄`1Mx2Y`, RIC`JPY{満期}{原資産}TOATM=TRDT`,
   営業日ベースのノーマルvol(bp/年 = bp/日×√252)]。購読するのはTraditionのATMストラドルのフォワード・プレミアム
   (`PRIMACT_1`、bp)で、フィードが書くたびに`curve`のデータセット(`"swap"`)のライブのレートでカーブを組み
-  (テナー・構築方法は`historical_curve.toml`)、`option/swaption/convert.py`でvolに換える(取引日=書く時刻の日付。どちらかが
-  変われば計算し直す)。カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。2Mx6Y・8Y・9Yは値が無く空欄。
+  (テナー・構築方法は`historical_curve.toml`)、`option/swaption/convert.py`でvolに換える(満期までの残りは書く時刻で数える。
+  どちらかが変われば計算し直し、変わらなくても`vol_refresh_sec`(60秒)ごとに計算し直す。数え方は`option/term.py`)。カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。2Mx6Y・8Y・9Yは値が無く空欄。
 - 銘柄の状態が異常(Suspect・存在しない等)か、BID・ASKのどちらかが無い行は値を空欄にする。
 読む側はTicker(volはRIC)で引き当てるので、行の並びがブックごとに違ってもよい(フィードに無いTickerは`#N/A`)。
 データセットごとの状態(`feed`テーブル): `ok`/`connecting`/`reconnecting`/`suspect`(全銘柄が異常)/`stopped`。
@@ -161,7 +161,7 @@ engine/
 | `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `option/` | オプションの部品。スワップション(`swaption/`、原資産=フォワード・スワップレート、バシュリエ=レートが正規分布)と国債店頭オプション(`bond/`、原資産=債券の先渡clean単価、Black=単価が対数正規分布)。LSEGからのプレミアムの取得(`swaption_source.py`)はデータの取得の層なので`common/`の直下に置く |
-| `option/term.py` | 満期までの時間(スワップション・現物オプションで共通): 満期までの営業日数(`ql.Japan()`、当日を含み満期日を含まない)、年率の日数252、期間T、セータの1営業日。volの換算・ボラの格子の補間・現物オプションのT(BondOptionの`OptionTermTable`・PositionSheet)が全てここを使う |
+| `option/term.py` | 満期までの時間(スワップション・現物オプションで共通): 満期日の15時に0。日付なら引け時点(取引日から満期日の前日までの営業日数)、時刻(ライブ)なら日中の残りも`option_time.toml`の時間帯(イブニング1:日中2)で数える(理由は[decisions.md](decisions.md))。年率の日数252、期間T、セータの1営業日。volの換算・ボラの格子の補間・現物オプションのT(BondOptionの`OptionTermTable`・PositionSheet)が全てここを使う |
 | `option/swaption/convert.py` | スワップションのATMプレミアム(Tradition、ATMストラドルのフォワード・プレミアム bp)→ 営業日ベースのノーマルvol(bp/年)。原資産のフォワード・スワップの年金とフォワードから`ql.bachelierBlackFormulaImpliedVol`でσ√Tを求め、満期までの営業日数(当日を含む)で割って×√252。契約は`underlying`の1か所(満期日=取引日+満期(Following)、起算日=満期日+2営業日=スワップのスポットと同じT+2)。暦日ベースへの掛け目`calendar_factor`(PositionSheetのVol moveだけが使う)。朝バッチの⑦⑧・フィード・`VolFwdLive`が使い、BondOptionの補間も同じ満期日・営業日数を使う |
 | `option/swaption/forward.py` | スワップションの原資産のFwd(DBの`swaption_forwards`)を日次カーブから計算する(朝バッチの⑧)。日付×格子の全銘柄ごとに、契約(`convert.underlying`)の日付・営業日数・Fwd(%)・年金と、同じ契約を前の日付のカーブで評価したFwd(`forward_prev`、日次変化=ロールダウンを含まない)。入力(計算方法・その日と前の日付のカーブの入力ハッシュ・銘柄)が変わった日だけ計算する(全日付で約1分、以後は1日0.1秒程度) |
 | `option/bond/` | 国債店頭オプションの部品(BondOptionとPositionSheetが使う): `pricer.py`(先渡MD・コンベクシティ・期間・Black式とグリークス・ITMバイライトのストライク)、`vol.py`(スワップションのボラの格子からの補間)、`hv.py`(現物とスワップのHVの比、Vol ratio)。式は[bond_option.md](bond_option.md) |

@@ -28,7 +28,8 @@ RICを購読し続け、最新の値を data/live.db(engine/common/live_store.py
   購読するのはTraditionのATMストラドルのフォワード・プレミアム(JPY{満期}{原資産}TOATM=TRDT の PRIMACT_1)。
   書くたびに、curve で指定した kind="ois" のデータセットのライブのレートでカーブを組み
   (テナー・構築方法は historical_curve.toml = 日次カーブDBと同じ)、engine/common/option/swaption/convert.py で
-  営業日ベースのvolに換える(取引日 = 書く時刻の日付)。どちらかの値が変われば計算し直す。
+  営業日ベースのvolに換える(満期までの残りは書く時刻で数える。engine/common/option/term.py)。どちらかの値が
+  変われば計算し直し、変わらなくても vol_refresh_sec ごとに計算し直す(日中の残りが減っていくため)。
   カーブを組めなければ値を空欄にし、状態のメッセージに理由を出す。QuantLibの計算はこのプロセスの
   メインのスレッドだけで行う(UDFサーバと取り合わない)。
 
@@ -75,6 +76,7 @@ class Timing:
     heartbeat_sec: float = 2.0
     stale_after_sec: float = 10.0
     resubscribe_after_sec: float = 30.0
+    vol_refresh_sec: float = 60.0  # ボラは値が変わらなくてもこの間隔で計算し直す(満期までの日中の残りが減るため)
 
 
 @dataclass(frozen=True)
@@ -275,8 +277,9 @@ class VolCalculator:
         self.tenors = config.tenors
         self.builder = get_curve_builder(config.builder)
 
-    def rows(self, premium_rows: List[list], swap_rows: List[list], trade_date: date) -> List[list]:
-        """[銘柄, RIC, プレミアム] → [銘柄, RIC, vol]。カーブを組めなければ例外。"""
+    def rows(self, premium_rows: List[list], swap_rows: List[list], now: datetime) -> List[list]:
+        """[銘柄, RIC, プレミアム] → [銘柄, RIC, vol]。満期までの残りは now の時刻で数える(日中の残りも減らす。
+        engine/common/option/term.py)。カーブを組めなければ例外。"""
         import QuantLib as ql
 
         from engine.common.option.swaption.convert import PremiumConverter
@@ -285,9 +288,10 @@ class VolCalculator:
         selected = {t: quotes[t] for t in self.tenors if t in quotes}
         if not any(t != "O/N" for t in selected):
             raise ValueError("カーブを組むスワップのレートがありません")
+        trade_date = now.date()
         result = self.builder(trade_date, selected)
         ql.Settings.instance().evaluationDate = ql.Date.from_date(trade_date)
-        converter = PremiumConverter(result.curve, trade_date)
+        converter = PremiumConverter(result.curve, trade_date, when=now)
         out = []
         for label, ric, premium in premium_rows:
             v = converter.convert(label, premium)
@@ -371,6 +375,7 @@ class LiveFeed:
         needs_vol = any(d.kind == "vol" for d in config.datasets)
         self._vol_calculator = vol_calculator or (VolCalculator() if needs_vol else None)
         self._vol_errors: Dict[str, str] = {}  # ボラを計算できなかった理由(データセットごと)
+        self._vol_written: Dict[str, datetime] = {}  # ボラを最後に計算した時刻(データセットごと)
 
     # 接続の状態(LSEGのイベントのコールバックからも呼ばれる)
     def set_connection(self, state: str, message: str) -> None:
@@ -424,7 +429,12 @@ class LiveFeed:
                 if ds.dataset.kind != "vol" and dirty[name]:
                     self.store.publish(name, ds.rows(), now=now)
             for name, ds in self.datasets.items():
-                if ds.dataset.kind == "vol" and (dirty[name] or dirty[ds.dataset.curve]):
+                if ds.dataset.kind != "vol":
+                    continue
+                last = self._vol_written.get(name)
+                due = last is None or (now - last).total_seconds() >= timing.vol_refresh_sec
+                if dirty[name] or dirty[ds.dataset.curve] or due:
+                    self._vol_written[name] = now
                     self.store.publish(name, self._vol_rows(name, ds, now), now=now)
         if heartbeat_due:
             self._last_heartbeat = now
@@ -435,7 +445,7 @@ class LiveFeed:
     def _vol_rows(self, name: str, ds: DatasetFeed, now: datetime) -> List[list]:
         premiums = ds.rows()
         try:
-            rows = self._vol_calculator.rows(premiums, self.datasets[ds.dataset.curve].rows(), now.date())
+            rows = self._vol_calculator.rows(premiums, self.datasets[ds.dataset.curve].rows(), now)
         except Exception as e:  # カーブを組めない等。黙って古い値を使わず空欄にする
             message = str(e)
             if self._vol_errors.get(name) != message:

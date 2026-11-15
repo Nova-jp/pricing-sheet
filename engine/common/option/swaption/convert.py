@@ -28,7 +28,8 @@ from typing import NamedTuple, Optional, Tuple
 import QuantLib as ql
 
 from engine.common.conventions import CALENDAR
-from engine.common.option.term import TRADING_DAYS, business_days
+from engine.common.option import term
+from engine.common.option.term import TRADING_DAYS, When, as_date, business_days
 from engine.common.swap_pricer import PAY, _build_swap
 from engine.common.terms import STANDARD, SwapTerms
 
@@ -41,7 +42,7 @@ class SwaptionVol(NamedTuple):
     label: str
     expiry: date  # 満期日
     start: date  # 原資産の起算日
-    days: int  # 満期までの営業日数(当日を含む)
+    days: float  # 満期までの残りの営業日数(日付なら当日を含む整数、ライブは日中の残りも数える)
     forward: float  # フォワード・スワップレート(%)
     annuity: float  # 起算日へのフォワードの年金(想定元本1あたり、年)
     stdev: float  # 満期までの標準偏差 σ√T(bp)
@@ -62,7 +63,7 @@ def expiry_date(trade_date: date, expiry: str) -> date:
     return CALENDAR.adjust(d, ql.Following).to_date()
 
 
-def vol_from_stdev(stdev: float, days: int) -> float:
+def vol_from_stdev(stdev: float, days: float) -> float:
     """満期までの標準偏差(bp)→ 営業日ベースのノーマルvol(bp/年)。"""
     return stdev / math.sqrt(days) * math.sqrt(TRADING_DAYS)
 
@@ -70,12 +71,14 @@ def vol_from_stdev(stdev: float, days: int) -> float:
 CALENDAR_DAYS = 365  # 暦日ベースの年率の日数(Traditionの値と同じ T = 暦日/365)
 
 
-def calendar_factor(trade_date: date, expiry: str) -> float:
+def calendar_factor(when: When, expiry: str) -> float:
     """営業日ベースのvol → 暦日ベースのvol(bp/年)の掛け目 = √(営業日数/252) × √(365/暦日数)。
-    満期までの標準偏差 σ√T は同じで、年率に直す日数だけを替える(暦日数 = 満期日 − 取引日)。"""
+    満期までの標準偏差 σ√T は同じで、年率に直す日数だけを替える(日付なら暦日数 = 満期日 − 取引日。
+    時刻なら満期日の15時までの残り。engine/common/option/term.py)。"""
+    trade_date = as_date(when)
     end = expiry_date(trade_date, expiry)
-    days = business_days(trade_date, end)
-    calendar_days = (end - trade_date).days
+    days = term.remaining_days(when, end)
+    calendar_days = term.calendar_days(when, end)
     if days <= 0 or calendar_days <= 0:
         raise ValueError(f"満期が取引日以前です: {trade_date} {expiry}")
     return math.sqrt(days / TRADING_DAYS) * math.sqrt(CALENDAR_DAYS / calendar_days)
@@ -87,7 +90,7 @@ class Underlying(NamedTuple):
 
     label: str  # 「満期x原資産」(例 1Yx10Y)
     expiry: date  # 満期日
-    days: int  # 満期までの営業日数(当日を含む)
+    days: int  # 満期までの営業日数(当日を含む。引け時点)
     terms: SwapTerms  # 原資産のフォワード・スワップ(起算日=満期日+START_LAG_DAYS営業日、規約 STANDARD)
 
 
@@ -108,11 +111,13 @@ def annuity(swap: ql.OvernightIndexedSwap, curve: ql.YieldTermStructureHandle) -
 
 
 class PremiumConverter:
-    """1つのカーブ(取引日のもの)で、プレミアムをvolに換える。呼ぶ前後で評価日を取引日にしておく。"""
+    """1つのカーブ(取引日のもの)で、プレミアムをvolに換える。呼ぶ前後で評価日を取引日にしておく。
+    when: 満期までの残りを数える時点。省略すれば取引日の引け(朝バッチ)。ライブは今の時刻(フィード)。"""
 
-    def __init__(self, curve: ql.YieldTermStructureHandle, trade_date: date):
+    def __init__(self, curve: ql.YieldTermStructureHandle, trade_date: date, when: Optional[When] = None):
         self.curve = curve
         self.trade_date = trade_date
+        self.when = trade_date if when is None else when
         self.index = ql.Tonar(curve)
         self.engine = ql.DiscountingSwapEngine(curve)
 
@@ -124,7 +129,8 @@ class PremiumConverter:
         if not math.isfinite(premium) or premium <= 0:
             return None
         u = underlying(self.trade_date, label)
-        if u.days <= 0:
+        days = term.remaining_days(self.when, u.expiry)
+        if days <= 0:
             return None
         swap = _build_swap(self.index, u.terms, 1.0, PAY, 0.0)
         swap.setPricingEngine(self.engine)
@@ -133,5 +139,5 @@ class PremiumConverter:
         price = premium / 1e4 / 2 / ann  # 片側(ペイヤー)の価格、レートの単位
         stdev = ql.bachelierBlackFormulaImpliedVol(ql.Option.Call, forward, forward, 1.0, price) * 1e4
         return SwaptionVol(
-            u.label, u.expiry, u.terms.start, u.days, forward * 100, ann, stdev, vol_from_stdev(stdev, u.days),
+            u.label, u.expiry, u.terms.start, days, forward * 100, ann, stdev, vol_from_stdev(stdev, days),
         )
