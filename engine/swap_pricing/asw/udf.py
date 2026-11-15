@@ -5,8 +5,8 @@ AswUnwindTable。約定済みのMMSのアンワインドPV。本体は unwind.py
 
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
-Neon取得・ローカル保存は朝バッチ(engine/common/morning_batch.py)が行い、ここは
-`asw_quotes`(engine/common/historical_store.py)を読むだけ(カーブは組まない)。
+値は DBの`asw_quotes`(engine/common/historical_store.py。以前に朝バッチがNeonから取得したもの。取得は廃止)を
+読むだけ(カーブは組まない)。
 
 Excel境界の型変換は`engine.common.udf_common`を`udf_common.xxx(...)`の形で呼ぶ
 (名前のコピーはしない。理由はudf_common.pyのdocstring)。

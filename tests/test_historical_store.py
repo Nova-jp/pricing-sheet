@@ -144,16 +144,6 @@ class AswQuotesTest(unittest.TestCase):
                 },
             })
 
-    def test_max_updated_at_is_the_watermark(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = self._store(tmp)
-            self.assertIsNone(store.asw_quotes_max_updated_at())  # 保存前はNone(全件取得の指示)
-            store.save_asw_quotes([
-                AswQuoteRow(AS_OF, "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6)),
-                AswQuoteRow(AS_OF, "000180054", 0.4488, 0.4813, datetime(2026, 10, 10, 9, 0, 0)),
-            ])
-            self.assertEqual(store.asw_quotes_max_updated_at(), datetime(2026, 10, 10, 9, 0, 0))
-
     def test_asw_quotes_for_filters_by_bond_code_and_date_range(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = self._store(tmp)

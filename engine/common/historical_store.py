@@ -24,7 +24,7 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
   - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
-              Neon(engine/common/neon_source.py)から朝バッチが取得する参照データ。
+              以前は朝バッチがNeonから取得していた(取得は廃止し、取得済みの値を残している)参照データ。
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
@@ -32,11 +32,6 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               過去分を埋めるときだけ、JCLに無い日を大和・みずほで補う。jgb_source.fetch_close_history)
   - fut_settles : 長期国債先物の限月ごとの清算値(日付×限月 "2026-12")。朝バッチが
               engine/common/futures_source.py で取得し、ベーシス・つなぎ足(engine/common/jgb_futures.py)が読む
-
-■ asw_quotesの差分取得(updated_atウォッチマーク)
-  別のメタデータテーブルを持たず、ローカルのasw_quotesに保存済みのupdated_atの最大値
-  (asw_quotes_max_updated_at)をそのまま次回取得の基準にする。curvesがinput_hashを
-  自分の中に持つのと同じ考え方(別テーブルを増やさない)。
 
 ■ なぜ暦日ごとのDFを保存するか(カーブの引き方に依存しないため)
   どんな引き方(Convex Monotone、将来のステップアップ等)で作ったカーブも、
@@ -161,7 +156,7 @@ class StoredCurve(NamedTuple):
 
 
 class AswQuoteRow(NamedTuple):
-    """neon_source.fetch_asw_quotes() が返す1行(取引日・銘柄・ASW・Neon側の更新時刻)。"""
+    """asw_quotes の1行(取引日・銘柄・ASW・書き込み元での更新時刻)。"""
 
     trade_date: date
     bond_code: str
@@ -399,7 +394,7 @@ class HistoricalStore:
             )
 
     def save_asw_quotes(self, rows: Iterable["AswQuoteRow"]) -> None:
-        """Neonから取得した行をupsertする(同じ(日付,銘柄)は上書き)。"""
+        """行をupsertする(同じ(日付,銘柄)は上書き)。"""
         with self._connect() as conn:
             conn.executemany(
                 "INSERT INTO asw_quotes (as_of_date, bond_code, asw_pa, asw_sa, updated_at) "
@@ -505,13 +500,6 @@ class HistoricalStore:
         with self._connect() as conn:
             rows = conn.execute("SELECT contract, MAX(as_of_date) FROM fut_settles GROUP BY contract").fetchall()
         return {c: date.fromisoformat(d) for c, d in rows}
-
-    def asw_quotes_max_updated_at(self) -> Optional[datetime]:
-        """ローカルに保存済みのasw_quotesの最新updated_at。次回のNeon差分取得の基準にする
-        (保存済みが無ければNoneを返し、呼び出し側は全期間を取得する)。"""
-        with self._connect() as conn:
-            row = conn.execute("SELECT MAX(updated_at) FROM asw_quotes").fetchone()
-        return datetime.fromisoformat(row[0]) if row and row[0] is not None else None
 
     def asw_quotes(self) -> Dict[date, Dict[str, "AswRate"]]:
         """{日付: {bond_code: AswRate(pa, sa)}}。"""

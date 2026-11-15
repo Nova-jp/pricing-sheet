@@ -59,9 +59,8 @@ def _pv(rates, params):
 
 
 def _run_batch(xlsx: Path, config: Path, db: Path) -> None:
-    """合成ブックから朝バッチでDBを作る。LSEG・Neonには接続しない(取得はtest_morning_batch等でモックして確かめる)。"""
-    with mock.patch.object(morning_batch.neon_source, "fetch_asw_quotes", return_value=[]):
-        morning_batch.run(xlsx, config, db, log=lambda *_: None, skip_jgb=True, skip_vol=True)
+    """合成ブックから朝バッチでDBを作る。LSEGには接続しない(skip_jgb・skip_vol)。"""
+    morning_batch.run(xlsx, config, db, log=lambda *_: None, skip_jgb=True, skip_vol=True)
 
 class CurveSetTest(unittest.TestCase):
     def setUp(self):

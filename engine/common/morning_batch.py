@@ -26,9 +26,8 @@
        カーブは意味を持たないため
      - 入力(構築方法・使うレート)のハッシュが前回と同じ日は作り直さない。
        テナー選択や構築方法を変えれば、該当する日が自動で作り直される
-  ③ Neon(engine/common/neon_source.py)からASWスプレッド(JGB銘柄別)を差分取得し、
-     asw_quotes に保存する(カーブには使わない参照データ。vol_quotesと同じ位置づけ)。
-     Neonに繋がらない場合もここだけスキップし、①②の結果には影響しない。
+  ③ (欠番)ASWスプレッドは取得しない。Neonからの取得は廃止した(会社のPCのプロキシが通さない)。
+     DBの asw_quotes の取得済みの値はそのまま残る。
   ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(JCL、無い日は大和・みずほで補う)を
      取得し、jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm 用)。引け値は直近の
      CLOSE_LOOKBACK_DAYS 日分を取り直す(朝バッチを流さなかった日の穴を埋め、配信元の訂正を拾う)。LSEG Workspaceが
@@ -67,7 +66,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import futures_source, jgb_futures, jgb_source, neon_source, swaption_forward, swaption_source
+from engine.common import futures_source, jgb_futures, jgb_source, swaption_forward, swaption_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
@@ -83,9 +82,6 @@ FUTURES_HISTORY_START = date(2020, 1, 1)  # 先物の清算値を取り始める
 PREMIUM_OVERLAP_DAYS = 10
 # JGBの引け値を毎朝、昨日から何日前まで取り直すか
 CLOSE_LOOKBACK_DAYS = 10
-# ASWの差分取得で、保存済みの updated_at の最大より何日前から取り直すか。今日の行は保存しないので、
-# それより後に更新された昨日以前の行で差分の基準が進むと、今日の行を取りこぼす(保存はupsert)
-ASW_OVERLAP_DAYS = 3
 # volの計算方法の名前(式・営業日の数え方を変えたら変える。全日付を計算し直す)
 VOL_METHOD = "trdt-fwd-straddle/bd-incl-today/252"
 
@@ -207,24 +203,6 @@ def input_hash(builder: str, selected: Dict[str, float]) -> str:
         {"builder": builder, "grid_days": GRID_DAYS, "quotes": sorted(selected.items())},
     )
     return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def sync_asw_quotes(store: HistoricalStore, log=print, until: Optional[date] = None) -> None:
-    """Neonから差分のASWスプレッドを取得してasw_quotesに保存する(until まで。省略時は昨日まで)。
-    Neonに繋がらない・取得に失敗した場合もバッチ全体は止めず、ここだけスキップする。"""
-    until = until or last_close_date()
-    since = store.asw_quotes_max_updated_at()
-    if since is not None:
-        since -= timedelta(days=ASW_OVERLAP_DAYS)
-    try:
-        rows = neon_source.fetch_asw_quotes(since=since, log=log)
-    except Exception as e:
-        log(f"ASW取得: 失敗のためスキップ ({e})")
-        return
-    rows = [r for r in rows if r.trade_date <= until]
-    if rows:
-        store.save_asw_quotes(rows)
-    log(f"ASW取得: {len(rows)}行({'差分' if since else '全件'})")
 
 
 def sync_jgbs(store: HistoricalStore, log=print, until: Optional[date] = None) -> None:
@@ -385,7 +363,6 @@ def run(
     store.save_quotes(mid)
     store.save_fixings(fixings)
     log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分({until}まで)")
-    sync_asw_quotes(store, log, until)
     if not skip_jgb:
         sync_jgbs(store, log, until)
         if jgb_history_from is not None:
@@ -447,10 +424,6 @@ def run(
 
 
 def main(argv=None) -> int:
-    from dotenv import load_dotenv
-
-    load_dotenv(REPO_ROOT / ".env")  # NEON_CONNECTION_STRING(sync_asw_quotes用)
-
     parser = argparse.ArgumentParser(description="historical_data.xlsx からヒストリカル日次カーブDBを作る")
     parser.add_argument("--xlsx", type=Path, default=DEFAULT_XLSX)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
