@@ -71,6 +71,8 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
 
 - 作業ごとに最新の`main`(`git pull`済み)からブランチを切る(`feature/…`・`fix/…`・`perf/…`)。
   `main`の上で直接コミットしない。同じファイルを触る開発は並行させず、前のPRのマージ後に始める。
+  アプリが作ったworktree(`claude/…`)はローカルの`main`から切られるので、開始時に`git fetch`して
+  HEADが`origin/main`と同じかを確かめる(古ければ`git rebase origin/main`)。
 - 複数のセッションが同時に動くので、**コードの開発はセッションごとに`git worktree`で別のフォルダを作って行う**
   (例 `git worktree add ../pricing-sheet-<名前> -b feature/<名前> origin/main`)。同じフォルダで`git checkout`すると
   他のセッションのブランチ・未コミットの変更を巻き込む。マージ後は`git worktree remove`で片付ける。
@@ -83,6 +85,9 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
     1つずつ(他の同名のブックを閉じ、直下のブックをworktreeにコピーして開き、開いたブックのフルパスとUDFサーバの
     起動フォルダを確かめる)。PRの説明に「Pythonでの確認」「Excelでの確認」を分けて書く。マージ後は直下で`git pull`
     してUDFサーバを再起動し、直下のブックで確かめる。
+  - **直下のブックはmainの雛形より古いことがある**(マージした変更の当て忘れ。gitは気づかない)。ブックをworktreeに
+    コピーする前に`python -m tools.template --compare`で`origin/main`の雛形と比べ、`-`の行(mainにあってブックに無い)が
+    マージ済みの変更なら先に直下へ当てる。雛形を作ったら`--diff`で意図した変更だけかを確かめ、PRの説明に書く。
   - ブックをスクリプトで書き換える前のバックアップは直下ではなく`backups/`(gitignore済み)に
     `<ブック名>_backup_<日付>_before_<作業>`で作り、PRのマージと直下のブックでの確認が済んだら消す。
   - コミットの直前に`git status -sb`で今のブランチを確かめる。
@@ -100,7 +105,8 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
   コミットするのは`python -m tools.template`で作った`templates/`の雛形だけ(数式の計算結果・
   スピル結果・LSEGの受信領域・グラフ/外部リンク/RTDのキャッシュ・ローカルのパス・作成者名を消したもの)。
   ブックの構成(シート・数式)を変えたら、Excelで保存して閉じてから`python -m tools.template`を実行し、
-  `templates/`をコミットする。雛形を手で編集・掃除しない。
+  `templates/`をコミットする。雛形を手で編集・掃除しない。雛形の横の`templates/<ブック>.txt`は構造(数式・定義名等)の
+  テキストで、同時に作られる(PRの差分で読む。手で直さない。`docs/architecture.md`)。
 - 検査(`python -m tools.template --check`)はpre-commitフック(`git config core.hooksPath .githooks`で
   有効化。クローンごとに1回)とGitHub Actionsで走る。検査で「知らない部品」が出たら、データが入る
   場所かを確かめて`tools/template.py`の規則か許可の一覧に加える(検査を緩めて通さない)。

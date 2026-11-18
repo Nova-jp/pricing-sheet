@@ -1,0 +1,346 @@
+# シートの並び
+sheet 設定
+sheet Vol設定
+sheet Mid
+sheet VolMatrix
+sheet Fixing
+sheet Vol
+sheet 銘柄
+sheet Raw
+sheet RawFixing
+sheet RawVol
+# 定義名
+name RIC一覧 = 設定!$B$17
+name TONAフィキシング = ANCHORARRAY(Fixing!$A$5)
+name Vol_RIC一覧 = Vol設定!$B$12
+name Volリクエスト = Vol設定!$B$13
+name Vol入力_フィールド = Vol設定!$B$4
+name Vol入力_基準日 = VolMatrix!$B$4
+name Vol入力_接尾辞 = Vol設定!$B$7
+name Vol入力_接頭辞 = Vol設定!$B$6
+name Vol入力_比較日 = VolMatrix!$B$5
+name Vol入力_開始日 = Vol設定!$B$5
+name Vol基準日 = VolMatrix!$B$6
+name Vol実効開始日 = Vol設定!$B$10
+name Vol日付 = ANCHORARRAY(Vol!$A$6)
+name Vol比較日 = VolMatrix!$B$7
+name Vol選択原資産 = ANCHORARRAY(Vol設定!$L$4)
+name Vol選択満期 = ANCHORARRAY(Vol設定!$K$4)
+name Vol選択銘柄 = ANCHORARRAY(Vol設定!$N$4)
+name Vol銘柄数 = Vol設定!$B$11
+name グループ一覧 = ANCHORARRAY(設定!$E$5)
+name フィキシングリクエスト = 設定!$B$21
+name フィキシング開始日 = 設定!$B$20
+name リクエスト = 設定!$B$18
+name 入力_グループ = 設定!$B$7
+name 入力_フィキシングRIC = 設定!$B$10
+name 入力_フィキシング開始日 = 設定!$B$11
+name 入力_フィールド = 設定!$B$9
+name 入力_並び順 = 設定!$B$8
+name 入力_営業日数 = 設定!$B$5
+name 入力_終了日 = 設定!$B$4
+name 入力_開始日 = 設定!$B$6
+name 実効終了日 = 設定!$B$14
+name 実効開始日 = 設定!$B$15
+name 選択銘柄 = ANCHORARRAY(設定!$H$5)
+name 選択銘柄数 = 設定!$B$16
+# 設定
+設定!A1 : "ヒストリカル生データ(LSEG Workspace / RDP.HistoricalPricing)"
+設定!A3 : "入力項目"
+設定!B3 : "値"
+設定!C3 : "説明"
+設定!A4 : "終了日"
+設定!C4 : "空欄なら今日"
+設定!E4 : "グループ一覧"
+設定!H4 : "選択中の銘柄"
+設定!I4 : "RIC"
+設定!A5 : "取得営業日数"
+設定!B5 : 500
+設定!C5 : "開始日が空欄のとき、終了日から遡る営業日数(土日のみ除外の概算)"
+設定!E5 = VSTACK("全て",UNIQUE(FILTER(銘柄!$A$2:$A$301,銘柄!$A$2:$A$301<>"")))
+設定!H5 = FILTER(銘柄!$B$2:$C$301,(銘柄!$C$2:$C$301<>"")*(銘柄!$D$2:$D$301<>"×")*((入力_グループ="全て")+(銘柄!$A$2:$A$301=入力_グループ)),"")
+設定!A6 : "開始日(任意)"
+設定!C6 : "入力すると営業日数より優先"
+設定!A7 : "銘柄グループ"
+設定!B7 : "全て"
+設定!C7 : "ドロップダウン。個別の除外は「銘柄」シートの使用列で"
+設定!A8 : "並び順"
+設定!B8 : "降順"
+設定!C8 : "Mid/Fixingシートの日付の並び(降順=新しい順)"
+設定!A9 : "フィールド"
+設定!B9 : "MID_PRICE"
+設定!C9 : "通常は変更不要(LSEGのミッド終値)"
+設定!A10 : "フィキシングRIC"
+設定!B10 : "JPONMU=RR"
+設定!C10 : "TONA(無担保コールO/N)。日付=フィキシング対象日(参照日)"
+設定!A11 : "フィキシング開始日(任意)"
+設定!C11 : "空欄ならMidと同じ開始日。古い過去起算スワップを評価するときは遡らせる"
+設定!A13 : "計算値(編集不要)"
+設定!A14 : "実効終了日"
+設定!B14 = IF(入力_終了日="",TODAY(),入力_終了日)
+設定!A15 : "実効開始日"
+設定!B15 = IF(入力_開始日="",WORKDAY(実効終了日,-入力_営業日数),入力_開始日)
+設定!A16 : "選択銘柄数"
+設定!B16 = IF(RIC一覧="",0,ROWS(選択銘柄))
+設定!A17 : "RIC一覧"
+設定!B17 = IFERROR(TEXTJOIN(";",TRUE,INDEX(選択銘柄,0,2)),"")
+設定!C17 : "RDP関数に渡す文字列"
+設定!A18 : "リクエスト"
+設定!B18 = "START:"&TEXT(実効開始日,"yyyy-mm-dd")&" END:"&TEXT(実効終了日,"yyyy-mm-dd")&" INTERVAL:P1D"
+設定!A19 : "取得状況(Mid)"
+設定!B19 = Raw!$A$1
+設定!C19 : "LSEGの最終更新時刻 or エラー"
+設定!A20 : "フィキシング実効開始日"
+設定!B20 = IF(入力_フィキシング開始日="",実効開始日,入力_フィキシング開始日)
+設定!A21 : "フィキシングリクエスト"
+設定!B21 = "START:"&TEXT(フィキシング開始日,"yyyy-mm-dd")&" END:"&TEXT(実効終了日,"yyyy-mm-dd")&" INTERVAL:P1D"
+設定!A22 : "取得状況(Fixing)"
+設定!B22 = RawFixing!$A$1
+設定!A24 : "使い方"
+設定!A25 : "1. 上の黄色セルを変えると、Raw/RawFixingシートの取得が自動で走ります。"
+設定!A26 : "2. 結果は「Mid」(日付×銘柄のミッド)と「Fixing」(日付/TONA)シートに表示されます。Raw系は受信領域なので編集しない。"
+設定!A27 : "3. 手動で再取得したいときは、LSEGリボンの「更新」を使います。"
+設定!A28 : "4. 銘柄の追加・除外は「銘柄」シートで。Midシートは最大80銘柄まで表示します。"
+設定!A29 : "5. Fixingの直近日の値はBOJの速報値のことがあります(確報は翌営業日10時頃)。"
+設定!A30 : "※ リポジトリには受信データを空にした雛形だけをコミットする。LSEGのデータ入りのままコミットしない(LSEGコンテンツは再配布禁止、リポジトリはPublic)。"
+設定!A31 : "※ Implied volは「Vol設定」「Vol」「VolMatrix」「RawVol」シート(設定の終了日・並び順を共用)。"
+設定!B7 validation list: ANCHORARRAY($E$5)
+設定!B8 validation list: "昇順,降順"
+# Vol設定
+Vol設定!A1 : "Implied Vol 設定(LSEG計算 JPY TONAスワップション ATM / RDP.HistoricalPricing)"
+Vol設定!A3 : "入力項目"
+Vol設定!B3 : "値"
+Vol設定!C3 : "説明"
+Vol設定!E3 : "満期"
+Vol設定!F3 : "使用(○/×)"
+Vol設定!H3 : "原資産"
+Vol設定!I3 : "使用(○/×)"
+Vol設定!K3 : "選択満期"
+Vol設定!L3 : "選択原資産"
+Vol設定!N3 : "満期"
+Vol設定!O3 : "原資産"
+Vol設定!P3 : "表示名"
+Vol設定!Q3 : "RIC"
+Vol設定!A4 : "フィールド"
+Vol設定!B4 : "IMP_VOLT"
+Vol設定!C4 : "LSEG計算系列(=R)ではATMノーマルvol(bp/年)。※TRDTのRICに使うとログノーマルになる(TRDTのノーマルvolはExcel関数で取得不可)"
+Vol設定!E4 : "1M"
+Vol設定!F4:F19 : "○"
+Vol設定!H4 : "1Y"
+Vol設定!I4:I15 : "○"
+Vol設定!K4 = IFERROR(FILTER($E$4:$E$23,($E$4:$E$23<>"")*($F$4:$F$23<>"×")),"")
+Vol設定!L4 = IFERROR(FILTER($H$4:$H$23,($H$4:$H$23<>"")*($I$4:$I$23<>"×")),"")
+Vol設定!N4 = IFERROR(LET(e,FILTER(ANCHORARRAY($K$4),ANCHORARRAY($K$4)<>""),t,FILTER(ANCHORARRAY($L$4),ANCHORARRAY($L$4)<>""),nt,ROWS(t),k,SEQUENCE(ROWS(e)*nt),ex,INDEX(e,INT((k-1)/nt)+1),tn,INDEX(t,MOD(k-1,nt)+1),HSTACK(ex,tn,ex&"x"&tn,Vol入力_接頭辞&ex&"X"&tn&Vol入力_接尾辞)),"")
+Vol設定!A5 : "開始日(任意)"
+Vol設定!C5 : "空欄なら「設定」シートの実効開始日。データは2022-03-30から"
+Vol設定!E5 : "2M"
+Vol設定!H5 : "2Y"
+Vol設定!A6 : "RIC接頭辞"
+Vol設定!B6 : "JPYTO"
+Vol設定!C6 : "RIC = 接頭辞 & 満期 & "X" & 原資産 & 接尾辞(例 JPYTO1YX10YATM=R)"
+Vol設定!E6 : "3M"
+Vol設定!H6 : "3Y"
+Vol設定!A7 : "RIC接尾辞"
+Vol設定!B7 : "ATM=R"
+Vol設定!E7 : "6M"
+Vol設定!H7 : "4Y"
+Vol設定!E8 : "9M"
+Vol設定!H8 : "5Y"
+Vol設定!A9 : "計算値(編集不要)"
+Vol設定!E9 : "1Y"
+Vol設定!H9 : "6Y"
+Vol設定!A10 : "Vol実効開始日"
+Vol設定!B10 = IF(Vol入力_開始日="",実効開始日,Vol入力_開始日)
+Vol設定!E10 : "2Y"
+Vol設定!H10 : "7Y"
+Vol設定!A11 : "Vol銘柄数"
+Vol設定!B11 = IF(Vol_RIC一覧="",0,ROWS(Vol選択銘柄))
+Vol設定!E11 : "3Y"
+Vol設定!H11 : "8Y"
+Vol設定!A12 : "Vol_RIC一覧"
+Vol設定!B12 = IFERROR(TEXTJOIN(";",TRUE,INDEX(Vol選択銘柄,0,4)),"")
+Vol設定!C12 : "RDP関数に渡す文字列"
+Vol設定!E12 : "4Y"
+Vol設定!H12 : "9Y"
+Vol設定!A13 : "Volリクエスト"
+Vol設定!B13 = "START:"&TEXT(Vol実効開始日,"yyyy-mm-dd")&" END:"&TEXT(実効終了日,"yyyy-mm-dd")&" INTERVAL:P1D"
+Vol設定!E13 : "5Y"
+Vol設定!H13 : "10Y"
+Vol設定!A14 : "取得状況(Vol)"
+Vol設定!B14 = RawVol!$A$1
+Vol設定!C14 : "LSEGの最終更新時刻 or エラー"
+Vol設定!E14 : "6Y"
+Vol設定!H14 : "15Y"
+Vol設定!E15 : "7Y"
+Vol設定!H15 : "20Y"
+Vol設定!E16 : "9Y"
+Vol設定!A17 : "使い方"
+Vol設定!E17 : "10Y"
+Vol設定!A18 : "1. 満期/原資産の使用列(○/×)で取得する格子を選ぶ。RICは満期×原資産の直積で自動生成(RawVolシートの取得が走る)。"
+Vol設定!E18 : "15Y"
+Vol設定!A19 : "2. 結果は「Vol」(日付×銘柄)と「VolMatrix」(基準日/比較日の満期×原資産マトリックス)シートに表示。RawVolは受信領域なので編集しない。"
+Vol設定!E19 : "20Y"
+Vol設定!A20 : "3. 期間の終了日・並び順は「設定」シートと共通。手動で再取得したいときはLSEGリボンの「更新」。"
+Vol設定!A21 : "4. Volシートは最大300銘柄まで表示。既定の16満期×12原資産=192銘柄は1回の取得で約15秒。"
+Vol設定!A22 : "※ リポジトリには受信データを空にした雛形だけをコミットする(LSEGコンテンツは再配布禁止、リポジトリはPublic)。"
+Vol設定!E24 : "※ 各軸 最大20行。表記はLSEGのRICに合わせる(1M/2M/…/1Y/…)"
+Vol設定!F4:F23 I4:I23 validation list: "○,×"
+# Mid
+Mid!A1 : "ミッドレート ヒストリカル(%)"
+Mid!A2 = "期間: "&TEXT(実効開始日,"yyyy/mm/dd")&" 〜 "&TEXT(実効終了日,"yyyy/mm/dd")&"   銘柄数: "&選択銘柄数&"   "&Raw!$A$1
+Mid!A4 : "日付"
+Mid!B4 = IF(選択銘柄数=0,"",TRANSPOSE(INDEX(選択銘柄,0,1)))
+Mid!A5 : "RIC"
+Mid!B5 = IF(選択銘柄数=0,"",TRANSPOSE(INDEX(選択銘柄,0,2)))
+Mid!A6 = IFERROR(LET(hdrIn,Raw!$A$3:$ZZ$3,hdrFd,Raw!$A$4:$ZZ$4,body,Raw!$A$5:$ZZ$3000,useCol,(hdrFd="Timestamp")*ISNUMBER(XMATCH(hdrIn,INDEX(選択銘柄,0,2))),ts,TOCOL(FILTER(body,useCol),1),tsN,INT(FILTER(ts,ISNUMBER(ts))),uniq,UNIQUE(FILTER(tsN,(tsN>=実効開始日)*(tsN<=実効終了日))),SORT(uniq,,IF(入力_並び順="昇順",1,-1))),"")
+Mid!B6:CC6 = IF(B$5="","",LET(hdrIn,Raw!$A$3:$ZZ$3,hdrFd,Raw!$A$4:$ZZ$4,body,Raw!$A$5:$ZZ$3000,colT,XMATCH(1,(hdrIn=B$5)*(hdrFd="Timestamp")),colV,XMATCH(1,(hdrIn=B$5)*(hdrFd<>"Timestamp")),IF(ISNA(colT+colV),"データなし",LET(tsCol,INDEX(body,0,colT),valCol,INDEX(body,0,colV),XLOOKUP(ANCHORARRAY($A$6),IF(ISNUMBER(tsCol),INT(tsCol),""),IF(ISNUMBER(valCol),valCol,""),"")))))
+# VolMatrix
+VolMatrix!A1 : "Implied Vol マトリックス(満期×原資産、ATMノーマルvol, bp/年)"
+VolMatrix!A3 : "入力項目"
+VolMatrix!B3 : "値"
+VolMatrix!C3 : "説明"
+VolMatrix!A4 : "基準日"
+VolMatrix!C4 : "空欄なら最新日。データのない日(休日等)はその直前のデータ日を使う"
+VolMatrix!A5 : "比較日(任意)"
+VolMatrix!B5 : 46289
+VolMatrix!C5 : "入力すると比較日のマトリックスと差分(基準−比較、bp)を表示"
+VolMatrix!A6 : "実際の基準日"
+VolMatrix!B6 = IFERROR(IF(Vol入力_基準日="",MAX(Vol日付),XLOOKUP(Vol入力_基準日,Vol日付,Vol日付,"",-1)),"")
+VolMatrix!A7 : "実際の比較日"
+VolMatrix!B7 = IF(Vol入力_比較日="","",IFERROR(XLOOKUP(Vol入力_比較日,Vol日付,Vol日付,"",-1),""))
+VolMatrix!A9 = "基準日: "&IF(Vol基準日="","データなし",TEXT(Vol基準日,"yyyy/mm/dd"))
+VolMatrix!A10 : "満期\原資産"
+VolMatrix!B10 = IFERROR(TRANSPOSE(Vol選択原資産),"")
+VolMatrix!A11 = Vol選択満期
+VolMatrix!B11 = IF(Vol基準日="","",IFERROR(XLOOKUP(ANCHORARRAY($A$11)&"x"&ANCHORARRAY($B$10),Vol!$B$4:$KO$4,INDEX(Vol!$B$6:$KO$3000,XMATCH(Vol基準日,Vol日付),0),""),""))
+VolMatrix!A33 = "比較日: "&IF(Vol比較日="","(未入力)",TEXT(Vol比較日,"yyyy/mm/dd"))
+VolMatrix!A34 : "満期\原資産"
+VolMatrix!B34 = IFERROR(TRANSPOSE(Vol選択原資産),"")
+VolMatrix!A35 = Vol選択満期
+VolMatrix!B35 = IF(Vol比較日="","",IFERROR(XLOOKUP(ANCHORARRAY($A$35)&"x"&ANCHORARRAY($B$34),Vol!$B$4:$KO$4,INDEX(Vol!$B$6:$KO$3000,XMATCH(Vol比較日,Vol日付),0),""),""))
+VolMatrix!A57 = "差分(基準−比較, bp)"
+VolMatrix!A58 : "満期\原資産"
+VolMatrix!B58 = IFERROR(TRANSPOSE(Vol選択原資産),"")
+VolMatrix!A59 = Vol選択満期
+VolMatrix!B59 = IF(Vol比較日="","",IFERROR(LET(a,ANCHORARRAY($B$11),b,ANCHORARRAY($B$35),IF(ISNUMBER(a)*ISNUMBER(b),a-b,"")),""))
+VolMatrix!B11:U30 format colorScale
+VolMatrix!B35:U54 format colorScale
+VolMatrix!B59:U78 format colorScale
+# Fixing
+Fixing!A1 : "TONA フィキシング(%)"
+Fixing!A2 = "期間: "&TEXT(フィキシング開始日,"yyyy/mm/dd")&" 〜 "&TEXT(実効終了日,"yyyy/mm/dd")&"   RIC: "&入力_フィキシングRIC&"   "&RawFixing!$A$1
+Fixing!A4 : "日付"
+Fixing!B4 : "TONA"
+Fixing!A5 = IFERROR(LET(hdr,RawFixing!$A$3:$Z$3,body,RawFixing!$A$4:$Z$6000,colT,XMATCH("Timestamp",hdr),colV,IFERROR(XMATCH("Last Quote Close",hdr),colT+1),tsCol,INDEX(body,0,colT),valCol,INDEX(body,0,colV),keep,ISNUMBER(tsCol)*ISNUMBER(valCol),SORT(HSTACK(INT(FILTER(tsCol,keep)),FILTER(valCol,keep)),1,IF(入力_並び順="昇順",1,-1))),"")
+# Vol
+Vol!A1 : "Implied Vol ヒストリカル(ATMノーマルvol, bp/年)"
+Vol!A2 = "期間: "&TEXT(Vol実効開始日,"yyyy/mm/dd")&" 〜 "&TEXT(実効終了日,"yyyy/mm/dd")&"   銘柄数: "&Vol銘柄数&"   フィールド: "&Vol入力_フィールド&"   "&RawVol!$A$1
+Vol!A4 : "満期x原資産"
+Vol!B4 = IF(Vol銘柄数=0,"",TRANSPOSE(INDEX(Vol選択銘柄,0,3)))
+Vol!A5 : "RIC"
+Vol!B5 = IF(Vol銘柄数=0,"",TRANSPOSE(INDEX(Vol選択銘柄,0,4)))
+Vol!A6 = IFERROR(LET(hdrIn,RawVol!$A$3:$AZZ$3,hdrFd,RawVol!$A$4:$AZZ$4,body,RawVol!$A$5:$AZZ$3000,useCol,(hdrFd="Timestamp")*ISNUMBER(XMATCH(hdrIn,INDEX(Vol選択銘柄,0,4))),ts,TOCOL(FILTER(body,useCol),1),tsN,INT(FILTER(ts,ISNUMBER(ts))),uniq,UNIQUE(FILTER(tsN,(tsN>=Vol実効開始日)*(tsN<=実効終了日))),SORT(uniq,,IF(入力_並び順="昇順",1,-1))),"")
+Vol!B6:KO6 = IF(B$5="","",LET(hdrIn,RawVol!$A$3:$AZZ$3,hdrFd,RawVol!$A$4:$AZZ$4,body,RawVol!$A$5:$AZZ$3000,colT,XMATCH(1,(hdrIn=B$5)*(hdrFd="Timestamp")),colV,XMATCH(1,(hdrIn=B$5)*(hdrFd<>"Timestamp")),IF(ISNA(colT+colV),"データなし",LET(tsCol,INDEX(body,0,colT),valCol,INDEX(body,0,colV),XLOOKUP(ANCHORARRAY($A$6),IF(ISNUMBER(tsCol),INT(tsCol),""),IF(ISNUMBER(valCol),valCol,""),"")))))
+# 銘柄
+銘柄!A1 : "グループ"
+銘柄!B1 : "表示名"
+銘柄!C1 : "RIC"
+銘柄!D1 : "使用(○/×)"
+銘柄!F1 : "メモ"
+銘柄!A2:A34 : "OIS"
+銘柄!B2 : "1W"
+銘柄!C2 : "JP1WONI=TRDT"
+銘柄!D2:D42 : "○"
+銘柄!F2 : "行を追加すれば銘柄を増やせます(RICはLSEGのコード)。使用列を×にすると除外。"
+銘柄!B3 : "1M"
+銘柄!C3 : "JP1MONIPE=TRDT"
+銘柄!F3 : "BOJ会合(M1..M8)は「次回会合」基準のロールする系列なので、過去の値は当時のM番号の会合を指します。"
+銘柄!B4 : "2M"
+銘柄!C4 : "JP2MONIPE=TRDT"
+銘柄!B5 : "3M"
+銘柄!C5 : "JP3MONIPE=TRDT"
+銘柄!B6 : "4M"
+銘柄!C6 : "JP4MONIPE=TRDT"
+銘柄!B7 : "5M"
+銘柄!C7 : "JP5MONIPE=TRDT"
+銘柄!B8 : "6M"
+銘柄!C8 : "JP6MONIPE=TRDT"
+銘柄!B9 : "7M"
+銘柄!C9 : "JP7MONIPE=TRDT"
+銘柄!B10 : "8M"
+銘柄!C10 : "JP8MONIPE=TRDT"
+銘柄!B11 : "9M"
+銘柄!C11 : "JP9MONIPE=TRDT"
+銘柄!B12 : "10M"
+銘柄!C12 : "JP10MONIPE=TRDT"
+銘柄!B13 : "11M"
+銘柄!C13 : "JP11MONIPE=TRDT"
+銘柄!B14 : "12M"
+銘柄!C14 : "JP12MONIPE=TRDT"
+銘柄!B15 : "15M"
+銘柄!C15 : "JP15MONIPE=TRDT"
+銘柄!B16 : "18M"
+銘柄!C16 : "JP18MONIPE=TRDT"
+銘柄!B17 : "21M"
+銘柄!C17 : "JP21MONIPE=TRDT"
+銘柄!B18 : "24M"
+銘柄!C18 : "JP24MONIPE=TRDT"
+銘柄!B19 : "36M"
+銘柄!C19 : "JP36MONIPE=TRDT"
+銘柄!B20 : "4Y"
+銘柄!C20 : "JP4YONIPE=TRDT"
+銘柄!B21 : "5Y"
+銘柄!C21 : "JP5YONIPE=TRDT"
+銘柄!B22 : "6Y"
+銘柄!C22 : "JP6YONIPE=TRDT"
+銘柄!B23 : "7Y"
+銘柄!C23 : "JP7YONIPE=TRDT"
+銘柄!B24 : "8Y"
+銘柄!C24 : "JP8YONIPE=TRDT"
+銘柄!B25 : "9Y"
+銘柄!C25 : "JP9YONIPE=TRDT"
+銘柄!B26 : "10Y"
+銘柄!C26 : "JP10YONIPE=TRDT"
+銘柄!B27 : "11Y"
+銘柄!C27 : "JP11YONIPE=TRDT"
+銘柄!B28 : "12Y"
+銘柄!C28 : "JP12YONIPE=TRDT"
+銘柄!B29 : "15Y"
+銘柄!C29 : "JP15YONIPE=TRDT"
+銘柄!B30 : "20Y"
+銘柄!C30 : "JP20YONIPE=TRDT"
+銘柄!B31 : "25Y"
+銘柄!C31 : "JP25YONIPE=TRDT"
+銘柄!B32 : "30Y"
+銘柄!C32 : "JP30YONIPE=TRDT"
+銘柄!B33 : "35Y"
+銘柄!C33 : "JP35YONIPE=TRDT"
+銘柄!B34 : "40Y"
+銘柄!C34 : "JP40YONIPE=TRDT"
+銘柄!A35:A42 : "BOJ会合"
+銘柄!B35 : "M1"
+銘柄!C35 : "JPBOJ1ONI=TRDT"
+銘柄!B36 : "M2"
+銘柄!C36 : "JPBOJ2ONI=TRDT"
+銘柄!B37 : "M3"
+銘柄!C37 : "JPBOJ3ONI=TRDT"
+銘柄!B38 : "M4"
+銘柄!C38 : "JPBOJ4ONI=TRDT"
+銘柄!B39 : "M5"
+銘柄!C39 : "JPBOJ5ONI=TRDT"
+銘柄!B40 : "M6"
+銘柄!C40 : "JPBOJ6ONI=TRDT"
+銘柄!B41 : "M7"
+銘柄!C41 : "JPBOJ7ONI=TRDT"
+銘柄!B42 : "M8"
+銘柄!C42 : "JPBOJ8ONI=TRDT"
+銘柄!D2:D301 validation list: "○,×"
+# Raw
+Raw!A1 = IF(RIC一覧="","銘柄が選択されていません",_xll.RDP.HistoricalPricing(RIC一覧,入力_フィールド,リクエスト,,"CH:In;Fd",$A$3))
+Raw!A2 : "↓ LSEGアドインの受信領域(3行目=RIC、4行目=フィールド名、5行目以降=データ)。編集しないこと。"
+# RawFixing
+RawFixing!A1 = IF(入力_フィキシングRIC="","RICが未入力です",_xll.RDP.HistoricalPricing(入力_フィキシングRIC,,フィキシングリクエスト,,"CH:Fd",$A$3))
+RawFixing!A2 : "↓ LSEGアドインの受信領域(3行目=フィールド名、4行目以降=データ)。編集しないこと。"
+# RawVol
+RawVol!A1 = IF(Vol_RIC一覧="","銘柄が選択されていません",_xll.RDP.HistoricalPricing(Vol_RIC一覧,Vol入力_フィールド,Volリクエスト,,"CH:In;Fd",$A$3))
+RawVol!A2 : "↓ LSEGアドインの受信領域(3行目=RIC、4行目=フィールド名、5行目以降=データ)。編集しないこと。"

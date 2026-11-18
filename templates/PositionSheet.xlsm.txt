@@ -1,0 +1,1260 @@
+# シートの並び
+sheet Position
+sheet Setup
+sheet BondOpt
+sheet JGB
+sheet Raw_IR
+sheet Raw_IRVOL
+sheet Raw_Swaption
+sheet Raw_BondOption
+sheet Raw_JGB
+# 定義名
+# Position
+Position!B1 = "Now ("&IF(B2="Fixed","fixed","live")&")"
+Position!E1 : "Bond move: compound yield change since close (input, blank = no move). Bonds and bond options."
+Position!H1 : "Close + bond options + gamma x move + today's Done trades. Delta: mn/bp, Gamma: mn/bp2"
+Position!R1 = "Close ("&IF(Setup!$B$4="","base date?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&")"
+Position!W1 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet). Delta: mn/bp, Gamma: mn/bp2"
+Position!AB1 : "PL (approx, since base-date close, mn JPY)"
+Position!AO1 : "Bond option theta (mn/day)"
+Position!AT1 = BondOpt!$AE$3
+Position!B2 : "Live"
+Position!C2 = LiveInfo("swap",ANCHORARRAY($BD$4))
+Position!E2 = IF(ROWS(ANCHORARRAY($BD$4))>1,"Live: OK",LEFT($BD$4,80))
+Position!G2 : "Input"
+Position!H2 : "Delta"
+Position!M2 : "Gamma"
+Position!S2 : "Delta"
+Position!W2 : "Gamma"
+Position!AB2 : "Swap"
+Position!AD2 : "Bond (incl. bond options)"
+Position!AF2 : "Bond opt"
+Position!AJ2 : "Today's Done trades"
+Position!AO2 : "Vega (swaptions, company file, mn JPY / bp vol per year, expiry x tail)"
+Position!AY2 : "Total"
+Position!AZ2 = SUM(AP4:AZ20)
+Position!B3 : "Pillar"
+Position!C3 : "Live (%)"
+Position!D3 : "Close (%)"
+Position!E3 : "Move override"
+Position!F3 : "Swap move (bp)"
+Position!G3 : "Bond move (bp)"
+Position!H3 : "Swap"
+Position!I3 : "Bond"
+Position!J3 : "of which Γ x Move"
+Position!K3 : "Total"
+Position!M3 : "Swap"
+Position!N3 : "Bond"
+Position!O3 : "Total"
+Position!R3 : "Pillar"
+Position!S3 : "Swap"
+Position!T3 : "Bond"
+Position!U3 : "Total"
+Position!W3 : "Swap"
+Position!X3 : "Bond"
+Position!Y3 : "Total"
+Position!AB3 : "Delta"
+Position!AC3 : "Gamma"
+Position!AD3 : "Delta"
+Position!AE3 : "Gamma"
+Position!AF3 : "Theta"
+Position!AG3 : "Total"
+Position!AJ3 = PosIntradayGrid($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,"","Done")
+Position!AO3 : "Expiry"
+Position!AP3 : "6M"
+Position!AQ3 : "1Y"
+Position!AR3 : "2Y"
+Position!AS3 : "3Y"
+Position!AT3 : "4Y"
+Position!AU3 : "5Y"
+Position!AV3 : "7Y"
+Position!AW3 : "10Y"
+Position!AX3 : "15Y"
+Position!AY3 : "20Y"
+Position!AZ3 : "30Y"
+Position!BD3 : "Live swap"
+Position!BE3 : "Mid"
+Position!BF3 : "Start"
+Position!BG3 : "End"
+Position!BI3 : "Flag"
+Position!BJ3 : "Pillar"
+Position!BK3 : "Rate"
+Position!BM3 : "Live vol"
+Position!BQ3 : "Close vol (DB, base date)"
+Position!CB3 : "Cal. factor (live)"
+Position!CC3 : "Cal. factor (close)"
+Position!CE3 : "Company vega (Raw_IRVOL, JPY, expiry x tail)"
+Position!B4:B37 = Setup!A27
+Position!C4:C37 = XLOOKUP(B4,INDEX(ANCHORARRAY($BD$4),,1),INDEX(ANCHORARRAY($BD$4),,2),"")
+Position!D4 = PosCloseRates(B4:B37,Setup!$B$4)
+Position!F4:F37 = IF(E4<>"",E4,IF(OR(C4="",D4=""),"",(C4-D4)*100))
+Position!H4:H37 = N(S4)+N(W4)*N(F4)+AJ4
+Position!I4:I37 = N(T4)+N(BondOpt!$BB4)+(N(X4)+N(BondOpt!$BC4))*N(G4)+AK4
+Position!J4:J37 = N(W4)*N(F4)+(N(X4)+N(BondOpt!$BC4))*N(G4)
+Position!K4:K37 = H4+I4
+Position!L4:L37 = K4
+Position!M4:M37 = N(W4)+AL4
+Position!N4:N37 = N(X4)+N(BondOpt!$BC4)+AM4
+Position!O4:O37 = M4+N4
+Position!P4:P37 = O4
+Position!R4:R37 = B4
+Position!S4:S37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$12)/10^6)
+Position!T4:T37 = JGB!$S4
+Position!U4:U37 = IF(AND(S4="",T4=""),"",N(S4)+N(T4))
+Position!V4:V37 = U4
+Position!W4:W37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$14)/10^6)
+Position!X4:X37 = JGB!$T4
+Position!Y4:Y37 = IF(AND(W4="",X4=""),"",N(W4)+N(X4))
+Position!Z4:Z37 = Y4
+Position!AB4:AB37 = N(S4)*N(F4)
+Position!AC4:AC37 = 0.5*N(W4)*N(F4)^2
+Position!AD4:AD37 = (N(T4)+N(BondOpt!$BB4))*N(G4)
+Position!AE4:AE37 = 0.5*(N(X4)+N(BondOpt!$BC4))*N(G4)^2
+Position!AF4:AF37 = N(BondOpt!$BD4)*N($AC$52)
+Position!AG4:AG37 = SUM(AB4:AF4)
+Position!AH4:AH37 = AG4
+Position!AO4 : "1W"
+Position!AP4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,1),IF(v="","",v/10^6))
+Position!AQ4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,2),IF(v="","",v/10^6))
+Position!AR4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,3),IF(v="","",v/10^6))
+Position!AS4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,4),IF(v="","",v/10^6))
+Position!AT4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,5),IF(v="","",v/10^6))
+Position!AU4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,6),IF(v="","",v/10^6))
+Position!AV4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,7),IF(v="","",v/10^6))
+Position!AW4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,8),IF(v="","",v/10^6))
+Position!AX4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,9),IF(v="","",v/10^6))
+Position!AY4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,10),IF(v="","",v/10^6))
+Position!AZ4 = LET(v,INDEX(ANCHORARRAY($CE$4),1,11),IF(v="","",v/10^6))
+Position!BD4 = IF($B$2="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+Position!BI4:BI37 = Setup!B27
+Position!BJ4:BK37 = B4
+Position!BM4 = IF($B$2="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
+Position!BQ4 = PosCloseVols($AO$4:$AO$20,$AQ$3:$AZ$3,Setup!$B$4)
+Position!CB4 = PosVolCalendarFactor($AO$4:$AO$20,"")
+Position!CC4 = PosVolCalendarFactor($AO$4:$AO$20,Setup!$B$4)
+Position!CE4 = PosVegaGrid(INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$19),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$20),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$21),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$22),Setup!$B$18,$AO$4:$AO$20,$AP$3:$AZ$3)
+Position!AO5 : "2W"
+Position!AP5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,1),IF(v="","",v/10^6))
+Position!AQ5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,2),IF(v="","",v/10^6))
+Position!AR5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,3),IF(v="","",v/10^6))
+Position!AS5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,4),IF(v="","",v/10^6))
+Position!AT5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,5),IF(v="","",v/10^6))
+Position!AU5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,6),IF(v="","",v/10^6))
+Position!AV5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,7),IF(v="","",v/10^6))
+Position!AW5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,8),IF(v="","",v/10^6))
+Position!AX5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,9),IF(v="","",v/10^6))
+Position!AY5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,10),IF(v="","",v/10^6))
+Position!AZ5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,11),IF(v="","",v/10^6))
+Position!AO6 : "1M"
+Position!AP6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,1),IF(v="","",v/10^6))
+Position!AQ6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,2),IF(v="","",v/10^6))
+Position!AR6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,3),IF(v="","",v/10^6))
+Position!AS6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,4),IF(v="","",v/10^6))
+Position!AT6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,5),IF(v="","",v/10^6))
+Position!AU6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,6),IF(v="","",v/10^6))
+Position!AV6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,7),IF(v="","",v/10^6))
+Position!AW6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,8),IF(v="","",v/10^6))
+Position!AX6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,9),IF(v="","",v/10^6))
+Position!AY6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,10),IF(v="","",v/10^6))
+Position!AZ6 = LET(v,INDEX(ANCHORARRAY($CE$4),3,11),IF(v="","",v/10^6))
+Position!AO7 : "3M"
+Position!AP7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,1),IF(v="","",v/10^6))
+Position!AQ7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,2),IF(v="","",v/10^6))
+Position!AR7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,3),IF(v="","",v/10^6))
+Position!AS7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,4),IF(v="","",v/10^6))
+Position!AT7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,5),IF(v="","",v/10^6))
+Position!AU7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,6),IF(v="","",v/10^6))
+Position!AV7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,7),IF(v="","",v/10^6))
+Position!AW7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,8),IF(v="","",v/10^6))
+Position!AX7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,9),IF(v="","",v/10^6))
+Position!AY7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,10),IF(v="","",v/10^6))
+Position!AZ7 = LET(v,INDEX(ANCHORARRAY($CE$4),4,11),IF(v="","",v/10^6))
+Position!AO8 : "6M"
+Position!AP8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,1),IF(v="","",v/10^6))
+Position!AQ8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,2),IF(v="","",v/10^6))
+Position!AR8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,3),IF(v="","",v/10^6))
+Position!AS8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,4),IF(v="","",v/10^6))
+Position!AT8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,5),IF(v="","",v/10^6))
+Position!AU8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,6),IF(v="","",v/10^6))
+Position!AV8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,7),IF(v="","",v/10^6))
+Position!AW8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,8),IF(v="","",v/10^6))
+Position!AX8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,9),IF(v="","",v/10^6))
+Position!AY8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,10),IF(v="","",v/10^6))
+Position!AZ8 = LET(v,INDEX(ANCHORARRAY($CE$4),5,11),IF(v="","",v/10^6))
+Position!AO9 : "9M"
+Position!AP9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,1),IF(v="","",v/10^6))
+Position!AQ9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,2),IF(v="","",v/10^6))
+Position!AR9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,3),IF(v="","",v/10^6))
+Position!AS9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,4),IF(v="","",v/10^6))
+Position!AT9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,5),IF(v="","",v/10^6))
+Position!AU9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,6),IF(v="","",v/10^6))
+Position!AV9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,7),IF(v="","",v/10^6))
+Position!AW9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,8),IF(v="","",v/10^6))
+Position!AX9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,9),IF(v="","",v/10^6))
+Position!AY9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,10),IF(v="","",v/10^6))
+Position!AZ9 = LET(v,INDEX(ANCHORARRAY($CE$4),6,11),IF(v="","",v/10^6))
+Position!AO10 : "1Y"
+Position!AP10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,1),IF(v="","",v/10^6))
+Position!AQ10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,2),IF(v="","",v/10^6))
+Position!AR10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,3),IF(v="","",v/10^6))
+Position!AS10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,4),IF(v="","",v/10^6))
+Position!AT10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,5),IF(v="","",v/10^6))
+Position!AU10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,6),IF(v="","",v/10^6))
+Position!AV10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,7),IF(v="","",v/10^6))
+Position!AW10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,8),IF(v="","",v/10^6))
+Position!AX10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,9),IF(v="","",v/10^6))
+Position!AY10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,10),IF(v="","",v/10^6))
+Position!AZ10 = LET(v,INDEX(ANCHORARRAY($CE$4),7,11),IF(v="","",v/10^6))
+Position!AO11 : "2Y"
+Position!AP11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,1),IF(v="","",v/10^6))
+Position!AQ11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,2),IF(v="","",v/10^6))
+Position!AR11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,3),IF(v="","",v/10^6))
+Position!AS11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,4),IF(v="","",v/10^6))
+Position!AT11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,5),IF(v="","",v/10^6))
+Position!AU11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,6),IF(v="","",v/10^6))
+Position!AV11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,7),IF(v="","",v/10^6))
+Position!AW11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,8),IF(v="","",v/10^6))
+Position!AX11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,9),IF(v="","",v/10^6))
+Position!AY11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,10),IF(v="","",v/10^6))
+Position!AZ11 = LET(v,INDEX(ANCHORARRAY($CE$4),8,11),IF(v="","",v/10^6))
+Position!AO12 : "3Y"
+Position!AP12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,1),IF(v="","",v/10^6))
+Position!AQ12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,2),IF(v="","",v/10^6))
+Position!AR12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,3),IF(v="","",v/10^6))
+Position!AS12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,4),IF(v="","",v/10^6))
+Position!AT12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,5),IF(v="","",v/10^6))
+Position!AU12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,6),IF(v="","",v/10^6))
+Position!AV12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,7),IF(v="","",v/10^6))
+Position!AW12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,8),IF(v="","",v/10^6))
+Position!AX12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,9),IF(v="","",v/10^6))
+Position!AY12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,10),IF(v="","",v/10^6))
+Position!AZ12 = LET(v,INDEX(ANCHORARRAY($CE$4),9,11),IF(v="","",v/10^6))
+Position!AO13 : "4Y"
+Position!AP13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,1),IF(v="","",v/10^6))
+Position!AQ13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,2),IF(v="","",v/10^6))
+Position!AR13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,3),IF(v="","",v/10^6))
+Position!AS13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,4),IF(v="","",v/10^6))
+Position!AT13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,5),IF(v="","",v/10^6))
+Position!AU13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,6),IF(v="","",v/10^6))
+Position!AV13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,7),IF(v="","",v/10^6))
+Position!AW13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,8),IF(v="","",v/10^6))
+Position!AX13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,9),IF(v="","",v/10^6))
+Position!AY13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,10),IF(v="","",v/10^6))
+Position!AZ13 = LET(v,INDEX(ANCHORARRAY($CE$4),10,11),IF(v="","",v/10^6))
+Position!AO14 : "5Y"
+Position!AP14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,1),IF(v="","",v/10^6))
+Position!AQ14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,2),IF(v="","",v/10^6))
+Position!AR14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,3),IF(v="","",v/10^6))
+Position!AS14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,4),IF(v="","",v/10^6))
+Position!AT14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,5),IF(v="","",v/10^6))
+Position!AU14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,6),IF(v="","",v/10^6))
+Position!AV14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,7),IF(v="","",v/10^6))
+Position!AW14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,8),IF(v="","",v/10^6))
+Position!AX14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,9),IF(v="","",v/10^6))
+Position!AY14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,10),IF(v="","",v/10^6))
+Position!AZ14 = LET(v,INDEX(ANCHORARRAY($CE$4),11,11),IF(v="","",v/10^6))
+Position!AO15 : "7Y"
+Position!AP15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,1),IF(v="","",v/10^6))
+Position!AQ15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,2),IF(v="","",v/10^6))
+Position!AR15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,3),IF(v="","",v/10^6))
+Position!AS15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,4),IF(v="","",v/10^6))
+Position!AT15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,5),IF(v="","",v/10^6))
+Position!AU15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,6),IF(v="","",v/10^6))
+Position!AV15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,7),IF(v="","",v/10^6))
+Position!AW15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,8),IF(v="","",v/10^6))
+Position!AX15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,9),IF(v="","",v/10^6))
+Position!AY15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,10),IF(v="","",v/10^6))
+Position!AZ15 = LET(v,INDEX(ANCHORARRAY($CE$4),12,11),IF(v="","",v/10^6))
+Position!AO16 : "10Y"
+Position!AP16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,1),IF(v="","",v/10^6))
+Position!AQ16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,2),IF(v="","",v/10^6))
+Position!AR16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,3),IF(v="","",v/10^6))
+Position!AS16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,4),IF(v="","",v/10^6))
+Position!AT16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,5),IF(v="","",v/10^6))
+Position!AU16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,6),IF(v="","",v/10^6))
+Position!AV16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,7),IF(v="","",v/10^6))
+Position!AW16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,8),IF(v="","",v/10^6))
+Position!AX16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,9),IF(v="","",v/10^6))
+Position!AY16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,10),IF(v="","",v/10^6))
+Position!AZ16 = LET(v,INDEX(ANCHORARRAY($CE$4),13,11),IF(v="","",v/10^6))
+Position!AO17 : "15Y"
+Position!AP17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,1),IF(v="","",v/10^6))
+Position!AQ17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,2),IF(v="","",v/10^6))
+Position!AR17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,3),IF(v="","",v/10^6))
+Position!AS17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,4),IF(v="","",v/10^6))
+Position!AT17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,5),IF(v="","",v/10^6))
+Position!AU17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,6),IF(v="","",v/10^6))
+Position!AV17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,7),IF(v="","",v/10^6))
+Position!AW17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,8),IF(v="","",v/10^6))
+Position!AX17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,9),IF(v="","",v/10^6))
+Position!AY17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,10),IF(v="","",v/10^6))
+Position!AZ17 = LET(v,INDEX(ANCHORARRAY($CE$4),14,11),IF(v="","",v/10^6))
+Position!AO18 : "20Y"
+Position!AP18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,1),IF(v="","",v/10^6))
+Position!AQ18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,2),IF(v="","",v/10^6))
+Position!AR18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,3),IF(v="","",v/10^6))
+Position!AS18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,4),IF(v="","",v/10^6))
+Position!AT18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,5),IF(v="","",v/10^6))
+Position!AU18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,6),IF(v="","",v/10^6))
+Position!AV18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,7),IF(v="","",v/10^6))
+Position!AW18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,8),IF(v="","",v/10^6))
+Position!AX18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,9),IF(v="","",v/10^6))
+Position!AY18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,10),IF(v="","",v/10^6))
+Position!AZ18 = LET(v,INDEX(ANCHORARRAY($CE$4),15,11),IF(v="","",v/10^6))
+Position!AO19 : "25Y"
+Position!AP19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,1),IF(v="","",v/10^6))
+Position!AQ19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,2),IF(v="","",v/10^6))
+Position!AR19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,3),IF(v="","",v/10^6))
+Position!AS19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,4),IF(v="","",v/10^6))
+Position!AT19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,5),IF(v="","",v/10^6))
+Position!AU19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,6),IF(v="","",v/10^6))
+Position!AV19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,7),IF(v="","",v/10^6))
+Position!AW19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,8),IF(v="","",v/10^6))
+Position!AX19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,9),IF(v="","",v/10^6))
+Position!AY19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,10),IF(v="","",v/10^6))
+Position!AZ19 = LET(v,INDEX(ANCHORARRAY($CE$4),16,11),IF(v="","",v/10^6))
+Position!AO20 : "30Y"
+Position!AP20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,1),IF(v="","",v/10^6))
+Position!AQ20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,2),IF(v="","",v/10^6))
+Position!AR20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,3),IF(v="","",v/10^6))
+Position!AS20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,4),IF(v="","",v/10^6))
+Position!AT20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,5),IF(v="","",v/10^6))
+Position!AU20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,6),IF(v="","",v/10^6))
+Position!AV20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,7),IF(v="","",v/10^6))
+Position!AW20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,8),IF(v="","",v/10^6))
+Position!AX20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,9),IF(v="","",v/10^6))
+Position!AY20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,10),IF(v="","",v/10^6))
+Position!AZ20 = LET(v,INDEX(ANCHORARRAY($CE$4),17,11),IF(v="","",v/10^6))
+Position!AO22 : "Vol move (bp/yr, calendar-day basis, live - close; 1W/2W use 1M, tail 6M uses 1Y)"
+Position!AV22 = IF(ROWS(ANCHORARRAY($BM$4))>1,"Live vol: OK",LEFT($BM$4,80))
+Position!AO23 : "Expiry"
+Position!AP23:AZ23 = AP$3
+Position!AO24:AO40 = $AO4
+Position!AP24:AZ25 = IF(AP$26="","",AP$26)
+Position!AP26:AP40 = IF(AQ26="","",AQ26)
+Position!AQ26 = LET(l,XLOOKUP($AO26&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,1),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR26 = LET(l,XLOOKUP($AO26&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,2),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS26 = LET(l,XLOOKUP($AO26&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,3),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT26 = LET(l,XLOOKUP($AO26&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,4),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU26 = LET(l,XLOOKUP($AO26&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,5),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV26 = LET(l,XLOOKUP($AO26&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,6),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW26 = LET(l,XLOOKUP($AO26&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,7),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX26 = LET(l,XLOOKUP($AO26&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,8),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY26 = LET(l,XLOOKUP($AO26&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,9),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ26 = LET(l,XLOOKUP($AO26&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),3,10),fl,INDEX(ANCHORARRAY($CB$4),3),fc,INDEX(ANCHORARRAY($CC$4),3),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ27 = LET(l,XLOOKUP($AO27&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,1),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR27 = LET(l,XLOOKUP($AO27&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,2),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS27 = LET(l,XLOOKUP($AO27&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,3),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT27 = LET(l,XLOOKUP($AO27&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,4),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU27 = LET(l,XLOOKUP($AO27&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,5),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV27 = LET(l,XLOOKUP($AO27&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,6),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW27 = LET(l,XLOOKUP($AO27&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,7),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX27 = LET(l,XLOOKUP($AO27&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,8),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY27 = LET(l,XLOOKUP($AO27&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,9),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ27 = LET(l,XLOOKUP($AO27&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),4,10),fl,INDEX(ANCHORARRAY($CB$4),4),fc,INDEX(ANCHORARRAY($CC$4),4),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ28 = LET(l,XLOOKUP($AO28&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,1),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR28 = LET(l,XLOOKUP($AO28&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,2),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS28 = LET(l,XLOOKUP($AO28&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,3),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT28 = LET(l,XLOOKUP($AO28&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,4),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU28 = LET(l,XLOOKUP($AO28&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,5),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV28 = LET(l,XLOOKUP($AO28&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,6),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW28 = LET(l,XLOOKUP($AO28&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,7),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX28 = LET(l,XLOOKUP($AO28&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,8),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY28 = LET(l,XLOOKUP($AO28&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,9),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ28 = LET(l,XLOOKUP($AO28&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),5,10),fl,INDEX(ANCHORARRAY($CB$4),5),fc,INDEX(ANCHORARRAY($CC$4),5),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ29 = LET(l,XLOOKUP($AO29&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,1),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR29 = LET(l,XLOOKUP($AO29&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,2),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS29 = LET(l,XLOOKUP($AO29&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,3),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT29 = LET(l,XLOOKUP($AO29&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,4),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU29 = LET(l,XLOOKUP($AO29&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,5),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV29 = LET(l,XLOOKUP($AO29&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,6),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW29 = LET(l,XLOOKUP($AO29&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,7),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX29 = LET(l,XLOOKUP($AO29&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,8),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY29 = LET(l,XLOOKUP($AO29&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,9),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ29 = LET(l,XLOOKUP($AO29&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),6,10),fl,INDEX(ANCHORARRAY($CB$4),6),fc,INDEX(ANCHORARRAY($CC$4),6),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ30 = LET(l,XLOOKUP($AO30&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,1),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR30 = LET(l,XLOOKUP($AO30&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,2),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS30 = LET(l,XLOOKUP($AO30&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,3),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT30 = LET(l,XLOOKUP($AO30&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,4),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU30 = LET(l,XLOOKUP($AO30&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,5),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV30 = LET(l,XLOOKUP($AO30&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,6),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW30 = LET(l,XLOOKUP($AO30&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,7),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX30 = LET(l,XLOOKUP($AO30&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,8),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY30 = LET(l,XLOOKUP($AO30&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,9),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ30 = LET(l,XLOOKUP($AO30&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),7,10),fl,INDEX(ANCHORARRAY($CB$4),7),fc,INDEX(ANCHORARRAY($CC$4),7),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ31 = LET(l,XLOOKUP($AO31&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,1),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR31 = LET(l,XLOOKUP($AO31&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,2),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS31 = LET(l,XLOOKUP($AO31&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,3),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT31 = LET(l,XLOOKUP($AO31&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,4),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU31 = LET(l,XLOOKUP($AO31&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,5),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV31 = LET(l,XLOOKUP($AO31&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,6),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW31 = LET(l,XLOOKUP($AO31&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,7),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX31 = LET(l,XLOOKUP($AO31&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,8),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY31 = LET(l,XLOOKUP($AO31&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,9),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ31 = LET(l,XLOOKUP($AO31&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),8,10),fl,INDEX(ANCHORARRAY($CB$4),8),fc,INDEX(ANCHORARRAY($CC$4),8),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ32 = LET(l,XLOOKUP($AO32&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,1),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR32 = LET(l,XLOOKUP($AO32&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,2),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS32 = LET(l,XLOOKUP($AO32&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,3),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT32 = LET(l,XLOOKUP($AO32&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,4),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU32 = LET(l,XLOOKUP($AO32&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,5),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV32 = LET(l,XLOOKUP($AO32&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,6),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW32 = LET(l,XLOOKUP($AO32&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,7),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX32 = LET(l,XLOOKUP($AO32&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,8),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY32 = LET(l,XLOOKUP($AO32&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,9),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ32 = LET(l,XLOOKUP($AO32&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),9,10),fl,INDEX(ANCHORARRAY($CB$4),9),fc,INDEX(ANCHORARRAY($CC$4),9),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ33 = LET(l,XLOOKUP($AO33&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,1),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR33 = LET(l,XLOOKUP($AO33&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,2),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS33 = LET(l,XLOOKUP($AO33&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,3),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT33 = LET(l,XLOOKUP($AO33&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,4),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU33 = LET(l,XLOOKUP($AO33&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,5),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV33 = LET(l,XLOOKUP($AO33&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,6),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW33 = LET(l,XLOOKUP($AO33&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,7),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX33 = LET(l,XLOOKUP($AO33&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,8),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY33 = LET(l,XLOOKUP($AO33&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,9),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ33 = LET(l,XLOOKUP($AO33&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),10,10),fl,INDEX(ANCHORARRAY($CB$4),10),fc,INDEX(ANCHORARRAY($CC$4),10),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ34 = LET(l,XLOOKUP($AO34&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,1),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR34 = LET(l,XLOOKUP($AO34&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,2),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS34 = LET(l,XLOOKUP($AO34&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,3),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT34 = LET(l,XLOOKUP($AO34&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,4),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU34 = LET(l,XLOOKUP($AO34&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,5),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV34 = LET(l,XLOOKUP($AO34&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,6),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW34 = LET(l,XLOOKUP($AO34&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,7),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX34 = LET(l,XLOOKUP($AO34&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,8),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY34 = LET(l,XLOOKUP($AO34&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,9),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ34 = LET(l,XLOOKUP($AO34&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),11,10),fl,INDEX(ANCHORARRAY($CB$4),11),fc,INDEX(ANCHORARRAY($CC$4),11),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ35 = LET(l,XLOOKUP($AO35&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,1),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR35 = LET(l,XLOOKUP($AO35&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,2),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS35 = LET(l,XLOOKUP($AO35&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,3),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT35 = LET(l,XLOOKUP($AO35&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,4),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU35 = LET(l,XLOOKUP($AO35&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,5),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV35 = LET(l,XLOOKUP($AO35&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,6),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW35 = LET(l,XLOOKUP($AO35&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,7),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX35 = LET(l,XLOOKUP($AO35&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,8),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY35 = LET(l,XLOOKUP($AO35&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,9),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ35 = LET(l,XLOOKUP($AO35&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),12,10),fl,INDEX(ANCHORARRAY($CB$4),12),fc,INDEX(ANCHORARRAY($CC$4),12),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ36 = LET(l,XLOOKUP($AO36&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,1),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR36 = LET(l,XLOOKUP($AO36&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,2),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS36 = LET(l,XLOOKUP($AO36&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,3),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT36 = LET(l,XLOOKUP($AO36&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,4),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU36 = LET(l,XLOOKUP($AO36&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,5),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV36 = LET(l,XLOOKUP($AO36&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,6),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW36 = LET(l,XLOOKUP($AO36&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,7),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX36 = LET(l,XLOOKUP($AO36&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,8),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY36 = LET(l,XLOOKUP($AO36&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,9),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ36 = LET(l,XLOOKUP($AO36&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),13,10),fl,INDEX(ANCHORARRAY($CB$4),13),fc,INDEX(ANCHORARRAY($CC$4),13),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ37 = LET(l,XLOOKUP($AO37&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,1),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR37 = LET(l,XLOOKUP($AO37&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,2),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS37 = LET(l,XLOOKUP($AO37&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,3),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT37 = LET(l,XLOOKUP($AO37&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,4),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU37 = LET(l,XLOOKUP($AO37&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,5),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV37 = LET(l,XLOOKUP($AO37&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,6),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW37 = LET(l,XLOOKUP($AO37&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,7),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX37 = LET(l,XLOOKUP($AO37&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,8),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY37 = LET(l,XLOOKUP($AO37&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,9),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ37 = LET(l,XLOOKUP($AO37&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),14,10),fl,INDEX(ANCHORARRAY($CB$4),14),fc,INDEX(ANCHORARRAY($CC$4),14),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!B38 : "Total"
+Position!H38:K38 = SUM(H4:H37)
+Position!M38:O38 = SUM(M4:M37)
+Position!R38 : "Total"
+Position!S38:U38 = SUM(S4:S37)
+Position!W38:Y38 = SUM(W4:W37)
+Position!AB38:AG38 = SUM(AB4:AB37)
+Position!AJ38:AM38 = SUM(AJ4:AJ37)
+Position!AQ38 = LET(l,XLOOKUP($AO38&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,1),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR38 = LET(l,XLOOKUP($AO38&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,2),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS38 = LET(l,XLOOKUP($AO38&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,3),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT38 = LET(l,XLOOKUP($AO38&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,4),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU38 = LET(l,XLOOKUP($AO38&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,5),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV38 = LET(l,XLOOKUP($AO38&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,6),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW38 = LET(l,XLOOKUP($AO38&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,7),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX38 = LET(l,XLOOKUP($AO38&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,8),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY38 = LET(l,XLOOKUP($AO38&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,9),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ38 = LET(l,XLOOKUP($AO38&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),15,10),fl,INDEX(ANCHORARRAY($CB$4),15),fc,INDEX(ANCHORARRAY($CC$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AQ39 = LET(l,XLOOKUP($AO39&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,1),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR39 = LET(l,XLOOKUP($AO39&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,2),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS39 = LET(l,XLOOKUP($AO39&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,3),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT39 = LET(l,XLOOKUP($AO39&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,4),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU39 = LET(l,XLOOKUP($AO39&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,5),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV39 = LET(l,XLOOKUP($AO39&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,6),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW39 = LET(l,XLOOKUP($AO39&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,7),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX39 = LET(l,XLOOKUP($AO39&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,8),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY39 = LET(l,XLOOKUP($AO39&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,9),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ39 = LET(l,XLOOKUP($AO39&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),16,10),fl,INDEX(ANCHORARRAY($CB$4),16),fc,INDEX(ANCHORARRAY($CC$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!B40 : "Trades (today)"
+Position!D40 : "OIS: Start blank = spot, Tenor/End = 10Y or a date, Side = Pay/Rec, Rate blank = par. Bond: Code, Side = Buy/Sell, Rate = traded yield (blank = DB close). Notional in mn."
+Position!AB40 : "PL summary (mn JPY)"
+Position!AQ40 = LET(l,XLOOKUP($AO40&"x"&AQ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,1),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AR40 = LET(l,XLOOKUP($AO40&"x"&AR$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,2),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AS40 = LET(l,XLOOKUP($AO40&"x"&AS$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,3),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AT40 = LET(l,XLOOKUP($AO40&"x"&AT$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,4),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AU40 = LET(l,XLOOKUP($AO40&"x"&AU$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,5),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AV40 = LET(l,XLOOKUP($AO40&"x"&AV$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,6),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AW40 = LET(l,XLOOKUP($AO40&"x"&AW$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,7),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AX40 = LET(l,XLOOKUP($AO40&"x"&AX$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,8),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AY40 = LET(l,XLOOKUP($AO40&"x"&AY$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,9),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AZ40 = LET(l,XLOOKUP($AO40&"x"&AZ$23,INDEX(ANCHORARRAY($BM$4),,1),INDEX(ANCHORARRAY($BM$4),,3),""),c,INDEX(ANCHORARRAY($BQ$4),17,10),fl,INDEX(ANCHORARRAY($CB$4),17),fc,INDEX(ANCHORARRAY($CC$4),17),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!B41 : "Status"
+Position!C41 : "Product"
+Position!D41 : "Start"
+Position!E41 : "Tenor/End"
+Position!F41 : "Code"
+Position!G41 : "Notional (mn)"
+Position!H41 : "Side"
+Position!I41 : "Rate (%)"
+Position!J41 : "Note"
+Position!K41 = PosIntradayRisk($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,"")
+Position!R41 : "PL (mn)"
+Position!AB41 : "Swap delta"
+Position!AC41 = AB38
+Position!R42:R91 = IF($C42="","",IF(UPPER(TRIM($C42))="OIS",N(L42),IF(P42="","",LET(m,N(XLOOKUP(O42,$B$4:$B$37,$G$4:$G$37,0))-P42,N(M42)*m+0.5*N(N42)*m^2))))
+Position!AB42 : "Swap gamma"
+Position!AC42 = AC38
+Position!AO42 : "Vega PL (mn JPY, vega x vol move)"
+Position!AY42 : "Total"
+Position!AZ42 = SUM(AP44:AZ60)
+Position!AB43 : "Bond delta"
+Position!AC43 = AD38
+Position!AO43 : "Expiry"
+Position!AP43:AZ43 = AP$3
+Position!AB44 : "Bond gamma"
+Position!AC44 = AE38
+Position!AO44:AO60 = $AO4
+Position!AP44:AZ60 = IF(OR(AP4="",AP24=""),"",AP4*AP24)
+Position!AB45 : "Bond option theta"
+Position!AC45 = AF38
+Position!AB46 : "Swaption vega"
+Position!AC46 = $AZ$42
+Position!AB47 : "Today's OIS trades (Done)"
+Position!AC47 = SUMIFS($L$42:$L$91,$B$42:$B$91,"Done",$C$42:$C$91,"OIS")
+Position!AB48 : "Today's bond trades (Done)"
+Position!AC48 = SUMIFS($R$42:$R$91,$B$42:$B$91,"Done",$C$42:$C$91,"Bond")
+Position!AB49 : "Total"
+Position!AC49 = SUM(AC41:AC48)
+Position!AB52 : "Business days since base date"
+Position!AC52 = PosBusinessDays(Setup!$B$4)
+Position!AO62 : "Bucketed vega (mn JPY / bp vol, total at the bottom-right of each bucket)"
+Position!AY62 : "Total"
+Position!AZ62 = SUM(AQ64:AZ80)
+Position!AO63 : "Expiry"
+Position!AP63:AZ63 = AP$3
+Position!AO64:AO80 = $AO4
+Position!AP64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ64 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ65 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ66 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ67 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ68 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ69 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ70 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ71 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ72 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ73 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ74 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ75 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ76 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ77 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ78 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ79 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AP80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AQ80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AR80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AS80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AT80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AU80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AV80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AW80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AX80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AY80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AZ80 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$4:$AZ$20="",0,$AP$4:$AZ$20)))
+Position!AO82 : "Bucketed vega PL (mn JPY, total at the bottom-right of each bucket)"
+Position!AY82 : "Total"
+Position!AZ82 = SUM(AQ84:AZ100)
+Position!AO83 : "Expiry"
+Position!AP83:AZ83 = AP$3
+Position!AO84:AO100 = $AO4
+Position!AP84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ84 = IF(OR(Setup!$H$27=Setup!$H$28,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$27)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ85 = IF(OR(Setup!$H$28=Setup!$H$29,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$28)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ86 = IF(OR(Setup!$H$29=Setup!$H$30,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$29)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ87 = IF(OR(Setup!$H$30=Setup!$H$31,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$30)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ88 = IF(OR(Setup!$H$31=Setup!$H$32,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$31)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ89 = IF(OR(Setup!$H$32=Setup!$H$33,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$32)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ90 = IF(OR(Setup!$H$33=Setup!$H$34,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$33)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ91 = IF(OR(Setup!$H$34=Setup!$H$35,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$34)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ92 = IF(OR(Setup!$H$35=Setup!$H$36,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$35)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ93 = IF(OR(Setup!$H$36=Setup!$H$37,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$36)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ94 = IF(OR(Setup!$H$37=Setup!$H$38,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$37)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ95 = IF(OR(Setup!$H$38=Setup!$H$39,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$38)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ96 = IF(OR(Setup!$H$39=Setup!$H$40,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$39)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ97 = IF(OR(Setup!$H$40=Setup!$H$41,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$40)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ98 = IF(OR(Setup!$H$41=Setup!$H$42,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$41)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ99 = IF(OR(Setup!$H$42=Setup!$H$43,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$42)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AP100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$27=Setup!$K$28),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$27)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AQ100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$28=Setup!$K$29),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$28)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AR100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$29=Setup!$K$30),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$29)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AS100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$30=Setup!$K$31),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$30)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AT100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$31=Setup!$K$32),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$31)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AU100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$32=Setup!$K$33),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$32)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AV100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$33=Setup!$K$34),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$33)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AW100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$34=Setup!$K$35),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$34)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AX100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$35=Setup!$K$36),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$35)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AY100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$36=Setup!$K$37),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$36)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!AZ100 = IF(OR(Setup!$H$43=Setup!$H$44,Setup!$K$37=Setup!$K$38),"",SUM((Setup!$H$27:$H$43=Setup!$H$43)*(TRANSPOSE(Setup!$K$27:$K$37)=Setup!$K$37)*IF($AP$44:$AZ$60="",0,$AP$44:$AZ$60)))
+Position!B2 validation list: "Live,Fixed"
+Position!B42:B91 validation list: "Done,What-if"
+Position!C42:C91 validation list: "OIS,Bond"
+Position!H42:H91 validation list: "Pay,Rec,Buy,Sell"
+Position!AH4:AH37 format dataBar
+Position!AP44:AZ60 format colorScale
+Position!AP4:AZ20 format colorScale
+Position!AP64:AZ80 format colorScale
+Position!AP84:AZ100 format colorScale
+Position!E2 format expression: LEFT($E$2,8)<>"Live: OK"
+Position!L4:L37 format dataBar
+Position!P4:P37 format dataBar
+Position!V4:V37 format dataBar
+Position!Z4:Z37 format dataBar
+# Setup
+Setup!A1 : "Setup"
+Setup!A2 : "Paste the company sheets as they are into Raw_IR / Raw_IRVOL (cell A1). If the company renames or reorders columns, only change the yellow cells."
+Setup!A3 : "Base date override"
+Setup!C3 : "Blank = the latest close in the DB (yesterday's batch). Enter a date to override."
+Setup!A4 : "Base date"
+Setup!B4 = PosBaseDate(B3)
+Setup!C4 = IF(ISERROR(B4),"No close in the DB (run the morning batch)",IF(B3<>"","Overridden by B3","Latest close in the DB"))
+Setup!A6 : "IR (Raw_IR)"
+Setup!H6 : "Bond options (Raw_BondOption)"
+Setup!L6 : "JGB holdings (Raw_JGB)"
+Setup!A7 : "Dataset"
+Setup!B7 : "CURVE.JPY.OIS"
+Setup!C7 = COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)&" rows"
+Setup!D7 = IF(COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)=MAX($C$27:$C$60),"OK","Expected "&MAX($C$27:$C$60)&" rows")
+Setup!H7 : "Repo (%)"
+Setup!J7 = IF(I7="","Enter the repo for the forwards","OK")
+Setup!L7 : "Nominal: mn JPY. Yield: simple %, blank = DB close."
+Setup!A8 : "Dataset column"
+Setup!B8 : "dataset"
+Setup!C8:C9 = XMATCH(B8,Raw_IR!$1:$1)
+Setup!H8 : "HV window (days)"
+Setup!I8 : 20
+Setup!A9 : "Tenor column"
+Setup!B9 : "tenor"
+Setup!H10 : "Item"
+Setup!I10 : "Raw column"
+Setup!J10 : "Column no."
+Setup!L10 : "Item"
+Setup!M10 : "Raw column"
+Setup!N10 : "Column no."
+Setup!A11 : "Item"
+Setup!B11 : "Raw column"
+Setup!C11 : "Column no."
+Setup!D11 : "Raw total (mn)"
+Setup!E11 : "Grid total (mn)"
+Setup!F11 : "Diff"
+Setup!H11:I11 : "ID"
+Setup!J11:J18 = XMATCH(I11,Raw_BondOption!$1:$1)
+Setup!L11 : "ID"
+Setup!M11 : "Instrument ID"
+Setup!N11:N14 = XMATCH(M11,Raw_JGB!$1:$1)
+Setup!A12 : "Delta Swap"
+Setup!B12 : "delta_derivative_base"
+Setup!C12:C15 = XMATCH(B12,Raw_IR!$1:$1)
+Setup!D12:D15 = SUMIFS(INDEX(Raw_IR!$A:$CZ,0,C12),INDEX(Raw_IR!$A:$CZ,0,$C$8),$B$7)/10^6
+Setup!E12 = Position!S38
+Setup!F12:F15 = E12-D12
+Setup!H12 : "Bond"
+Setup!I12 : "JGBCode"
+Setup!L12:M12 : "Maturity"
+Setup!A13 : "Delta Bond"
+Setup!B13 : "delta_bond_base"
+Setup!E13 = JGB!$U$38
+Setup!H13 : "Type"
+Setup!I13 : "OptionType"
+Setup!L13 : "Nominal"
+Setup!M13 : "Yesterday"
+Setup!A14 : "Gamma Swap"
+Setup!B14 : "gamma_derivative_base"
+Setup!E14 = Position!W38
+Setup!H14 : "Side"
+Setup!I14 : "BuySell"
+Setup!L14 : "Yield"
+Setup!M14 : "Closing Mark S Yld"
+Setup!A15 : "Gamma Bond"
+Setup!B15 : "gamma_bond_base"
+Setup!E15 = JGB!$V$38
+Setup!H15 : "Expiry"
+Setup!I15 : "ExerciseDate"
+Setup!H16 : "Settle"
+Setup!I16 : "EffectiveDate"
+Setup!A17 : "Vol (Raw_IRVOL)"
+Setup!D17 : "Raw total"
+Setup!E17 : "Grid total"
+Setup!F17 : "Diff"
+Setup!H17:I17 : "Strike"
+Setup!A18 : "Dataset"
+Setup!B18 : "VOLCUBE.JPY.ZABR.SWAPTION_NormalATMVol"
+Setup!C18 = COUNTIF(INDEX(Raw_IRVOL!$A:$CZ,0,$C$19),B18)&" rows"
+Setup!H18:I18 : "Notional"
+Setup!A19 : "Dataset column"
+Setup!B19 : "dataset"
+Setup!C19:C22 = XMATCH(B19,Raw_IRVOL!$1:$1)
+Setup!A20 : "Expiry column"
+Setup!B20 : "exp_tenor"
+Setup!A21 : "Tail column"
+Setup!B21 : "swap_tenor"
+Setup!A22 : "Vega column"
+Setup!B22 : "vega_base"
+Setup!D22 = SUMIFS(INDEX(Raw_IRVOL!$A:$CZ,0,C22),INDEX(Raw_IRVOL!$A:$CZ,0,$C$19),$B$18)/10^6
+Setup!E22 = SUM(Position!$AP$4:$AZ$20)
+Setup!F22 = E22-D22
+Setup!A25 : "Pillars (Curve: 1 = used for the live curve. Company row: position among the dataset rows of Raw_IR, blank = not in the file)"
+Setup!G25 : "Vega buckets (rows must follow the Position vega grid order)"
+Setup!A26 : "Pillar"
+Setup!B26 : "Curve"
+Setup!C26 : "Company row"
+Setup!D26 : "Raw tenor"
+Setup!E26 : "Raw row"
+Setup!G26 : "Vega expiry"
+Setup!H26 : "Bucket"
+Setup!J26 : "Vega tail"
+Setup!K26 : "Bucket"
+Setup!A27 : "O/N"
+Setup!B27:B60 : 1
+Setup!C27 : 1
+Setup!D27:D60 = IF(ISNUMBER(E27),INDEX(Raw_IR!$A$1:$CZ$3002,E27,$C$9),"")
+Setup!E27:E60 = IF(C27="","",IFERROR(INDEX(FILTER(ROW(Raw_IR!$A$1:$A$3002),INDEX(Raw_IR!$A$1:$CZ$3002,0,$C$8)=$B$7),C27),"NOT FOUND"))
+Setup!G27 : "1W"
+Setup!H27:H31 : "1W-6M"
+Setup!J27 : "6M"
+Setup!K27:K29 : "6M-2Y"
+Setup!A28 : "1W"
+Setup!C28 : 2
+Setup!G28 : "2W"
+Setup!J28 : "1Y"
+Setup!A29 : "1M"
+Setup!C29 : 3
+Setup!G29 : "1M"
+Setup!J29 : "2Y"
+Setup!A30 : "2M"
+Setup!C30 : 4
+Setup!G30 : "3M"
+Setup!J30 : "3Y"
+Setup!K30:K32 : "3Y-5Y"
+Setup!A31 : "3M"
+Setup!C31 : 5
+Setup!G31 : "6M"
+Setup!J31 : "4Y"
+Setup!A32 : "4M"
+Setup!G32 : "9M"
+Setup!H32:H34 : "9M-2Y"
+Setup!J32 : "5Y"
+Setup!A33 : "5M"
+Setup!G33 : "1Y"
+Setup!J33 : "7Y"
+Setup!K33:K34 : "7Y-10Y"
+Setup!A34 : "6M"
+Setup!C34 : 6
+Setup!G34 : "2Y"
+Setup!J34 : "10Y"
+Setup!A35 : "7M"
+Setup!G35 : "3Y"
+Setup!H35:H37 : "3Y-5Y"
+Setup!J35 : "15Y"
+Setup!K35:K37 : "15Y-30Y"
+Setup!A36 : "8M"
+Setup!G36 : "4Y"
+Setup!J36 : "20Y"
+Setup!A37 : "9M"
+Setup!C37 : 7
+Setup!G37 : "5Y"
+Setup!J37 : "30Y"
+Setup!A38 : "10M"
+Setup!G38 : "7Y"
+Setup!H38:H39 : "7Y-10Y"
+Setup!A39 : "11M"
+Setup!G39 : "10Y"
+Setup!A40 : "12M"
+Setup!C40 : 8
+Setup!G40 : "15Y"
+Setup!H40:H43 : "15Y-30Y"
+Setup!A41 : "15M"
+Setup!G41 : "20Y"
+Setup!A42 : "18M"
+Setup!C42 : 9
+Setup!G42 : "25Y"
+Setup!A43 : "21M"
+Setup!G43 : "30Y"
+Setup!A44 : "24M"
+Setup!C44 : 10
+Setup!A45 : "36M"
+Setup!C45 : 11
+Setup!A46 : "4Y"
+Setup!C46 : 12
+Setup!A47 : "5Y"
+Setup!C47 : 13
+Setup!A48 : "6Y"
+Setup!C48 : 14
+Setup!A49 : "7Y"
+Setup!C49 : 15
+Setup!A50 : "8Y"
+Setup!C50 : 16
+Setup!A51 : "9Y"
+Setup!C51 : 17
+Setup!A52 : "10Y"
+Setup!C52 : 18
+Setup!A53 : "11Y"
+Setup!C53 : 19
+Setup!A54 : "12Y"
+Setup!C54 : 20
+Setup!A55 : "15Y"
+Setup!C55 : 21
+Setup!A56 : "20Y"
+Setup!C56 : 22
+Setup!A57 : "25Y"
+Setup!C57 : 23
+Setup!A58 : "30Y"
+Setup!C58 : 24
+Setup!A59 : "35Y"
+Setup!C59 : 25
+Setup!A60 : "40Y"
+Setup!C60 : 26
+# BondOpt
+BondOpt!A1 : "Bond options (Raw_BondOption, valued at the close of the base date)"
+BondOpt!A2 = "Base date: "&IF(ISERROR(Setup!$B$4),"?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   HV window: "&Setup!$I$8
+BondOpt!BA2 : "Pillar risk (rows 4-37 = Position pillars, mn/bp, mn/bp2, theta mn/business day)"
+BondOpt!Z3 : "Total"
+BondOpt!AA3:AE3 = SUM(AA6:AA205)
+BondOpt!BA3 : "Pillar"
+BondOpt!BB3 = PosBondRiskGrid($B$6:$B$205,$AB$6:$AB$205,$AC$6:$AC$205,Position!$B$4:$B$37,Position!$BI$4:$BK$37,Setup!$B$4,$AE$6:$AE$205)
+BondOpt!A4 : "Trade"
+BondOpt!J4 : "Market (close)"
+BondOpt!V4 : "Per 100 face"
+BondOpt!AA4 : "Position (mn JPY)"
+BondOpt!AF4:AF5 : "Message"
+BondOpt!AH4 : "Calc: PosBondOptMarket"
+BondOpt!AU4 : "Calc: PosBondOptGreeks"
+BondOpt!BA4:BA37 = Position!$B4
+BondOpt!A5 : "ID"
+BondOpt!B5 : "Bond"
+BondOpt!C5 : "Type"
+BondOpt!D5 : "Side"
+BondOpt!E5 : "Expiry"
+BondOpt!F5 : "Settle"
+BondOpt!G5 : "Strike"
+BondOpt!H5 : "Notional (mn)"
+BondOpt!I5 : "Sign"
+BondOpt!J5 : "Coupon"
+BondOpt!K5 : "Maturity"
+BondOpt!L5 : "Close yield"
+BondOpt!M5 : "Close date"
+BondOpt!N5 : "Spot price"
+BondOpt!O5 : "Fwd clean"
+BondOpt!P5 : "Fwd MD"
+BondOpt!Q5 : "Swaption vol"
+BondOpt!R5 : "Vol ratio"
+BondOpt!S5 : "Normal vol"
+BondOpt!T5 : "Price vol (%)"
+BondOpt!U5 : "T"
+BondOpt!V5 : "Premium"
+BondOpt!W5 : "Delta"
+BondOpt!X5 : "Gamma"
+BondOpt!Y5 : "Vega (1% price vol)"
+BondOpt!Z5 : "Theta (1 day)"
+BondOpt!AA5 : "PV"
+BondOpt!AB5 : "Delta face"
+BondOpt!AC5 : "Price gamma"
+BondOpt!AD5 : "Vega (bp vol)"
+BondOpt!AE5 : "Theta (day)"
+BondOpt!AH5 : "Coupon"
+BondOpt!AI5 : "Maturity"
+BondOpt!AJ5 : "Close yield"
+BondOpt!AK5 : "Close date"
+BondOpt!AL5 : "Spot"
+BondOpt!AM5 : "Fwd clean"
+BondOpt!AN5 : "Fwd MD"
+BondOpt!AO5 : "Fwd DD"
+BondOpt!AP5 : "Swaption vol"
+BondOpt!AQ5 : "Vol ratio"
+BondOpt!AR5 : "T"
+BondOpt!AS5 : "Message"
+BondOpt!AU5 : "Premium"
+BondOpt!AV5 : "Delta"
+BondOpt!AW5 : "Gamma"
+BondOpt!AX5 : "Vega"
+BondOpt!AY5 : "Theta"
+BondOpt!AZ5 : "Message"
+BondOpt!A6:A205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$11),IF(v="","",v))
+BondOpt!B6:B205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$12),IF(v="","",v))
+BondOpt!C6:C205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$13),IF(v="","",v))
+BondOpt!D6:D205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$14),IF(v="","",v))
+BondOpt!E6:E205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$15),IF(v="","",v))
+BondOpt!F6:F205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$16),IF(v="","",v))
+BondOpt!G6:G205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$17),IF(v="","",v))
+BondOpt!H6:H205 = LET(v,INDEX(Raw_BondOption!$A$1:$CZ$2000,ROW()-4,Setup!$J$18),IF(v="","",v/10^6))
+BondOpt!I6:I205 = IF(B6="","",IF(OR(D6="B",D6="Buy"),1,IF(OR(D6="S",D6="Sell"),-1,NA())))
+BondOpt!J6:P205 = AH6
+BondOpt!Q6:R205 = AP6
+BondOpt!S6:S205 = IF(OR(Q6="",R6=""),"",Q6*R6)
+BondOpt!T6:T205 = IF(OR(S6="",P6=""),"",S6*P6/100)
+BondOpt!U6:U205 = AR6
+BondOpt!V6:Z205 = AU6
+BondOpt!AA6:AA205 = IF(V6="","",I6*V6/100*H6)
+BondOpt!AB6:AB205 = IF(W6="","",I6*W6*H6)
+BondOpt!AC6:AC205 = IF(X6="","",I6*X6*H6)
+BondOpt!AD6:AD205 = IF(OR(Y6="",R6=""),"",I6*Y6*P6/100*R6*H6/100)
+BondOpt!AE6:AE205 = IF(Z6="","",I6*Z6/100*H6)
+BondOpt!AF6:AF205 = AS6&IF(AND(AS6<>"",AZ6<>"")," / ","")&AZ6
+BondOpt!AH6 = PosBondOptMarket($B$6:$B$205,$E$6:$E$205,$F$6:$F$205,Setup!$B$4,Setup!$I$7,Setup!$I$8)
+BondOpt!AU6 = PosBondOptGreeks($C$6:$C$205,$O$6:$O$205,$G$6:$G$205,$T$6:$T$205,$U$6:$U$205)
+# JGB
+JGB!A1 : "JGB holdings (Raw_JGB, duration and convexity at the close of the base date)"
+JGB!A2 = "Base date: "&IF(ISERROR(Setup!$B$4),"?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&"   Nominal: Raw_JGB "&Setup!$M$13&" (mn)   Yield: "&Setup!$M$14&" (blank = DB close)"
+JGB!R2 : "Pillar risk (rows 4-37 = Position pillars, mn/bp, mn/bp2). Ours goes to Position Close Bond; company = Raw_IR bond"
+JGB!M3 : "Total"
+JGB!N3:O3 = SUM(N6:N505)
+JGB!R3 : "Pillar"
+JGB!S3 = PosJgbGrid($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,Setup!$B$4)
+JGB!U3 : "Company delta"
+JGB!V3 : "Company gamma"
+JGB!W3 : "Diff delta"
+JGB!X3 : "Diff gamma"
+JGB!A4 : "Holding (Raw_JGB)"
+JGB!F4 : "Calc: PosJgbRisk (delta = -MD x dirty price x 1bp x face, on the longer pillar of the maturity's interval)"
+JGB!R4:R37 = Position!$B4
+JGB!U4:U37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$13)/10^6)
+JGB!V4:V37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$15)/10^6)
+JGB!W4:X37 = S4-N(U4)
+JGB!A5 : "ID"
+JGB!B5 : "Maturity"
+JGB!C5 : "Nominal (mn)"
+JGB!D5 : "Yield (%)"
+JGB!F5 = PosJgbRisk($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,Setup!$B$4)
+JGB!A6:A505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$11),IF(v="","",v))
+JGB!B6:B505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$12),IF(v="","",v))
+JGB!C6:C505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$13),IF(v="","",v))
+JGB!D6:D505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$14),IF(v="","",v))
+JGB!R38 : "Total"
+JGB!S38:X38 = SUM(S4:S37)
+# Raw_IR
+# Raw_IRVOL
+# Raw_Swaption
+# Raw_BondOption
+# Raw_JGB

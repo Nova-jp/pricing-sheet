@@ -1,0 +1,510 @@
+# シートの並び
+sheet Main
+sheet pricing
+sheet HistChart
+sheet ASW
+sheet ASWPricer
+sheet _xlwings.conf
+# 定義名
+name ASW_Date = ASW!$P$29:INDEX(ASW!$P:$P,ROW(ASW!$P$28)+ROWS(ANCHORARRAY(ASW!$P$28))-1)
+name ASW_S1 = ASW!$Q$29:INDEX(ASW!$Q:$Q,ROW(ASW!$P$28)+ROWS(ANCHORARRAY(ASW!$P$28))-1)
+name ASW_S2 = ASW!$R$29:INDEX(ASW!$R:$R,ROW(ASW!$P$28)+ROWS(ANCHORARRAY(ASW!$P$28))-1)
+name ASW_S3 = ASW!$S$29:INDEX(ASW!$S:$S,ROW(ASW!$P$28)+ROWS(ANCHORARRAY(ASW!$P$28))-1)
+name Broker = pricing!$F$1
+name HistChart_Date = HistChart!$P$30:INDEX(HistChart!$P:$P,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
+name HistChart_H = HistChart!$T$30:INDEX(HistChart!$T:$T,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
+name HistChart_S1 = HistChart!$Q$30:INDEX(HistChart!$Q:$Q,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
+name HistChart_S2 = HistChart!$R$30:INDEX(HistChart!$R:$R,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
+name HistChart_S3 = HistChart!$S$30:INDEX(HistChart!$S:$S,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
+name LiveSwap = IF(Broker="Totan","swap_totan","swap")
+name LiveSwapLCH = IF(Broker="Totan","swap_lch_totan","swap_lch")
+name 評価日 = Main!$B$4
+# Main
+Main!A1 : "Rates"
+Main!B1 : "Live"
+Main!C1 : "Updated"
+Main!D1 = LiveInfo(LiveSwap,ANCHORARRAY($H$3))
+Main!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+Main!A2 : "PricingSheet"
+Main!H2 : "Live rates (Ticker / Value / Start / End)"
+Main!M2 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
+Main!H3 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
+Main!M3 = LET(q,ANCHORARRAY($H$3),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+Main!A4 : "評価日"
+Main!C4 : "空欄=今日(ライブのレート)。過去日=ヒストリカルDBのその日のレート。全UDFがこのセルを参照する"
+Main!A5 : "マーケット"
+Main!B5 = MarketInfo(TAKE(ANCHORARRAY($M$3),,3),評価日)
+Main!A10 : "カーブのテナー(採否: 1か空欄=カーブに使う、0=使わない。会合スワップRD・M1〜M9はカーブに使わないので0)"
+Main!A11 : "O/N"
+Main!A12 : "1W"
+Main!B12:B24 : 1
+Main!A13 : "1M"
+Main!A14 : "2M"
+Main!A15 : "3M"
+Main!A16 : "4M"
+Main!A17 : "5M"
+Main!A18 : "6M"
+Main!A19 : "7M"
+Main!A20 : "8M"
+Main!A21 : "9M"
+Main!A22 : "10M"
+Main!A23 : "11M"
+Main!A24 : "12M"
+Main!A25 : "15M"
+Main!B25 : 0
+Main!A26 : "18M"
+Main!B26 : 1
+Main!A27 : "21M"
+Main!B27 : 0
+Main!A28 : "24M"
+Main!B28:B44 : 1
+Main!A29 : "36M"
+Main!A30 : "4Y"
+Main!A31 : "5Y"
+Main!A32 : "6Y"
+Main!A33 : "7Y"
+Main!A34 : "8Y"
+Main!A35 : "9Y"
+Main!A36 : "10Y"
+Main!A37 : "11Y"
+Main!A38 : "12Y"
+Main!A39 : "15Y"
+Main!A40 : "20Y"
+Main!A41 : "25Y"
+Main!A42 : "30Y"
+Main!A43 : "35Y"
+Main!A44 : "40Y"
+Main!A45 : "RD"
+Main!B45:B54 : 0
+Main!A46 : "M1"
+Main!A47 : "M2"
+Main!A48 : "M3"
+Main!A49 : "M4"
+Main!A50 : "M5"
+Main!A51 : "M6"
+Main!A52 : "M7"
+Main!A53 : "M8"
+Main!A54 : "M9"
+Main!B1 validation list: "Live,Fixed"
+# pricing
+pricing!A1 : "Rates"
+pricing!B1 : "Live"
+pricing!C1 : "Updated"
+pricing!D1 = LiveInfo(LiveSwap,ANCHORARRAY($AF$4))
+pricing!E1 : "Broker"
+pricing!F1 : "Tradition"
+pricing!G1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed. Broker: the source of the live rates for this whole book (Shift+F9 on each sheet after changing it)."
+pricing!A2 : "Pricing"
+pricing!AQ2 : "Pricing results (PricingTable)"
+pricing!A3 : "flag"
+pricing!B3 : "risk_flag"
+pricing!C3 : "remarks"
+pricing!D3 : "notional"
+pricing!E3 : "delta"
+pricing!F3 : "adj_notional"
+pricing!G3 : "start"
+pricing!H3 : "tenor"
+pricing!I3 : "end"
+pricing!J3 : "fix rate"
+pricing!K3 : "fix freq"
+pricing!L3 : "fix dcf"
+pricing!M3 : "index"
+pricing!N3 : "float freq"
+pricing!O3 : "roll conv"
+pricing!P3 : "target fixrate"
+pricing!Q3 : "spred"
+pricing!R3 : "fly"
+pricing!S3 : "pay/rec"
+pricing!T3 : "PV"
+pricing!U3 : "delta"
+pricing!V3 : "delta(annuity)"
+pricing!W3 : "message"
+pricing!Y3 = RiskGrid(pricing!$A$3:$S$103,TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!AB3 : "合計(テナー別)"
+pricing!AC3 = SUM(INDEX(ANCHORARRAY(Y3),0,2))
+pricing!AF3 : "Live rates (Ticker / Value / Start / End)"
+pricing!AK3 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
+pricing!AQ3 = PricingTable(HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!AX3 : "LCH live rates (Ticker / Value / Start / End)"
+pricing!BC3 : "LCH curve (Flag / Ticker / Value / Start / End. Flag and Ticker from Main)"
+pricing!A4:A7 : 1
+pricing!B4:B5 : 1
+pricing!C4:C6 : "test"
+pricing!D4 : 10281366220.086935
+pricing!E4 : 1
+pricing!F4:F103 = AU4
+pricing!G4 : "Z27"
+pricing!I4 : "Z28"
+pricing!K4:K103 : "PA"
+pricing!L4:L103 : "act/365fixed"
+pricing!M4:M103 : "JSCC"
+pricing!N4:N103 : "PA"
+pricing!O4:O103 = IF($G4="","",LET(isImm,LAMBDA(x,AND(ISTEXT(x),LEN(TRIM(x))=3,ISNUMBER(SEARCH(LEFT(TRIM(x),1),"HMUZ")),ISNUMBER(--MID(TRIM(x),2,1)),ISNUMBER(--MID(TRIM(x),3,1)))),IF(AND(isImm($G4),isImm($I4)),"IMM","STD")))
+pricing!P4:P103 = AQ4
+pricing!Q4:Q103 = IF(ISNUMBER(P3),(P4-P3)*100,"")
+pricing!R4:R103 = IF(AND(ISNUMBER(P3),ISNUMBER(P5)),(2*P4-P3-P5)*100,"")
+pricing!S4:S103 : "PAY"
+pricing!T4:V103 = AR4
+pricing!W4:W103 = AV4
+pricing!AA4:AA45 = Z4
+pricing!AB4 : "参考: delta(V列)合計"
+pricing!AC4 = SUMIFS(U4:U103,B4:B103,1)
+pricing!AF4 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
+pricing!AK4 = LET(q,ANCHORARRAY($AF$4),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+pricing!AX4 = IF($B$1="Fixed",LiveSnapshot(LiveSwapLCH),LiveQuotes(LiveSwapLCH))
+pricing!BC4 = LET(q,ANCHORARRAY($AX$4),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+pricing!D5 : -10746942492.923746
+pricing!E5 : -1
+pricing!G5 : "Z28"
+pricing!I5 : "Z29"
+pricing!D6 : 11045485964.71777
+pricing!E6 : 1
+pricing!G6 : "Z29"
+pricing!I6 : "Z30"
+pricing!D7:D103 : 1000000000
+pricing!G7 : 53598
+pricing!H7 : "10y"
+pricing!A102 : 0
+pricing!B1 validation list: "Live,Fixed"
+pricing!F1 validation list: "Tradition,Totan"
+pricing!K4:K103 N4:N103 validation list: "PA,SA,QA,1m"
+pricing!L4:L103 validation list: "act/365fixed,30/360"
+pricing!M4:M103 validation list: "JSCC,LCH"
+pricing!O4:O103 validation list: "STD,EOM,IMM"
+pricing!S4:S103 validation list: "PAY,REC"
+pricing!AA4:AA45 format dataBar
+pricing!AA4:AA45 format dataBar
+# HistChart
+HistChart!A1 : "Rates"
+HistChart!B1 : "Live"
+HistChart!C1 : "Updated"
+HistChart!D1 = LiveInfo(LiveSwap,ANCHORARRAY($AJ$3))
+HistChart!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+HistChart!A2 : "ヒストリカルチャート(最大3系列の比較: アウトライト / カーブ / フライ)"
+HistChart!AD2 : "ヘッジ(系列1に重ねる)"
+HistChart!AJ2 : "Live rates (Ticker / Value / Start / End)"
+HistChart!AO2 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
+HistChart!AD3 : "縦のグリッドにヘッジのデルタ(百万円/bp)を、フロー(RiskGrid)と同じ符号=ヘッジで再現するリスクで入力する"
+HistChart!AJ3 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
+HistChart!AO3 = LET(q,ANCHORARRAY($AJ$3),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+HistChart!A4 : "基準日(ROLLING)"
+HistChart!B4 = IF(評価日="","",評価日)
+HistChart!C4 : "Mainシートの評価日に連動(空欄=今日)"
+HistChart!AD4 : "表示"
+HistChart!AE4 : "○"
+HistChart!AF4 : "○/×"
+HistChart!A5 : "開始日(任意)"
+HistChart!AD5 : "モード"
+HistChart!AE5 = IF($F$10="","ROLLING",$F$10)
+HistChart!AF5 : "既定は系列1のモード(上書き可。戻すときはこのセルに数式を入れ直す)"
+HistChart!A6 : "終了日(任意)"
+HistChart!AD6 : "縮尺(百万円/bp)"
+HistChart!AE6 = IFERROR(LET(t,$H$10,leg,IF(t="アウトライト",1,IF(OR(t="カーブ",t="フライ"),2,NA())),r,INDEX($C$16:$C$17,leg),n,INDEX(pricing!$D:$D,r),pr,INDEX(pricing!$S:$S,r),c,INDEX($E$16:$K$17,leg,0),IF(OR(n="",n=0),NA(),SwapAnnuityDelta(INDEX(c,1),INDEX(c,2),INDEX(c,3),INDEX(c,4),INDEX(c,5),INDEX(c,6),INDEX(c,7),n,IF(pr="","PAY",pr),TAKE(ANCHORARRAY($AO$3),,3),評価日)/IF(t="フライ",2,1))),NA())
+HistChart!AF6 : "既定は系列1の行の取引条件・notional・pay/recから計算したアニュイティデルタ(アウトライト=行A、カーブ=行B、フライ=行Bの1/2。pay/rec空欄はPAYとみなす)。上書き可"
+HistChart!A7 : "単位"
+HistChart!B7 = IF(SUMPRODUCT(($B$10:$B$12<>"×")*(($H$10:$H$12="カーブ")+($H$10:$H$12="フライ")))>0,"bp","%")
+HistChart!C7 : "表示中の系列にカーブ/フライがあれば全系列bp、アウトライトだけなら%"
+HistChart!AD7 : "スタート日"
+HistChart!AE7 = IFERROR(LET(d,HistChart_Date,ok,ISNUMBER(HistChart_S1)*ISNUMBER(ANCHORARRAY(U30)),MIN(FILTER(d,ok))),"")
+HistChart!AF7 : "系列1とヘッジの両方に値がある最も古い日。この日に系列1と水準を合わせる"
+HistChart!A8 : "倍率"
+HistChart!B8 = IF($B$7="bp",100,1)
+HistChart!AD8 : "状態"
+HistChart!AE8 = IF($AE$4="×","",IF(ISNUMBER($AE$6),IF($AE$6=0,"縮尺が0です(手入力してください)","OK"),"縮尺を計算できません(系列1の行のnotionalが空欄など。AE5に手入力してください)"))
+HistChart!A9 : "系列"
+HistChart!B9 : "表示"
+HistChart!C9 : "行A"
+HistChart!D9 : "行B"
+HistChart!E9 : "行C"
+HistChart!F9 : "モード"
+HistChart!G9 : "系列名(任意)"
+HistChart!H9 : "種類"
+HistChart!I9 : "凡例名"
+HistChart!AD9 : "Ticker"
+HistChart!AE9 : "フロー(RiskGrid)"
+HistChart!AF9 : "ヘッジ入力"
+HistChart!AG9 : "残差(フロー−入力)"
+HistChart!A10 : 1
+HistChart!B10 : "○"
+HistChart!C10:C12 : 4
+HistChart!F10:F12 : "FIXED"
+HistChart!H10:H12 = IF(C10="","",IF(D10="",IF(E10="","アウトライト","入力エラー"),IF(E10="","カーブ","フライ")))
+HistChart!I10:I12 = IF(OR(H10="",B10="×"),"",IF(G10<>"",G10,IF(H10="アウトライト","行"&C10,IF(H10="カーブ","行"&D10&"−行"&C10,IF(H10="フライ","2×行"&D10&"−行"&C10&"−行"&E10,"入力エラー")))&" ("&F10&")"))
+HistChart!AD10 = TAKE(DROP(ANCHORARRAY($AO$3),1,1),33,1)
+HistChart!AE10 = IFERROR(XLOOKUP(ANCHORARRAY(AD10),INDEX(ANCHORARRAY(pricing!$Y$3),0,1),INDEX(ANCHORARRAY(pricing!$Y$3),0,2),""),"")
+HistChart!AG10 = LET(f,ANCHORARRAY(AE10),h,AF10:AF42,IF(ISNUMBER(f)+ISNUMBER(h),IF(ISNUMBER(f),f,0)-IF(ISNUMBER(h),h,0),""))
+HistChart!A11 : 2
+HistChart!B11:B12 : "×"
+HistChart!D11:D12 : 5
+HistChart!E11 : 6
+HistChart!A12 : 3
+HistChart!A13 : "カーブ = 行B − 行A、フライ = 2×行B − 行A − 行C(pricingシートのspred/flyと同じ符号)"
+HistChart!A15 : "系列"
+HistChart!B15 : "脚"
+HistChart!C15 : "行"
+HistChart!D15 : "remarks"
+HistChart!E15 : "start"
+HistChart!F15 : "tenor"
+HistChart!G15 : "end"
+HistChart!H15 : "fix freq"
+HistChart!I15 : "fix dcf"
+HistChart!J15 : "float freq"
+HistChart!K15 : "roll conv"
+HistChart!A16:A18 : 1
+HistChart!B16 : "A"
+HistChart!C16 = LET(n,INDEX($C$10:$E$12,1,1),IF(OR(n="",INDEX($B$10:$B$12,1)="×"),"",n))
+HistChart!D16:D24 = IF($C16="","",LET(v,INDEX(pricing!$C:$C,$C16),IF(v="","",v)))
+HistChart!E16:E24 = IF($C16="","",LET(v,INDEX(pricing!$G:$G,$C16),IF(v="","",v)))
+HistChart!F16:F24 = IF($C16="","",LET(v,INDEX(pricing!$H:$H,$C16),IF(v="","",v)))
+HistChart!G16:G24 = IF($C16="","",LET(v,INDEX(pricing!$I:$I,$C16),IF(v="","",v)))
+HistChart!H16:H24 = IF($C16="","",LET(v,INDEX(pricing!$K:$K,$C16),IF(v="","",v)))
+HistChart!I16:I24 = IF($C16="","",LET(v,INDEX(pricing!$L:$L,$C16),IF(v="","",v)))
+HistChart!J16:J24 = IF($C16="","",LET(v,INDEX(pricing!$N:$N,$C16),IF(v="","",v)))
+HistChart!K16:K24 = IF($C16="","",LET(v,INDEX(pricing!$O:$O,$C16),IF(v="","",v)))
+HistChart!B17 : "B"
+HistChart!C17 = LET(n,INDEX($C$10:$E$12,1,2),IF(OR(n="",INDEX($B$10:$B$12,1)="×"),"",n))
+HistChart!B18 : "C"
+HistChart!C18 = LET(n,INDEX($C$10:$E$12,1,3),IF(OR(n="",INDEX($B$10:$B$12,1)="×"),"",n))
+HistChart!A19:A21 : 2
+HistChart!B19 : "A"
+HistChart!C19 = LET(n,INDEX($C$10:$E$12,2,1),IF(OR(n="",INDEX($B$10:$B$12,2)="×"),"",n))
+HistChart!B20 : "B"
+HistChart!C20 = LET(n,INDEX($C$10:$E$12,2,2),IF(OR(n="",INDEX($B$10:$B$12,2)="×"),"",n))
+HistChart!B21 : "C"
+HistChart!C21 = LET(n,INDEX($C$10:$E$12,2,3),IF(OR(n="",INDEX($B$10:$B$12,2)="×"),"",n))
+HistChart!A22:A24 : 3
+HistChart!B22 : "A"
+HistChart!C22 = LET(n,INDEX($C$10:$E$12,3,1),IF(OR(n="",INDEX($B$10:$B$12,3)="×"),"",n))
+HistChart!B23 : "B"
+HistChart!C23 = LET(n,INDEX($C$10:$E$12,3,2),IF(OR(n="",INDEX($B$10:$B$12,3)="×"),"",n))
+HistChart!B24 : "C"
+HistChart!C24 = LET(n,INDEX($C$10:$E$12,3,3),IF(OR(n="",INDEX($B$10:$B$12,3)="×"),"",n))
+HistChart!A27 : "計算結果(系列ごとの各脚のパーレート%、日付は全系列共通)"
+HistChart!A28 : "系列1"
+HistChart!F28 : "系列2"
+HistChart!K28 : "系列3"
+HistChart!P28 : "グラフ用"
+HistChart!A29 = LET(r,HistoricalRates(E16:K18,$F$10,$B$4,$B$5,$B$6,TAKE(ANCHORARRAY($AO$3),,3)),d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))
+HistChart!F29 = LET(r,HistoricalRates(E19:K21,$F$11,$B$4,$B$5,$B$6,TAKE(ANCHORARRAY($AO$3),,3)),d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))
+HistChart!K29 = LET(r,HistoricalRates(E22:K24,$F$12,$B$4,$B$5,$B$6,TAKE(ANCHORARRAY($AO$3),,3)),d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))
+HistChart!P29 = LET(r,INDEX(HistoricalRates("","ROLLING",$B$4,$B$5,$B$6,TAKE(ANCHORARRAY($AO$3),,3)),0,1),VSTACK(TAKE(r,1),SORT(DROP(r,1),,-1)))
+HistChart!Q29 = $I$10
+HistChart!R29 = $I$11
+HistChart!S29 = $I$12
+HistChart!T29 = IF(COUNT(HistChart_H)=0,"","ヘッジ("&$AE$5&")")
+HistChart!U29 : "仮想金利(百万円×%)"
+HistChart!AF29 : 1
+HistChart!Q30 = IFERROR(LET(d,DROP(ANCHORARRAY(A29),1),a,INDEX(d,,2),b,INDEX(d,,3),c,INDEX(d,,4),t,$H$10,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$8,NA())),NA())
+HistChart!R30 = IFERROR(LET(d,DROP(ANCHORARRAY(F29),1),a,INDEX(d,,2),b,INDEX(d,,3),c,INDEX(d,,4),t,$H$11,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$8,NA())),NA())
+HistChart!S30 = IFERROR(LET(d,DROP(ANCHORARRAY(K29),1),a,INDEX(d,,2),b,INDEX(d,,3),c,INDEX(d,,4),t,$H$12,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$8,NA())),NA())
+HistChart!T30 = IFERROR(LET(d,HistChart_Date,v,ANCHORARRAY(U30),s,HistChart_S1,t0,$AE$7,v0,XLOOKUP(t0,d,v),s0,XLOOKUP(t0,d,s),x,s0+(v-v0)*$B$8/$AE$6,IF(ISNUMBER(x),x,NA())),NA())
+HistChart!U30 = IF($AE$4="×",NA(),IFERROR(LET(h,$AF$10:$AF$42,k,ISNUMBER(h)*(h<>0),tk,FILTER($AD$10:$AD$42,k),w,FILTER(h,k),r,HedgeHistoricalRates(tk,$AE$5,HistChart_Date,$B$4,TAKE(ANCHORARRAY($AO$3),,3)),BYROW(r,LAMBDA(x,IF(COUNT(x)<COLUMNS(x),NA(),SUM(x*TRANSPOSE(w)))))),NA()))
+HistChart!AF34 : 1
+HistChart!AD43 : "合計"
+HistChart!AE43 = SUM(ANCHORARRAY(AE10))
+HistChart!AF43 = SUM(AF10:AF42)
+HistChart!AG43 = SUM(ANCHORARRAY(AG10))
+HistChart!AD45 : "残差は百万円/bp。O/N・会合スワップはヘッジに使わない(スポットのテナーだけ)"
+HistChart!AE4 B10:B12 validation list: "○,×"
+HistChart!AE5 F10:F12 validation list: "ROLLING,FIXED"
+HistChart!B1 validation list: "Live,Fixed"
+HistChart chart "ヒストリカル比較": HistChart!$Q$29 | [0]!HistChart_Date | [0]!HistChart_S1 | HistChart!$R$29 | [0]!HistChart_Date | [0]!HistChart_S2 | HistChart!$S$29 | [0]!HistChart_Date | [0]!HistChart_S3 | HistChart!$T$29 | [0]!HistChart_Date | [0]!HistChart_H | HistChart!$B$7
+# ASW
+ASW!A1 : "ASWヒストリカル(JGB銘柄別、最大3系列の比較: アウトライト / カーブ / フライ)"
+ASW!A3 : "コンベンション"
+ASW!B3 : "PA"
+ASW!C3 : "PA/SA(全系列共通。ASW_dataのAct/365 PA/SA)"
+ASW!A4 : "開始日(任意)"
+ASW!C4 : "空欄ならDBにある全期間"
+ASW!A5 : "終了日(任意)"
+ASW!A6 : "倍率"
+ASW!B6 : 100
+ASW!C6 : "ASWは%単位。bp表示なので100"
+ASW!A8 : "系列"
+ASW!B8 : "表示"
+ASW!C8 : "銘柄A"
+ASW!D8 : "銘柄B"
+ASW!E8 : "銘柄C"
+ASW!F8 : "系列名(任意)"
+ASW!G8 : "種類"
+ASW!H8 : "凡例名"
+ASW!A9 : 1
+ASW!B9:B10 : "○"
+ASW!C9:C11 : "JB380"
+ASW!G9:G11 = IF(C9="","",IF(D9="",IF(E9="","アウトライト","入力エラー"),IF(E9="","カーブ","フライ")))
+ASW!H9:H11 = IF(OR(G9="",B9="×"),"",IF(F9<>"",F9,IF(G9="アウトライト",C9,IF(G9="カーブ",D9&"−"&C9,IF(G9="フライ","2×"&D9&"−"&C9&"−"&E9,"入力エラー")))&" ("&$B$3&")"))
+ASW!A10 : 2
+ASW!D10:D11 : "JL190"
+ASW!A11 : 3
+ASW!B11 : "×"
+ASW!E11 : "JX090"
+ASW!A12 : "銘柄は接頭辞+回号(例: JB380)か9桁の銘柄コード。カーブ = 銘柄B − 銘柄A、フライ = 2×銘柄B − 銘柄A − 銘柄C(HistChartと同じ符号)"
+ASW!H13 : "接頭辞の対応表"
+ASW!A14 : "系列"
+ASW!C14 : "コードA"
+ASW!D14 : "コードB"
+ASW!E14 : "コードC"
+ASW!H14 : "接頭辞"
+ASW!I14 : "末尾"
+ASW!J14 : "種別"
+ASW!A15 : 1
+ASW!C15 = LET(n,INDEX($C$9:$E$11,1,1),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,1)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!D15 = LET(n,INDEX($C$9:$E$11,1,2),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,1)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!E15 = LET(n,INDEX($C$9:$E$11,1,3),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,1)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!H15 : "JN"
+ASW!I15 : "0042"
+ASW!J15 : "2年"
+ASW!A16 : 2
+ASW!C16 = LET(n,INDEX($C$9:$E$11,2,1),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,2)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!D16 = LET(n,INDEX($C$9:$E$11,2,2),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,2)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!E16 = LET(n,INDEX($C$9:$E$11,2,3),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,2)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!H16 : "JS"
+ASW!I16 : "0045"
+ASW!J16 : "5年"
+ASW!A17 : 3
+ASW!C17 = LET(n,INDEX($C$9:$E$11,3,1),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,3)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!D17 = LET(n,INDEX($C$9:$E$11,3,2),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,3)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!E17 = LET(n,INDEX($C$9:$E$11,3,3),s,UPPER(TRIM(n&"")),IF(OR(s="",INDEX($B$9:$B$11,3)="×"),"",IFERROR(LET(k,XMATCH(TRUE,ISNUMBER(--MID(s,SEQUENCE(LEN(s)),1))),p,LEFT(s,k-1),IF(p="",TEXT(s,"000000000"),TEXT(MID(s,k,9),"00000")&XLOOKUP(p,$H$15:$H$24,$I$15:$I$24,"?"))),"?"&s)))
+ASW!H17 : "JB"
+ASW!I17 : "0067"
+ASW!J17 : "10年"
+ASW!A18 : "接頭辞が対応表にないと末尾が「?」になり、その脚は空欄になる"
+ASW!H18 : "JL"
+ASW!I18 : "0069"
+ASW!J18 : "20年"
+ASW!H19 : "JX"
+ASW!I19 : "0068"
+ASW!J19 : "30年"
+ASW!H20 : "JU"
+ASW!I20 : "0054"
+ASW!J20 : "40年"
+ASW!A26 : "計算領域(系列ごとの各脚のASW%。日付は銘柄ごとに異なるのでP列で全系列の日付を揃える)"
+ASW!A27 : "系列1"
+ASW!F27 : "系列2"
+ASW!K27 : "系列3"
+ASW!P27 : "グラフ用"
+ASW!A28 = LET(r,AswHistoricalRates(TRANSPOSE(C15:E15),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!F28 = LET(r,AswHistoricalRates(TRANSPOSE(C16:E16),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!K28 = LET(r,AswHistoricalRates(TRANSPOSE(C17:E17),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!P28 = IFERROR(LET(x,VSTACK(INDEX(ANCHORARRAY(A28),,1),INDEX(ANCHORARRAY(F28),,1),INDEX(ANCHORARRAY(K28),,1)),VSTACK("Date",SORT(UNIQUE(FILTER(x,ISNUMBER(x))),,-1))),"Date")
+ASW!Q28 = $H$9
+ASW!R28 = $H$10
+ASW!S28 = $H$11
+ASW!Q29 = IFERROR(LET(dt,DROP(ANCHORARRAY(P28),1),s,ANCHORARRAY(A28),k,INDEX(s,,1),a,XLOOKUP(dt,k,INDEX(s,,2),NA()),b,XLOOKUP(dt,k,INDEX(s,,3),NA()),c,XLOOKUP(dt,k,INDEX(s,,4),NA()),t,$G$9,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$6,NA())),NA())
+ASW!R29 = IFERROR(LET(dt,DROP(ANCHORARRAY(P28),1),s,ANCHORARRAY(F28),k,INDEX(s,,1),a,XLOOKUP(dt,k,INDEX(s,,2),NA()),b,XLOOKUP(dt,k,INDEX(s,,3),NA()),c,XLOOKUP(dt,k,INDEX(s,,4),NA()),t,$G$10,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$6,NA())),NA())
+ASW!S29 = IFERROR(LET(dt,DROP(ANCHORARRAY(P28),1),s,ANCHORARRAY(K28),k,INDEX(s,,1),a,XLOOKUP(dt,k,INDEX(s,,2),NA()),b,XLOOKUP(dt,k,INDEX(s,,3),NA()),c,XLOOKUP(dt,k,INDEX(s,,4),NA()),t,$G$11,v,IF(t="アウトライト",a,IF(t="カーブ",b-a,IF(t="フライ",2*b-a-c,NA()))),IF(ISNUMBER(v),v*$B$6,NA())),NA())
+ASW!B3 validation list: "PA,SA"
+ASW!B9:B11 validation list: "○,×"
+ASW chart "ASWヒストリカル比較": ASW!$Q$28 | [0]!ASW_Date | [0]!ASW_S1 | ASW!$R$28 | [0]!ASW_Date | [0]!ASW_S2 | ASW!$S$28 | [0]!ASW_Date | [0]!ASW_S3
+# ASWPricer
+ASWPricer!A1 : "Rates"
+ASWPricer!B1 : "Live"
+ASWPricer!C1 : "Updated"
+ASWPricer!D1 = LiveInfo(LiveSwap,ANCHORARRAY($AO$7))
+ASWPricer!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+ASWPricer!A2 : "ASW Pricer"
+ASWPricer!C2 : "ASW = compound yield - swap rate (MMS: spot start, end = bond maturity, rolled back from maturity with BWD). Simple yield = JCL close + slide (bp) unless yield override is set. par-par asw is for reference."
+ASWPricer!AZ2 : "ASW results (AswPricingTable)"
+ASWPricer!BQ2 : "Unwind (AswUnwindTable)"
+ASWPricer!BU2 : "Close (AswCloseTable)"
+ASWPricer!C3 : "Traded ASW: MMS rate = compound yield - traded ASW; swap notional = bond notional x hedge ratio (duration-neutral MMS notional / bond face). Close: ASW at the last close (bond: close yield, no slide, settled T+1 from the close date; MMS: spot of the close date on the DB close curve). Not recalculated by live rates. ASW chg = ASW - close ASW."
+ASWPricer!C4 : "Unwind: PV now (valuation date, same as pricing PV) of the MMS traded at "traded MMS rate" from "trade start" to bond maturity, with the row's conventions and pay/rec. Swap notional: override if set, else the computed one. Past TONA fixings come from the DB."
+ASWPricer!A5 : "Bond input"
+ASWPricer!E5 : "MMS terms"
+ASWPricer!L5 : "Bond (spot T+1)"
+ASWPricer!T5 : "MMS / ASW"
+ASWPricer!Z5 : "Close"
+ASWPricer!AD5 : "Traded ASW"
+ASWPricer!AH5 : "Unwind"
+ASWPricer!AM5 : "Status"
+ASWPricer!A6 : "flag"
+ASWPricer!B6 : "bond"
+ASWPricer!C6 : "slide"
+ASWPricer!D6 : "yield override"
+ASWPricer!E6 : "delta"
+ASWPricer!F6 : "start"
+ASWPricer!G6 : "fix freq"
+ASWPricer!H6 : "fix dcf"
+ASWPricer!I6 : "float freq"
+ASWPricer!J6 : "roll conv"
+ASWPricer!K6 : "pay/rec"
+ASWPricer!L6 : "coupon"
+ASWPricer!M6 : "maturity"
+ASWPricer!N6 : "close"
+ASWPricer!O6 : "close date"
+ASWPricer!P6 : "simple yield"
+ASWPricer!Q6 : "settle"
+ASWPricer!R6 : "price"
+ASWPricer!S6 : "compound yield"
+ASWPricer!T6 : "start date"
+ASWPricer!U6 : "end date"
+ASWPricer!V6 : "swap rate"
+ASWPricer!W6 : "ASW (bp)"
+ASWPricer!X6 : "par-par asw (bp)"
+ASWPricer!Y6 : "adj_notional"
+ASWPricer!Z6 : "close compound yield"
+ASWPricer!AA6 : "close swap rate"
+ASWPricer!AB6 : "close ASW (bp)"
+ASWPricer!AC6 : "ASW chg (bp)"
+ASWPricer!AD6 : "bond notional (100M)"
+ASWPricer!AE6 : "traded ASW (bp)"
+ASWPricer!AF6 : "MMS rate"
+ASWPricer!AG6 : "swap notional (100M)"
+ASWPricer!AH6 : "trade start"
+ASWPricer!AI6 : "traded MMS rate (%)"
+ASWPricer!AJ6 : "notional override (100M)"
+ASWPricer!AK6 : "swap notional used (100M)"
+ASWPricer!AL6 : "unwind PV (JPY)"
+ASWPricer!AM6 : "message"
+ASWPricer!AO6 : "Live rates (Ticker / Value / Start / End)"
+ASWPricer!AT6 : "Curve (flag / Ticker / value / start / end; flags and tickers from Main)"
+ASWPricer!AZ6 = AswPricingTable($A$6:$K$56,TAKE(ANCHORARRAY($AT$7),,3),評価日)
+ASWPricer!BQ6 = AswUnwindTable(HSTACK($A$6:$A$56,$M$6:$M$56,$G$6:$K$56,$AH$6:$AK$56),TAKE(ANCHORARRAY($AT$7),,3),評価日)
+ASWPricer!BU6 = AswCloseTable(HSTACK($A$6:$B$56,$G$6:$J$56),評価日)
+ASWPricer!A7:A8 : 1
+ASWPricer!B7:B8 : "JB380"
+ASWPricer!G7 : "SA"
+ASWPricer!H7:H56 : "act/365fixed"
+ASWPricer!I7 : "SA"
+ASWPricer!J7:J56 : "BWD"
+ASWPricer!K7:K56 : "PAY"
+ASWPricer!L7:V56 = AZ7
+ASWPricer!W7:W56 = IF(AND(ISNUMBER(S7),ISNUMBER(V7)),(S7-V7)*100,"")
+ASWPricer!X7:Y56 = BK7
+ASWPricer!Z7:AA56 = BU7
+ASWPricer!AB7:AB56 = IF(AND(ISNUMBER(Z7),ISNUMBER(AA7)),(Z7-AA7)*100,"")
+ASWPricer!AC7:AC56 = IF(AND(ISNUMBER(W7),ISNUMBER(AB7)),W7-AB7,"")
+ASWPricer!AF7:AF56 = IF(AND(ISNUMBER(S7),ISNUMBER(AE7)),S7-AE7/100,"")
+ASWPricer!AG7:AG56 = IF(AND(ISNUMBER(AD7),ISNUMBER(BN7)),AD7*BN7,"")
+ASWPricer!AK7:AK56 = IF(ISNUMBER(AJ7),AJ7,AG7)
+ASWPricer!AL7:AL56 = IF(ISNUMBER(BS7),BS7,"")
+ASWPricer!AM7:AM56 = TEXTJOIN(" / ",TRUE,BO7,BT7,BW7)
+ASWPricer!AO7 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
+ASWPricer!AT7 = LET(q,ANCHORARRAY($AO$7),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+ASWPricer!G8 : "PA"
+ASWPricer!I8 : "PA"
+ASWPricer!G9:G56 : "SA"
+ASWPricer!I9:I56 : "SA"
+ASWPricer!B1 validation list: "Live,Fixed"
+ASWPricer!G7:G56 I7:I56 validation list: "PA,SA,QA,1m"
+ASWPricer!H7:H56 validation list: "act/365fixed,30/360"
+ASWPricer!J7:J56 validation list: "STD,EOM,IMM,BWD"
+ASWPricer!K7:K56 validation list: "PAY,REC"
+# _xlwings.conf
+_xlwings.conf!A1 : "Interpreter_Win"
+_xlwings.conf!B1 : "python"
+_xlwings.conf!A2 : "Interpreter_Mac"
+_xlwings.conf!A3 : "PYTHONPATH"
+_xlwings.conf!A4 : "Conda Path"
+_xlwings.conf!A5 : "Conda Env"
+_xlwings.conf!A6 : "UDF Modules"
+_xlwings.conf!B6 : "swap_pricing.udf"
+_xlwings.conf!A7 : "Debug UDFs"
+_xlwings.conf!B7:B9 : FALSE
+_xlwings.conf!A8 : "Use UDF Server"
+_xlwings.conf!A9 : "Show Console"
+_xlwings.conf!A13 : "Instructions:"
+_xlwings.conf!A14 : "If you want to rely on the settings in the addin or an xlwings.conf file, you can delete this sheet."
+_xlwings.conf!A15 : "Rename this sheet to "xlwings.conf" to activate it (remove the leading underscore).  The settings have to start in cell A1."
+_xlwings.conf!A16 : "When activated, these settings override the settings in the addin (.xlwings/xlwings.conf file in the user directory) and xlwings.conf in the same directory as this Excel file."
+_xlwings.conf!A17 : "If you delete a row from here, it will fall back to the first non-empty value xlwings finds in an xlwings.conf file and otherwise use the default values."
