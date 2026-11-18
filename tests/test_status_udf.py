@@ -45,8 +45,18 @@ class DataStatusTest(unittest.TestCase):
         self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 17), "jgb"), status_udf.OK)
         self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 16), "jgb"), status_udf.NEWER)
         self.assertEqual(status_udf.DataStatus(TODAY, "", "jgb"), status_udf.OK)  # 比べる日付が無ければ比べない
-        # 過去の評価日はその日以前のデータと比べる
-        self.assertEqual(status_udf.DataStatus(date(2026, 11, 16), date(2026, 11, 16), "jgb"), status_udf.NOT_TODAY)
+        # 過去の評価日は、その日より前のデータと比べる。当日の引けを使っていても(BondOption)、
+        # 前日の引けを使っていても(PositionSheetの基準日)赤くしない
+        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 17), "jgb"), status_udf.NOT_TODAY)
+        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 16), "jgb"), status_udf.NOT_TODAY)
+        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 13), "jgb"), status_udf.NEWER)
+
+    def test_db_newer_curve(self):
+        """基準日(取引日より前の直近のカーブ)と比べる使い方(PositionSheet)。"""
+        with mock.patch.object(HistoricalStore, "dates", lambda self: [date(2026, 11, 13), date(2026, 11, 16), date(2026, 11, 17)]):
+            self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 17)), status_udf.OK)
+            self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 16)), status_udf.NEWER)
+            self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 16)), status_udf.NOT_TODAY)
 
     def test_unknown_data(self):
         with self.assertRaisesRegex(ValueError, "data"):
