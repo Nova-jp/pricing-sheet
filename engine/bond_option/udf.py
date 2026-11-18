@@ -49,25 +49,39 @@ def _blank_if_none(value):
     return "" if value is None else value
 
 
-@xw.func
+@xw.func(volatile=True)
 def ValuationDate(valuation_date=None):
-    """評価日(取引日)。空欄=今日。TODAY()を使わないため(volatileになる)、空欄の解決をUDFで行う。"""
+    """評価日(取引日)。空欄=今日。
+    volatile(F9のたびに計算する)。空欄=今日は入力のセルが変わらないので、volatileでないと日をまたいでも
+    前の日付のまま残り、下流(JgbMaster等)も計算し直されない。下流のUDFはF9のたびに呼ばれるので、
+    DBを読む重いものはPython側で入力が同じなら前回の結果を返す(JgbMaster・VolRatioTable)。"""
     return udf_common._resolve_valuation_date(valuation_date)
+
+
+# 直前の JgbMaster の (評価日, DBの版) と結果。F9のたびに呼ばれても、同じならDBを読まない
+_master: Optional[tuple] = None
 
 
 @xw.func
 def JgbMaster(valuation_date=None) -> List[list]:
     """全銘柄(償還日の順)の [銘柄コード, 利率(%), 償還日, 引け値の単利(%), 引けの日付, RIC, ISIN]。
-    引け値は評価日(空欄=今日)以前で直近のもの。無ければ空欄。"""
+    引け値は評価日(空欄=今日)以前で直近のもの。無ければ空欄。
+    評価日とDBの版(朝バッチで変わる)が前回と同じなら、DBを読まずに前回の結果を返す。"""
+    global _master
     as_of = udf_common._resolve_valuation_date(valuation_date)
     with udf_common._historical_store() as store:
+        key = (as_of, udf_common._db_version(store))
+        if _master is not None and _master[0] == key:
+            return _master[1]
         rows = store.jgb_master(as_of)
     if not rows:
         raise ValueError("JGBの銘柄がDBにありません(python -m engine.common.morning_batch でLSEGから取得してください)")
-    return [
+    result = [
         [r.code, r.coupon, r.maturity, _blank_if_none(r.close_yield), _blank_if_none(r.close_date), r.ric, r.isin]
         for r in rows
     ]
+    _master = (key, result)
+    return result
 
 
 @xw.func
@@ -206,7 +220,7 @@ def VolRatioTable(bonds, coupons, maturities, trade_date, window) -> List[list]:
     global _rates
     as_of = udf_common._resolve_valuation_date(trade_date)
     with udf_common._historical_store() as store:
-        key = (str(store.db_path), store.db_path.stat().st_mtime_ns)
+        key = udf_common._db_version(store)
         if _rates is None or _rates.db_key != key:
             _rates = hv.CurveRates(store, key)
             _results.clear()
