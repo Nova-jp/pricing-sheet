@@ -96,7 +96,6 @@ pricing!F1 : "Tradition"
 pricing!G1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed. Broker: the source of the live rates for this whole book (Shift+F9 on each sheet after changing it)."
 pricing!A2 : "Pricing"
 pricing!AQ2 : "Pricing results (PricingTable)"
-pricing!A3 : "flag"
 pricing!B3 : "risk_flag"
 pricing!C3 : "remarks"
 pricing!D3 : "notional"
@@ -119,15 +118,14 @@ pricing!T3 : "PV"
 pricing!U3 : "delta"
 pricing!V3 : "delta(annuity)"
 pricing!W3 : "message"
-pricing!Y3 = RiskGrid(pricing!$A$3:$S$103,TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!Y3 = RiskGrid(pricing!$B$3:$S$103,TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
 pricing!AB3 : "合計(テナー別)"
 pricing!AC3 = SUM(INDEX(ANCHORARRAY(Y3),0,2))
 pricing!AF3 : "Live rates (Ticker / Value / Start / End)"
 pricing!AK3 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
-pricing!AQ3 = PricingTable(HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!AQ3 = PricingTable(HSTACK($B$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
 pricing!AX3 : "LCH live rates (Ticker / Value / Start / End)"
 pricing!BC3 : "LCH curve (Flag / Ticker / Value / Start / End. Flag and Ticker from Main)"
-pricing!A4:A7 : 1
 pricing!B4:B5 : 1
 pricing!C4:C6 : "test"
 pricing!D4 : 10281366220.086935
@@ -164,7 +162,6 @@ pricing!I6 : "Z30"
 pricing!D7:D103 : 1000000000
 pricing!G7 : 53598
 pricing!H7 : "10y"
-pricing!A102 : 0
 pricing!B1 validation list: "Live,Fixed"
 pricing!F1 validation list: "Tradition,Totan"
 pricing!K4:K103 N4:N103 validation list: "PA,SA,QA,1m"
@@ -417,7 +414,6 @@ ASWPricer!Z5 : "Close"
 ASWPricer!AD5 : "Traded ASW"
 ASWPricer!AH5 : "Unwind"
 ASWPricer!AM5 : "Status"
-ASWPricer!A6 : "flag"
 ASWPricer!B6 : "bond"
 ASWPricer!C6 : "slide"
 ASWPricer!D6 : "yield override"
@@ -458,10 +454,9 @@ ASWPricer!AL6 : "unwind PV (JPY)"
 ASWPricer!AM6 : "message"
 ASWPricer!AO6 : "Live rates (Ticker / Value / Start / End)"
 ASWPricer!AT6 : "Curve (flag / Ticker / value / start / end; flags and tickers from Main)"
-ASWPricer!AZ6 = AswPricingTable($A$6:$K$56,TAKE(ANCHORARRAY($AT$7),,3),評価日)
-ASWPricer!BQ6 = AswUnwindTable(HSTACK($A$6:$A$56,$M$6:$M$56,$G$6:$K$56,$AH$6:$AK$56),TAKE(ANCHORARRAY($AT$7),,3),評価日)
-ASWPricer!BU6 = AswCloseTable(HSTACK($A$6:$B$56,$G$6:$J$56),評価日)
-ASWPricer!A7:A8 : 1
+ASWPricer!AZ6 = AswPricingTable($B$6:$K$56,TAKE(ANCHORARRAY($AT$7),,3),評価日)
+ASWPricer!BQ6 = AswUnwindTable(HSTACK($M$6:$M$56,$G$6:$K$56,$AH$6:$AK$56),TAKE(ANCHORARRAY($AT$7),,3),評価日)
+ASWPricer!BU6 = AswCloseTable(HSTACK($B$6:$B$56,$G$6:$J$56),評価日)
 ASWPricer!B7:B8 : "JB380"
 ASWPricer!G7 : "SA"
 ASWPricer!H7:H56 : "act/365fixed"

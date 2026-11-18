@@ -18,22 +18,22 @@ AswPricingTableはライブのレート(volatileのLiveQuotes)に依存するの
 from datetime import date
 from typing import Dict, List, Sequence
 
-from engine.common import bond
+from engine.common import bond, udf_common
 from engine.common.curve import spot_date_for
 from engine.common.market import db_fixings
 from engine.common.market_data import Market
 from engine.common.swap_pricer import par_rate
 from engine.common.terms import SwapConvention, SwapTerms
 from engine.swap_pricing.asw import pricer
-from engine.swap_pricing.pricing.table import columns, is_flagged
+from engine.swap_pricing.pricing.table import columns
 
-INPUT_COLUMNS = ("flag", "bond", "fix freq", "fix dcf", "float freq", "roll conv")
+INPUT_COLUMNS = ("bond", "fix freq", "fix dcf", "float freq", "roll conv")
 OUTPUT_HEADER = ("close compound yield", "close swap rate", "close message")
 
 
 def price_row(row: Sequence, col, valuation_date: date, store, markets: Dict[date, Market]) -> list:
     get = lambda name: row[col[name]]  # noqa: E731
-    if not is_flagged(get("flag")):
+    if udf_common._is_blank(get("bond")):
         return [""] * len(OUTPUT_HEADER)
     result = ["", "", ""]
     try:

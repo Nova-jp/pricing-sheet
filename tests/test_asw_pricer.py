@@ -46,8 +46,8 @@ PA = SwapConvention("PA", "act/365fixed", "PA", ROLL_BWD)
 _HEADER = list(table.INPUT_COLUMNS)
 
 
-def _row(bond_code="JB999", slide=None, override=None, delta=None, start=None, conv=SA, pay_rec=None, flag=1):
-    return [flag, bond_code, slide, override, delta, start, conv.fix_freq, conv.fix_dcf, conv.float_freq,
+def _row(bond_code="JB999", slide=None, override=None, delta=None, start=None, conv=SA, pay_rec=None):
+    return [bond_code, slide, override, delta, start, conv.fix_freq, conv.fix_dcf, conv.float_freq,
             conv.roll_conv, pay_rec]
 
 
@@ -185,7 +185,7 @@ class AswPricingTableTest(_AswDbCase):
 
     def test_row_errors_go_to_message(self):
         no_close, unknown, off, past = self._price(
-            _row("JN999"), _row("JZ1"), _row(flag=0), _row(start=date(2026, 9, 1)),
+            _row("JN999"), _row("JZ1"), _row(bond_code=None), _row(start=date(2026, 9, 1)),
         )
         self.assertIn("引け値", no_close["message"])
         self.assertEqual(no_close["coupon"], 0.5)  # 引けるところまでは出す
@@ -208,14 +208,14 @@ class AswPricingTableTest(_AswDbCase):
 
 # シートの見出しと同じ表記(末尾の単位は無視して探す)
 _UNWIND_HEADER = [
-    "flag", "maturity", "fix freq", "fix dcf", "float freq", "roll conv", "pay/rec",
+    "maturity", "fix freq", "fix dcf", "float freq", "roll conv", "pay/rec",
     "trade start", "traded MMS rate (%)", "swap notional override (100M)", "swap notional used (100M)",
 ]
 TRADE_START = date(2026, 8, 4)
 
 
-def _unwind_row(start=TRADE_START, rate=1.2, notional=10.0, pay_rec="PAY", conv=SA, maturity=MATURITY, flag=1):
-    return [flag, maturity, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv, pay_rec,
+def _unwind_row(start=TRADE_START, rate=1.2, notional=10.0, pay_rec="PAY", conv=SA, maturity=MATURITY):
+    return [maturity, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv, pay_rec,
             start, rate, None, notional]
 
 
@@ -270,7 +270,7 @@ class AswUnwindTableTest(unittest.TestCase):
 
     def test_rows_without_a_trade_are_blank(self):
         rows = self._price(
-            _unwind_row(flag=0), _unwind_row(start=None), _unwind_row(rate=None), _unwind_row(notional=None),
+            _unwind_row(start=None), _unwind_row(rate=None), _unwind_row(notional=None),
         )
         for r in rows:
             self.assertTrue(all(v == "" for v in r.values()))
@@ -301,8 +301,8 @@ SATURDAY = date(2026, 9, 26)
 _CLOSE_HEADER = list(close.INPUT_COLUMNS)
 
 
-def _close_row(bond_code="JB999", conv=SA, flag=1):
-    return [flag, bond_code, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv]
+def _close_row(bond_code="JB999", conv=SA):
+    return [bond_code, conv.fix_freq, conv.fix_dcf, conv.float_freq, conv.roll_conv]
 
 
 class AswCloseTableTest(_AswDbCase):
@@ -351,7 +351,7 @@ class AswCloseTableTest(_AswDbCase):
         self.assertEqual(market._cache, cached)
 
     def test_row_errors_go_to_message(self):
-        no_close, unknown, off = self._close([_close_row("JN999"), _close_row("JZ1"), _close_row(flag=0)])
+        no_close, unknown, off = self._close([_close_row("JN999"), _close_row("JZ1"), _close_row(bond_code="")])
         self.assertIn("引け値", no_close["close message"])
         self.assertIn("JZ1", unknown["close message"])
         self.assertTrue(all(v == "" for v in off.values()))

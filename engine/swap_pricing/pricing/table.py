@@ -6,7 +6,8 @@ xlwingsのUDFは1セルごとにExcelとの往復(1回約170ms)がかかり、�
 各列の計算はmeasures.pyの関数を組み合わせるだけで、ここでは表の読み方と行ごとのエラーの扱いだけを持つ。
 
 ■ 計算する行と列
-  - flag=1の行だけ計算する(それ以外の行は全部空欄)
+  - tenorかendが入っている行だけ計算する(それ以外の行は全部空欄)。flag列は持たない(表全体が1回のUDFなので、
+    行を絞ってもUDFの呼び出しは減らない。BondOptionと同じく、入力のある行が計算する行)
   - target fixrate: 常に
   - PV・delta(bump)・delta(annuity): notionalがある行だけ
   - adj_notional: delta(目標delta)がある行だけ
@@ -26,7 +27,7 @@ from engine.swap_pricing.pricing.row import swap_params, swap_terms
 
 # 表から読む列(見出し名、小文字)。列の位置ではなく見出しで探すので、列を移動しても壊れない
 INPUT_COLUMNS = (
-    "flag", "notional", "delta", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
+    "notional", "delta", "start", "tenor", "end", "fix rate", "fix freq", "fix dcf",
     "float freq", "roll conv", "pay/rec", "index",
 )
 # 返す列(1行目は見出し)
@@ -34,7 +35,7 @@ OUTPUT_HEADER = ("target fixrate", "PV", "delta(bump)", "delta(annuity)", "adj_n
 
 
 def is_flagged(value) -> bool:
-    """flag/risk_flag列の判定。1だけを「計算する」とする(空欄・文字は計算しない)。"""
+    """risk_flag列の判定。1だけを「計算する」とする(空欄・文字は計算しない)。"""
     try:
         return float(value) == 1.0
     except (TypeError, ValueError):
@@ -55,7 +56,7 @@ def price_row(row: Sequence, col: Dict[str, int], curves_for: Callable) -> list:
     curves_for: index列の値 → その清算機関のカーブ一式。"""
     get = lambda name: row[col[name]]  # noqa: E731
     result = [""] * len(OUTPUT_HEADER)
-    if not is_flagged(get("flag")):
+    if udf_common._is_blank(get("tenor")) and udf_common._is_blank(get("end")):
         return result
     try:
         curves = curves_for(get("index"))

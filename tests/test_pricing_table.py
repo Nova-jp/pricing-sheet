@@ -2,7 +2,7 @@
 pricing表を1回で計算するUDF(PricingTable、engine/swap_pricing/pricing/table.py)のリグレッションテスト。
 
 - 各行の結果が、1行用のUDFの組み立て(QuantLibの評価: price・パラレルデルタ・アニュイティ)と一致すること
-- flag=1の行だけ計算し、notional・deltaが空欄の行はその列だけ空欄にすること
+- tenorかendが入っている行だけ計算し、notional・deltaが空欄の行はその列だけ空欄にすること
 - 1行の入力の誤りは、その行の列を空欄にしてmessage列に理由を出すこと(表全体をエラーにしない)
 - 1行あたりの評価が3回(par・PV・パラレル)で済むこと
 
@@ -12,6 +12,7 @@ pricing表を1回で計算するUDF(PricingTable、engine/swap_pricing/pricing/t
 
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -27,13 +28,13 @@ from engine.swap_pricing.pricing import measures, table  # noqa: E402
 from tests.test_market_risk import NOTIONAL, _rt_range  # noqa: E402
 from tests.test_past_start import CONV  # noqa: E402
 
-# シートから渡す入力の列(出力の列F・P・T〜Wを含めない。HSTACK(A:E, G:O, S))
-_HEADER = ["flag", "risk_flag", "remarks", "notional", "delta", "start", "tenor", "end", "fix rate",
+# シートから渡す入力の列(出力の列を含めない。HSTACK(A:D, F:N, R))
+_HEADER = ["risk_flag", "remarks", "notional", "delta", "start", "tenor", "end", "fix rate",
            "fix freq", "fix dcf", "index", "float freq", "roll conv", "pay/rec"]
 
 
-def _row(flag=1, start="2bd", tenor="5y", notional=NOTIONAL, delta="", fix_rate="", pay_rec="PAY", end=None):
-    return [flag, 1, "", notional, delta, start, tenor, end, fix_rate, "PA", "act/365fixed", "JSCC", "PA",
+def _row(start="2bd", tenor="5y", notional=NOTIONAL, delta="", fix_rate="", pay_rec="PAY", end=None):
+    return [1, "", notional, delta, start, tenor, end, fix_rate, "PA", "act/365fixed", "JSCC", "PA",
             "STD", pay_rec]
 
 
@@ -94,13 +95,21 @@ class PricingTableTest(unittest.TestCase):
         self.assertEqual(result[3], udf.SwapAnnuityDelta("2bd", "7y", None, *conv, NOTIONAL, "PAY", self.rt))
         self.assertEqual(result[4], udf.NotionalForDelta(1.0, "2bd", "7y", None, *conv, "PAY", self.rt))
 
-    def test_only_flagged_rows_are_priced(self):
+    def test_rows_without_tenor_or_end_are_blank(self):
+        """規約の列(既定値・数式)やstartが入っていても、tenorもendも空欄の行は計算しない。"""
         result = udf.PricingTable([
-            _HEADER, _row(flag=0), _row(flag=""), [None] * len(_HEADER), [], _row(flag=1),
+            _HEADER, _row(tenor=""), _row(tenor=None), [None] * len(_HEADER), [],
+            _row(tenor="", end=date(2031, 11, 20)), _row(),
         ], self.rt)
         for r in result[1:5]:
             self.assertEqual(r, [""] * 6)
-        self.assertIsInstance(result[5][0], float)
+        self.assertIsInstance(result[5][0], float)  # endだけの行
+        self.assertIsInstance(result[6][0], float)
+
+    def test_extra_flag_column_is_ignored(self):
+        """列は見出し名で探すので、表に旧来のflag列が残っていても値は変わらない。"""
+        result = udf.PricingTable([["flag"] + _HEADER, [0] + _row(delta=1.0)], self.rt)
+        self.assertEqual(result, udf.PricingTable([_HEADER, _row(delta=1.0)], self.rt))
 
     def test_blank_notional_and_delta_leave_their_columns_blank(self):
         result = udf.PricingTable([_HEADER, _row(notional="", delta="")], self.rt)[1]
