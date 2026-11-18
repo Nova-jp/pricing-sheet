@@ -55,8 +55,9 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
 - 配列を返すUDFに`@xw.ret(expand="table")`を使わない(旧式配列数式に書き換わり
   動的配列のスピルと衝突する)。配列をそのまま返しExcelのスピルに任せる。
 - 価格計算の値はQuantLibを正とし、手計算の再実装による検証ロジックは作らない。
-- 評価日はMainシートの`評価日`セル(空欄=今日)に集約し、UDFの引数に`TODAY()`を使わない
-  (volatileでF9のたびに全UDFが再計算される)。カーブは`engine/common/market.py`で全UDFが共有し、
+- 評価日はブックごとに1セルに集約し、日付を値で入れる(毎朝Ctrl+;)。今日やDBで結果が変わるUDFは、すべてその
+  セルを引数で受け取る(UDFの中で黙って今日やDBを見ない)。`TODAY()`もvolatileの評価日も使わない(volatileの下流は
+  F9のたびに全部計算される)。volatileは状態の表示`DataStatus`だけ(`docs/decisions.md`の「評価日」)。カーブは`engine/common/market.py`で全UDFが共有し、
   UDFごと・行ごとにブートストラップしない。
 - データの供給元はLSEG Workspace(`historical_data.xlsx`と、Python APIのデスクトップセッション。リアルタイムは常駐の
   フィード`engine/common/live_feed.py`、JGBの銘柄情報・引け値は`engine/common/jgb_source.py`)。ヒストリカルは手動実行のバッチ

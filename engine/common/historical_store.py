@@ -572,9 +572,13 @@ class HistoricalStore:
         with self._connect() as conn:
             return {label for (label,) in conn.execute("SELECT DISTINCT label FROM swaption_premiums")}
 
-    def jgb_closes_last_date(self) -> Optional[date]:
+    def jgb_closes_last_date(self, on_or_before: Optional[date] = None) -> Optional[date]:
+        """引け値がある最後の日付(on_or_before を渡せばその日以前で)。"""
         with self._connect() as conn:
-            (d,) = conn.execute("SELECT MAX(as_of_date) FROM jgb_closes").fetchone()
+            (d,) = conn.execute(
+                "SELECT MAX(as_of_date) FROM jgb_closes WHERE as_of_date <= ?",
+                (_iso(on_or_before or date.max),),
+            ).fetchone()
         return date.fromisoformat(d) if d else None
 
     def fetch_coverage(self, dataset: str) -> Optional[date]:
