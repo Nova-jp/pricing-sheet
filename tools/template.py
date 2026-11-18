@@ -106,6 +106,7 @@ UDF_MODULES = (
     ROOT / "engine" / "position" / "udf.py",
     ROOT / "engine" / "live_screen" / "udf.py",
     ROOT / "engine" / "common" / "live_udf.py",
+    ROOT / "engine" / "common" / "status_udf.py",
 )
 
 _CELL = re.compile(r'<c r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)', re.S)

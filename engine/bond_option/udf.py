@@ -6,6 +6,7 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
 手で入れれば残りが計算されるように、UDFは銘柄コードではなく利率・償還日のセルの値を受け取る。
 
   ValuationDate    : 評価日(取引日)。空欄=今日。シートの他の式はこの結果を参照する
+  DataStatus       : 評価日・DBの状態の表示(engine/common/status_udf.py。全ブック共通)
   JgbMaster        : 全銘柄の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN](Bondsシート)
   JapanHolidays    : 日本の祝日(土日を除く)の一覧(Holidaysシート。WORKDAY・NETWORKDAYSに渡す)
   JgbForwardRisk   : [先渡複利, 先渡DD, 先渡MD, 先渡のd²P/dy²](F7・F8・F12。利回りの解の探索とQuantLibの
@@ -49,39 +50,26 @@ def _blank_if_none(value):
     return "" if value is None else value
 
 
-@xw.func(volatile=True)
+@xw.func
 def ValuationDate(valuation_date=None):
-    """評価日(取引日)。空欄=今日。
-    volatile(F9のたびに計算する)。空欄=今日は入力のセルが変わらないので、volatileでないと日をまたいでも
-    前の日付のまま残り、下流(JgbMaster等)も計算し直されない。下流のUDFはF9のたびに呼ばれるので、
-    DBを読む重いものはPython側で入力が同じなら前回の結果を返す(JgbMaster・VolRatioTable)。"""
+    """評価日(取引日)。空欄=今日(非volatile。空欄のまま日をまたいでも計算し直されないので、評価日のセルには
+    日付を入れる。空欄・今日でない等は DataStatus が赤で知らせる。docs/decisions.md の「評価日」)。"""
     return udf_common._resolve_valuation_date(valuation_date)
-
-
-# 直前の JgbMaster の (評価日, DBの版) と結果。F9のたびに呼ばれても、同じならDBを読まない
-_master: Optional[tuple] = None
 
 
 @xw.func
 def JgbMaster(valuation_date=None) -> List[list]:
     """全銘柄(償還日の順)の [銘柄コード, 利率(%), 償還日, 引け値の単利(%), 引けの日付, RIC, ISIN]。
-    引け値は評価日(空欄=今日)以前で直近のもの。無ければ空欄。
-    評価日とDBの版(朝バッチで変わる)が前回と同じなら、DBを読まずに前回の結果を返す。"""
-    global _master
+    引け値は評価日(空欄=今日)以前で直近のもの。無ければ空欄。"""
     as_of = udf_common._resolve_valuation_date(valuation_date)
     with udf_common._historical_store() as store:
-        key = (as_of, udf_common._db_version(store))
-        if _master is not None and _master[0] == key:
-            return _master[1]
         rows = store.jgb_master(as_of)
     if not rows:
         raise ValueError("JGBの銘柄がDBにありません(python -m engine.common.morning_batch でLSEGから取得してください)")
-    result = [
+    return [
         [r.code, r.coupon, r.maturity, _blank_if_none(r.close_yield), _blank_if_none(r.close_date), r.ric, r.isin]
         for r in rows
     ]
-    _master = (key, result)
-    return result
 
 
 @xw.func

@@ -204,8 +204,9 @@ F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T �
 
 | UDF | 返す値 |
 |---|---|
-| `ValuationDate(評価日)` | 評価日(空欄=今日)。volatile(下の「評価日とキャッシュ」) |
-| `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄。評価日とDBの版が前回と同じならDBを読まずに前回の結果を返す |
+| `ValuationDate(評価日)` | 評価日(空欄=今日。下の「評価日」) |
+| `DataStatus(評価日, 引けの日付, "jgb")` | 評価日・DBの状態(`OK`以外は赤。全ブック共通、volatile) |
+| `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄 |
 | `JapanHolidays(開始日, 終了日)` | 日本の祝日(土日を除く)を縦に |
 | `OptionTermTable(銘柄, 満期, 取引日)` | 全行の T(年)の縦1列。銘柄が空欄の行は空欄、計算できない行(満期が取引日以前等)は理由の文字列(下流の表UDFのmessageに出る) |
 | `OptionMarketTable(銘柄, 利率, 償還日, 先渡dirty, 行使後の受渡日, 満期, ボラの範囲, 取引日)` | 全行の [先渡複利, DD, MD, CX(F12), ノーマルvol(補間), message] |
@@ -228,21 +229,19 @@ Excelの式のまま残す(手で上書きしたときに対応しやすいた�
 UDFは銘柄コードを受けず、利率・償還日のセルの値を受け取る(不具合のときも途中のセルに値を手で入れれば残りが計算される)。
 日付の引数は日付だけを受け付ける(スワップ用のIMMコード・テナーの表記は通さない)。計算方法は手動+F9。
 
-**評価日とキャッシュ(ユーザー了承)**: `ValuationDate`はvolatile。空欄=今日は入力のセル(C3)が変わらないので、
-volatileでないとExcelは日をまたいだことを知らず、F9でもTradeDateが前の日付のまま残る(ブックを開いた直後も、
-保存時の日付のまま)。下流の`JgbMaster`・XLOOKUPも計算されず、`OptionTermTable`は昨日の引け時点で期間Tを数えていた。
-Excelには「値が変わったときだけ下流を計算する」仕組みが無いので、volatileにすると下流のUDFはF9のたびに呼ばれる。
-DBを読むUDFは、入力とDBの版(`udf_common._db_version`、パス・更新時刻・大きさ。朝バッチで変わる)を鍵に、
-同じなら前回の結果を返す(`JgbMaster`は直前の1回分、`VolRatioTable`は行ごと)。これで朝バッチの後もF9だけで新しい引け値になる。
-軽いUDF(Black式の表・`JapanHolidays`)はキャッシュせず毎回計算する。
+**評価日(ユーザー了承)**: C3に日付を入れる(毎朝Ctrl+;)。`ValuationDate`・`JgbMaster`は非volatileなので、
+C3が空欄(=今日)のままだと日をまたいでもF9でTradeDateが前の日付のまま残る(下流の`JgbMaster`・XLOOKUPも、
+`OptionTermTable`の期間Tの起点も古いまま)。D4の`=DataStatus(C3, MAX(INDEX(BondList,,5)), "jgb")`が、
+C3が空欄・今日でない・未来、またはBondsシートの引けの日付よりDBの引け値が新しい(C3を入れた後に朝バッチを流した)
+ときに赤く出す。理由は[decisions.md](decisions.md)の「評価日」。
 
 ## ブック(`BondOption.xlsm`)
 
 - **Bonds**シート: A3 `=JgbMaster(TradeDate)`(名前`BondList` = `Bonds!$A$3#`)。
 - **Holidays**シート: A3 `=JapanHolidays(DATE(YEAR(TradeDate)−1,1,1), DATE(YEAR(TradeDate)+21,12,31))`
   (名前`Holidays` = `Holidays!$A$3#`)。
-- **Option**シート: 上段は C1 取得モード(Live/Fixed)、C3 評価日(空欄=今日)、
-  C4 使う評価日(名前`TradeDate`)、C5 換算の日数(名前`VolDays`、252)、F3・F4 Repo bid・offer(名前`RepoBid`・
+- **Option**シート: 上段は C1 取得モード(Live/Fixed)、C3 評価日(日付を入れる。空欄=今日)、
+  C4 使う評価日(名前`TradeDate`)、D4 `DataStatus`(`OK`以外は赤)、C5 換算の日数(名前`VolDays`、252)、F3・F4 Repo bid・offer(名前`RepoBid`・
   `RepoOffer`)、F5 HVの窓(営業日数、名前`HvWindow`、既定20)、H1:J5 スキームの対応表(名前`SchemeTable` = H2:J5。Scheme │ Type(Call/Put)│ Repo side(Bid/Offer、
   黄色。ユーザーが後日入れる))。6行目がブロック名の帯、7行目が見出し、8〜107行目(100行)が1行1オプション。
   入力は黄色。横線は5行ごと、縦線はブロックの境目(太線)とボラのoverride│使う値の組の間(細線)。
