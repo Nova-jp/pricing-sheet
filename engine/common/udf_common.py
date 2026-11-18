@@ -114,6 +114,13 @@ def _historical_store() -> HistoricalStore:
     return store
 
 
+def _db_version(store: HistoricalStore) -> tuple:
+    """ヒストリカルDBの版(パス・更新時刻・大きさ)。朝バッチが書けば変わる。UDFのPython側のキャッシュの鍵に使う
+    (volatileの評価日の下流でF9のたびに呼ばれても、DBが同じなら読み直さないため)。"""
+    stat = store.db_path.stat()
+    return (str(store.db_path), stat.st_mtime_ns, stat.st_size)
+
+
 def _db_fixings() -> Dict[datetime.date, float]:
     """TONA実績(過去起算の計算用)。ヒストリカルDBから読み、DBが無ければ空にする(スポット起点の
     計算はDBなしでも動き、過去起算だけが「実績が不足」のエラーになる)。"""

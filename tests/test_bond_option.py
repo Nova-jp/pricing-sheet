@@ -243,9 +243,27 @@ class UdfTest(unittest.TestCase):
         patcher = mock.patch.object(udf_common, "_historical_store", lambda: self.store)
         patcher.start()
         self.addCleanup(patcher.stop)
+        bo_udf._master = None
 
     def tearDown(self):
+        bo_udf._master = None
         self._tmp.cleanup()
+
+    def test_master_cache(self):
+        """評価日とDBが前回と同じならDBを読まない。評価日かDBが変われば読み直す(F9のたびに呼ばれるため)。"""
+        with mock.patch.object(HistoricalStore, "jgb_master", autospec=True, side_effect=HistoricalStore.jgb_master) as read:
+            first = bo_udf.JgbMaster(date(2026, 10, 19))
+            self.assertEqual(bo_udf.JgbMaster(date(2026, 10, 19)), first)
+            self.assertEqual(read.call_count, 1)
+            self.assertEqual(bo_udf.JgbMaster(date(2026, 10, 15))[0][3:5], [2.10, date(2026, 10, 15)])
+            self.assertEqual(read.call_count, 2)
+            self.store.save_jgb_closes([JgbClose(date(2026, 10, 15), "JS999", 2.30)])  # 朝バッチがDBを書いた
+            self.assertEqual(bo_udf.JgbMaster(date(2026, 10, 15))[0][3], 2.30)
+            self.assertEqual(read.call_count, 3)
+
+    def test_valuation_date_volatile(self):
+        """空欄=今日は入力のセルが変わらないので、volatileでないと日をまたいでもF9で今日に変わらない。"""
+        self.assertTrue(bo_udf.ValuationDate.__xlfunc__["volatile"])
 
     def test_master(self):
         self.store.save_jgb_bonds([JgbRecord("JN998", "JP09980042=", "YY", 0.5, date(2028, 3, 1))])
