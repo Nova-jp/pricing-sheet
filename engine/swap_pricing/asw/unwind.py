@@ -11,7 +11,7 @@ hedge ratioはAswPricingTableの出力なので、同じUDFの入力にすると
   → pricing表のPVと同じ measures.pv(評価日時点の価値。起算日が過去なら評価日前日までのTONA実績を使う)
   満期日はAswPricingTableのMMSと同じく償還日(Modified Following)。エンド日の入力は持たない(ユーザー判断)。
 ■ 計算する行
-  flag=1で、trade start・traded MMS rate・swap notional usedがそろった行だけ。どれかが空欄なら全部空欄
+  trade start・traded MMS rate・swap notional usedがそろった行だけ。どれかが空欄なら全部空欄
   (まだ約定していない行)。入力の誤り・TONA実績の欠損はmessage列に閉じ込める。
 """
 
@@ -23,10 +23,9 @@ from engine.common.swap_pricer import swap_dates
 from engine.common.terms import SwapConvention, SwapParams, SwapTerms
 from engine.swap_pricing.asw.pricer import OKU
 from engine.swap_pricing.pricing import measures
-from engine.swap_pricing.pricing.table import is_flagged
 
 INPUT_COLUMNS = (
-    "flag", "maturity", "fix freq", "fix dcf", "float freq", "roll conv", "pay/rec",
+    "maturity", "fix freq", "fix dcf", "float freq", "roll conv", "pay/rec",
     "trade start", "traded mms rate", "swap notional used",
 )
 OUTPUT_HEADER = ("unwind start", "unwind end", "unwind pv", "unwind message")
@@ -61,7 +60,7 @@ def _date(value, name: str):
 
 def price_row(row: Sequence, col, curves) -> list:
     get = lambda name: row[col[name]]  # noqa: E731
-    if not is_flagged(get("flag")) or any(udf_common._is_blank(get(c)) for c in _TRADE_INPUTS):
+    if any(udf_common._is_blank(get(c)) for c in _TRADE_INPUTS):
         return [""] * len(OUTPUT_HEADER)
     try:
         if udf_common._is_blank(get("pay/rec")):

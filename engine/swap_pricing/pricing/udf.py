@@ -34,11 +34,11 @@ def _params(
 def PricingTable(pricing_table, real_time_range, valuation_date=None, lch_range=None) -> List[list]:
     """
     pricing表の全行のtarget fixrate・PV・delta(bump)・delta(annuity)・adj_notional・messageを1回で返す
-    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はpricing/table.py)。
+    (1行目は見出し、以降は入力の行と同じ並び。計算はtenorかendが入っている行だけ。詳細はpricing/table.py)。
 
     pricing_table: 見出し行から最終行まで。出力の列(target fixrate・adj_notional等)を含めると循環参照に
         なるので、入力の列だけをHSTACKで渡す(例: HSTACK($A$3:$E$103,$G$3:$O$103,$S$3:$S$103))。
-        列は見出し名で探す(flag, notional, delta, start, tenor, end, fix rate, fix freq, fix dcf,
+        列は見出し名で探す(notional, delta, start, tenor, end, fix rate, fix freq, fix dcf,
         float freq, roll conv, pay/rec, index)。
     real_time_range: JSCCのカーブ用の範囲(フラグ/Ticker/Value)。
     lch_range: LCHのカーブ用の範囲(同じ形、LiveQuotes("swap_lch"))。index列がLCHの行だけが使う。

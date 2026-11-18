@@ -1,7 +1,7 @@
 """
 ASWPricer表(見出し行+銘柄の行)を1回でまとめて計算する(UDF AswPricingTable の本体)。
 
-pricing表(pricing/table.py)と同じ作り: 列は見出し名で探し、flag=1の行だけ計算し、行ごとのエラーは
+pricing表(pricing/table.py)と同じ作り: 列は見出し名で探し、銘柄(bond)が入っている行だけ計算し、行ごとのエラーは
 message列に閉じ込める。計算の定義は asw/pricer.py。
 
 ■ 1行の流れ
@@ -21,10 +21,10 @@ from engine.common.terms import PAY, SwapConvention, SwapTerms
 from engine.swap_pricing.asw import pricer
 from engine.swap_pricing.pricing import measures
 from engine.swap_pricing.pricing.row import start_date
-from engine.swap_pricing.pricing.table import columns, is_flagged
+from engine.swap_pricing.pricing.table import columns
 
 INPUT_COLUMNS = (
-    "flag", "bond", "slide", "yield override", "delta", "start", "fix freq", "fix dcf", "float freq",
+    "bond", "slide", "yield override", "delta", "start", "fix freq", "fix dcf", "float freq",
     "roll conv", "pay/rec",
 )
 OUTPUT_HEADER = (
@@ -54,7 +54,7 @@ def price_row(row: Sequence, col, curves, store) -> list:
     get = lambda name: row[col[name]]  # noqa: E731
     result = [""] * len(OUTPUT_HEADER)
     put = lambda name, value: result.__setitem__(_OUT[name], value)  # noqa: E731
-    if not is_flagged(get("flag")):
+    if udf_common._is_blank(get("bond")):
         return result
     try:
         code = str(get("bond")).strip().upper()

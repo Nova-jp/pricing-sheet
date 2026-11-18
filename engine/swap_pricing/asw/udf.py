@@ -108,11 +108,11 @@ def AswPricingTable(asw_table, real_time_range, valuation_date=None) -> List[lis
     ASWPricer表の全行の coupon・maturity・close・close date・simple yield・settle・price・compound yield・
     start date・end date・swap rate(MMS)・par-par asw(bp)・adj_notional・bond bpv(額面1億円、円/bp)・
     hedge ratio(デルタニュートラルのMMSの想定元本/現物の額面)・message を1回で返す
-    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はasw/table.py)。
+    (1行目は見出し、以降は入力の行と同じ並び。計算は銘柄(bond)が入っている行だけ。詳細はasw/table.py)。
     ASW(bp) = (compound yield − swap rate)×100 はシートの式で計算する。
 
     asw_table: 見出し行から最終行まで、入力の列だけ(出力の列を含めると循環参照になる)。列は見出し名で探す
-        (flag, bond, slide, yield override, delta, start, fix freq, fix dcf, float freq, roll conv, pay/rec)。
+        (bond, slide, yield override, delta, start, fix freq, fix dcf, float freq, roll conv, pay/rec)。
     real_time_range: PricingTableと同じ(そのシートの TAKE(カーブ用の範囲#,,3))。
     """
     curves = udf_common._market(real_time_range, valuation_date)
@@ -127,10 +127,10 @@ def AswUnwindTable(unwind_table, real_time_range, valuation_date=None) -> List[l
     """
     約定済みのMMSのアンワインドの unwind start・unwind end(休日調整後の起算日・満期日)・unwind pv(円、評価日時点。
     pricing表のPVと同じ計算)・unwind message を1回で返す(1行目は見出し、以降は入力の行と同じ並び。
-    計算はflag=1で約定の入力がそろった行だけ。詳細はasw/unwind.py)。
+    計算は約定の入力がそろった行だけ。詳細はasw/unwind.py)。
 
     unwind_table: 見出し行から最終行まで。列は見出し名で探し、末尾の単位「 (100M)」等は無視する
-        (flag, maturity, fix freq, fix dcf, float freq, roll conv, pay/rec, trade start, traded MMS rate,
+        (maturity, fix freq, fix dcf, float freq, roll conv, pay/rec, trade start, traded MMS rate,
         swap notional used(億円))。maturityはAswPricingTableが返した償還日のセル。
         このUDFの出力の列を含めると循環参照になる。
     real_time_range: AswPricingTableと同じ(そのシートの TAKE(カーブ用の範囲#,,3))。
@@ -144,11 +144,11 @@ def AswCloseTable(close_table, valuation_date=None) -> List[list]:
     """
     ASWPricer表の全行の引け時点の close compound yield(引け日のスポット受渡T+1の複利)・close swap rate
     (引け日のスポットT+2〜償還日のMMS、DBの引け日のカーブ)・close message を1回で返す
-    (1行目は見出し、以降は入力の行と同じ並び。計算はflag=1の行だけ。詳細はasw/close.py)。
+    (1行目は見出し、以降は入力の行と同じ並び。計算は銘柄(bond)が入っている行だけ。詳細はasw/close.py)。
     引けのASW(bp) = (close compound yield − close swap rate)×100 と今のASWとの差はシートの式で計算する。
 
     ライブのレートの範囲は引数に取らない(非volatile。Shift+F9でライブのレートが動いても計算し直さない)。
-    close_table: 見出し行から最終行まで。列は見出し名で探す(flag, bond, fix freq, fix dcf, float freq, roll conv)。
+    close_table: 見出し行から最終行まで。列は見出し名で探す(bond, fix freq, fix dcf, float freq, roll conv)。
         このUDFの出力の列を含めると循環参照になる。
     valuation_date: 評価日(空欄=今日)。その日以前で直近の引け値を使う。
     """

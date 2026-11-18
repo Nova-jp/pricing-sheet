@@ -163,13 +163,13 @@ def _rt_range(flags=None):
     return rows
 
 
-_HEADER = ["flag", "risk_flag", "remarks", "notional", "delta", "adj_notional", "start", "tenor",
+_HEADER = ["risk_flag", "remarks", "notional", "delta", "adj_notional", "start", "tenor",
            "end", "fix rate", "fix freq", "fix dcf", "index", "float freq", "roll conv",
            "target fixrate", "spred", "fly", "pay/rec"]
 
 
 def _pricing_row(risk_flag, start, tenor, pay_rec="PAY", notional=NOTIONAL, end=None):
-    return [1, risk_flag, "", notional, "", "", start, tenor, end, "", "PA", "act/365fixed", "JSCC",
+    return [risk_flag, "", notional, "", "", start, tenor, end, "", "PA", "act/365fixed", "JSCC",
             "PA", "STD", 0.0, "", "", pay_rec]
 
 
@@ -196,7 +196,7 @@ class RiskGridTest(unittest.TestCase):
         curves = udf_common._market(self.rt, None)
         expected = {}
         for row in (self.table[1], self.table[3]):
-            params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor=row[7]), row[3], row[18]))
+            params = resolve_params(curves, SwapParams(SwapTerms(row[5], CONV, tenor=row[6]), row[2], row[17]))
             for label, value in bucketed_delta(curves, params).items():
                 expected[label] = expected.get(label, 0.0) + value / 1_000_000.0
         for ticker, value in by_ticker.items():
@@ -215,10 +215,10 @@ class RiskGridTest(unittest.TestCase):
     def test_swap_delta_matches_sum_of_parallel(self):
         """SwapDelta(行ごとの全テナー+1bp)も共有カーブを使い、再ブートストラップと一致する。"""
         row = self.table[1]
-        delta = udf.SwapDelta(row[6], row[7], None, *[row[i] for i in (10, 11, 13, 14)],
-                              row[3], "PAY", "", self.rt)
+        delta = udf.SwapDelta(row[5], row[6], None, *[row[i] for i in (9, 10, 12, 13)],
+                              row[2], "PAY", "", self.rt)
         curves = udf_common._market(self.rt, None)
-        params = resolve_params(curves, SwapParams(SwapTerms(row[6], CONV, tenor="5y"), NOTIONAL, "PAY"))
+        params = resolve_params(curves, SwapParams(SwapTerms(row[5], CONV, tenor="5y"), NOTIONAL, "PAY"))
         self.assertAlmostEqual(delta, parallel_delta(curves, params) / 1_000_000.0, delta=1e-12)
 
 
