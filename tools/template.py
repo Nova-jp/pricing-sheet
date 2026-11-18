@@ -1,8 +1,13 @@
 """
 作業用のブック(リポジトリ直下。gitignore済み)から、LSEGのデータを含まない雛形(templates/)を作る・検査する。
 
-    python -m tools.template          # 直下のブック → templates/ に雛形を書き出す
+    python -m tools.template          # 直下のブック → templates/ に雛形と、その構造のテキスト(.txt)を書き出す
     python -m tools.template --check  # templates/ の雛形を検査する(pre-commitフック・GitHub Actionsが実行)
+    python -m tools.template --diff   # templates/ の雛形と origin/main の雛形の違い(セル・数式・定義名)を出す
+    python -m tools.template --compare [ブック ...]  # 作業用のブックが origin/main の雛形から遅れていないか
+
+雛形の横に置く構造のテキスト(templates/<ブック>.txt、tools/book_text.py)は、PRの差分で数式の変化を
+行単位で読むためのもの。検査で雛形と一致することを確かめる(手で直さない)。
 
 場所ごとに消すのではなく、規則で一律に消す(LSEGのデータはほぼ全て数式の計算結果として入るため):
 - 数式のセルの計算結果(キャッシュ値)を消す。数式と、手入力の値(コンベンション・フラグ等)は残す
@@ -18,6 +23,7 @@
 
 import argparse
 import ast
+import difflib
 import io
 import re
 import subprocess
@@ -26,8 +32,12 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union
 
+from tools.book_text import book_text
+
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = ROOT / "templates"
+TEXT_SUFFIX = ".txt"  # 雛形の構造のテキスト: templates/<ブック>.txt
+DEFAULT_BASE = "origin/main"
 
 # 雛形にするブック → {シート名: その行以降を消す行番号、または値を消す範囲("B4:B34")}
 # (LSEGアドインが値として書き込む受信領域・会社のデータを貼る・入れる場所)
@@ -369,8 +379,106 @@ def make_all() -> int:
             continue
         parts = make_template(_read(source), areas)
         _write(TEMPLATE_DIR / book, parts, source)
-        print(f"作成: templates/{book}")
-    return status or check_all()
+        _text_path(book).write_bytes(book_text(parts).encode("utf-8"))
+        print(f"作成: templates/{book}{{,{TEXT_SUFFIX}}}")
+    status = status or check_all()
+    _warn_if_behind(DEFAULT_BASE)
+    print(f"意図した変更だけか確かめる: python -m tools.template --diff(または git diff {DEFAULT_BASE} -- templates/*{TEXT_SUFFIX})")
+    return status
+
+
+def _text_path(book: str) -> Path:
+    return TEMPLATE_DIR / (book + TEXT_SUFFIX)
+
+
+def _show(spec: str) -> Optional[bytes]:
+    """git show の中身(無ければ None)。spec は ":path"(ステージ済み)か "ref:path"。"""
+    shown = _git("show", spec)
+    return shown.stdout if shown.returncode == 0 else None
+
+
+def _fetch(base: str) -> None:
+    """origin/… と比べるときは、比べる前に取ってくる(古い origin/main と比べても意味がない)。"""
+    if base.startswith("origin/"):
+        fetched = _git("fetch", "-q", "origin", base.split("/", 1)[1])
+        if fetched.returncode:
+            print(f"注意: git fetch に失敗しました。最後に取ってきた {base} と比べます")
+
+
+def _warn_if_behind(base: str) -> bool:
+    """HEAD に base の最新が入っていなければ警告する(True=入っていない)。"""
+    result = _git("merge-base", "--is-ancestor", base, "HEAD")
+    if result.returncode == 1:
+        print(f"警告: このブランチに {base} の最新が入っていません(分岐したあとに main が進んでいる)。"
+              f"git rebase {base} してから、ブックに main の変更が入っているかを確かめて雛形を作り直す")
+        return True
+    if result.returncode:
+        print(f"注意: {base} が見つからないので、main との前後関係は確かめていません")
+    return False
+
+
+def _print_diff(old: str, new: str, old_name: str, new_name: str) -> bool:
+    """構造のテキストの差分を出す(True=違いがある)。1行に場所(シート!セル)が入るので前後の文脈は出さない。"""
+    lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), old_name, new_name, lineterm="", n=0))
+    for line in lines:
+        print(line)
+    return bool(lines)
+
+
+def _base_text(base: str, book: str) -> str:
+    data = _show(f"{base}:templates/{book}")
+    return book_text(_read(data)) if data is not None else ""
+
+
+def diff_all(base: str = DEFAULT_BASE) -> int:
+    """templates/ の雛形(作業中のファイル)と base の雛形の違いを、セル・数式・定義名の単位で出す。"""
+    _fetch(base)
+    _warn_if_behind(base)
+    for book in RECEIVE_AREAS:
+        path = TEMPLATE_DIR / book
+        if not path.exists():
+            continue
+        if not _print_diff(_base_text(base, book), book_text(_read(path)), f"{base}:templates/{book}",
+                           f"templates/{book}"):
+            print(f"同じ: templates/{book}")
+    return 0
+
+
+def _main_checkout() -> Path:
+    """直下(worktreeの元のフォルダ)。作業用のブックとDBはここにある。"""
+    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir").stdout.decode("utf-8").strip()
+    return Path(common).parent if common else ROOT
+
+
+def compare_all(paths: List[str], base: str = DEFAULT_BASE) -> int:
+    """作業用のブックを雛形にした構造と、base の雛形を比べる(違いがあれば1)。
+
+    直下のブックは git の外なので、マージした変更を直下に当て忘れると、main の雛形より古いまま残る。
+    その古いブックから雛形を作ると、main の変更を黙って巻き戻す(PR #80 で起きた)。worktreeにブックを
+    コピーする前と、雛形を作る前に流す。手で入れた値(評価日等)の違いも出るので、出た行は目で見て判断する。
+    """
+    _fetch(base)
+    books = [Path(p) for p in paths] or [_main_checkout() / b for b in RECEIVE_AREAS if (_main_checkout() / b).exists()]
+    status = 0
+    for path in books:
+        if path.name not in RECEIVE_AREAS:
+            print(f"NG {path}: 雛形にするブックではありません(RECEIVE_AREASにありません)")
+            status = 1
+            continue
+        try:
+            text = book_text(make_template(_read(path), RECEIVE_AREAS[path.name]))
+        except (OSError, zipfile.BadZipFile) as exc:
+            print(f"NG {path}: 読めません({exc})")
+            status = 1
+            continue
+        if _print_diff(_base_text(base, path.name), text, f"{base}:templates/{path.name}", str(path)):
+            print(f"NG {path}: {base} の雛形と違います(上の - が main にあってブックに無いもの、+ がブックだけにあるもの)")
+            status = 1
+        else:
+            print(f"OK {path}: {base} の雛形と同じ")
+    if status:
+        print("- の行が main でマージ済みの変更なら、ブックに当て忘れています。当ててから使う・コピーする")
+    return status
 
 
 def check_all(staged: bool = False) -> int:
@@ -387,13 +495,22 @@ def check_all(staged: bool = False) -> int:
             print(f"NG templates/{book}: ありません")
             status = 1
             continue
-        problems = check_template(_read(source), areas, array_udfs)
+        parts = _read(source)
+        problems = check_template(parts, areas, array_udfs)
+        text = _show(f":templates/{book}{TEXT_SUFFIX}") if staged else (
+            _text_path(book).read_bytes() if _text_path(book).exists() else None)
+        if text is None:
+            problems.append(f"構造のテキストがありません(python -m tools.template で作り直す): templates/{book}{TEXT_SUFFIX}")
+        elif text.replace(b"\r\n", b"\n") != book_text(parts).encode("utf-8"):
+            problems.append(f"構造のテキストが雛形と一致しません(手で直さず python -m tools.template で作り直す): "
+                            f"templates/{book}{TEXT_SUFFIX}")
         print(f"{'NG' if problems else 'OK'} templates/{book}")
         for p in problems:
             print(f"  - {p}")
         status |= bool(problems)
     if not staged:
-        extra = sorted(p.name for p in TEMPLATE_DIR.glob("*") if p.name not in RECEIVE_AREAS)
+        known = set(RECEIVE_AREAS) | {b + TEXT_SUFFIX for b in RECEIVE_AREAS}
+        extra = sorted(p.name for p in TEMPLATE_DIR.glob("*") if p.name not in known)
         if extra:
             print(f"NG templates/ に未登録のファイルがあります(RECEIVE_AREASに追加する): {extra}")
             status = 1
@@ -412,8 +529,18 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--check", action="store_true", help="templates/ の雛形を検査するだけ")
     parser.add_argument("--staged", action="store_true", help="--check でステージ済みの内容を検査する(pre-commitフック用)")
+    parser.add_argument("--diff", action="store_true", help="templates/ の雛形と --base の雛形の違いを出す")
+    parser.add_argument("--compare", nargs="*", metavar="BOOK",
+                        help="作業用のブック(省略時は直下のブック全部)が --base の雛形と同じかを確かめる")
+    parser.add_argument("--base", default=DEFAULT_BASE, help=f"--diff・--compare で比べる相手(既定 {DEFAULT_BASE})")
     args = parser.parse_args(argv)
-    return check_all(staged=args.staged) if args.check else make_all()
+    if args.check:
+        return check_all(staged=args.staged)
+    if args.diff:
+        return diff_all(args.base)
+    if args.compare is not None:
+        return compare_all(args.compare, args.base)
+    return make_all()
 
 
 if __name__ == "__main__":

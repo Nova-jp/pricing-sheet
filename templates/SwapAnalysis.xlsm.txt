@@ -1,0 +1,2468 @@
+# シートの並び
+sheet PCA
+sheet PCAGrid
+sheet VolPCA
+sheet VolHV
+sheet VolLevel
+sheet BOJ
+sheet FwdMonitor
+sheet FutBasis
+# 定義名
+name FUT_AdjDate = FutBasis!$Z$15:$Z$54
+name FUT_AdjNet = FutBasis!$AB$15:$AB$54
+name FUT_AdjSettle = FutBasis!$AA$15:$AA$54
+name FUT_ChDate = ANCHORARRAY(FutBasis!$BA$4)
+name FUT_ChNet = ANCHORARRAY(FutBasis!$BD$4)
+name FUT_ChNetAdj = ANCHORARRAY(FutBasis!$BE$4)
+name FUT_ChSettle = ANCHORARRAY(FutBasis!$BB$4)
+name FUT_ChSettleAdj = ANCHORARRAY(FutBasis!$BC$4)
+name FUT_Contract = FutBasis!$B$4
+name FUT_Date = IF(FUT_DateIn="",MAX(FUT_HD),FUT_DateIn)
+name FUT_DateIn = FutBasis!$B$5
+name FUT_Field = FutBasis!$B$9
+name FUT_From = FutBasis!$B$8
+name FUT_H = ANCHORARRAY(FutBasis!$AE$3)
+name FUT_HD = DROP(INDEX(FUT_H,,1),1)
+name FUT_Ov1 = ANCHORARRAY(FutBasis!$BP$4)
+name FUT_Ov2 = ANCHORARRAY(FutBasis!$BQ$4)
+name FUT_Ov3 = ANCHORARRAY(FutBasis!$BR$4)
+name FUT_Ov4 = ANCHORARRAY(FutBasis!$BS$4)
+name FUT_Ov5 = ANCHORARRAY(FutBasis!$BT$4)
+name FUT_Ov6 = ANCHORARRAY(FutBasis!$BU$4)
+name FUT_OvBD = ANCHORARRAY(FutBasis!$BO$4)
+name FUT_Overlay = FutBasis!$B$10:$G$10
+name FUT_Price = FutBasis!$B$6
+name FUT_Repo = FutBasis!$B$7
+name FUT_Steps = FutBasis!$T$15:$U$34
+name FUT_Yields = FutBasis!$W$15:$X$34
+name FWM_Base = FwdMonitor!$B$4
+name FWM_Ch1 = ANCHORARRAY(FwdMonitor!$HJ$4)
+name FWM_Ch2 = ANCHORARRAY(FwdMonitor!$HK$4)
+name FWM_Ch3 = ANCHORARRAY(FwdMonitor!$HL$4)
+name FWM_Ch4 = ANCHORARRAY(FwdMonitor!$HM$4)
+name FWM_ChDate = ANCHORARRAY(FwdMonitor!$HI$4)
+name FWM_Cmp = FwdMonitor!$B$5
+name FWM_Dates = DROP(INDEX(FWM_HC,,1),1)
+name FWM_From = FwdMonitor!$B$7
+name FWM_HC = ANCHORARRAY(FwdMonitor!$BK$3)
+name FWM_HF = ANCHORARRAY(FwdMonitor!$DG$3)
+name FWM_HR = ANCHORARRAY(FwdMonitor!$FC$3)
+name FWM_Labels = FwdMonitor!$A$12:$A$35
+name FWM_Leg = LAMBDA(m,n,sfx,LET(h,CHOOSE(XMATCH(m,{"CMT","FIXED","ROLLING"}),FWM_HC,FWM_HF,FWM_HR),IF(n="",0,INDEX(DROP(h,1),,XMATCH(n&sfx,TAKE(h,1))))))
+name FWM_Live = FwdMonitor!$B$12:$B$35
+name FWM_LiveOf = LAMBDA(n,IF(n="",0,XLOOKUP(n,FWM_Labels,FWM_Live)))
+name FWM_Row = LAMBDA(r,sfx,LET(m,INDEX(FWM_TMode,r),IF(sfx="",100,1)*(N(INDEX(FWM_TW1,r))*FWM_Leg(m,INDEX(FWM_TL1,r),sfx)+N(INDEX(FWM_TW2,r))*FWM_Leg(m,INDEX(FWM_TL2,r),sfx)+N(INDEX(FWM_TW3,r))*FWM_Leg(m,INDEX(FWM_TL3,r),sfx))))
+name FWM_Sigma = LAMBDA(x,LET(d,TAKE(x,-FWM_Win),SQRT(SUMSQ(d)/ROWS(d))))
+name FWM_TL1 = FwdMonitor!$D$39:$D$48
+name FWM_TL2 = FwdMonitor!$F$39:$F$48
+name FWM_TL3 = FwdMonitor!$H$39:$H$48
+name FWM_TMode = FwdMonitor!$C$39:$C$48
+name FWM_TName = FwdMonitor!$B$39:$B$48
+name FWM_TShow = FwdMonitor!$A$39:$A$48
+name FWM_TW1 = FwdMonitor!$E$39:$E$48
+name FWM_TW2 = FwdMonitor!$G$39:$G$48
+name FWM_TW3 = FwdMonitor!$I$39:$I$48
+name FWM_View = FwdMonitor!$B$8
+name FWM_Win = FwdMonitor!$B$6
+name PCA_Actual = ANCHORARRAY(PCA!$F$34)
+name PCA_Dn = ANCHORARRAY(PCA!$BY$4)
+name PCA_L1 = ANCHORARRAY(PCA!$T$34)
+name PCA_L2 = ANCHORARRAY(PCA!$U$34)
+name PCA_L3 = ANCHORARRAY(PCA!$V$34)
+name PCA_L4 = ANCHORARRAY(PCA!$W$34)
+name PCA_L5 = ANCHORARRAY(PCA!$X$34)
+name PCA_Mean = ANCHORARRAY(PCA!$G$34)
+name PCA_Mode = PCA!$B$6
+name PCA_Recon = ANCHORARRAY(PCA!$H$34)
+name PCA_ReconDate = PCA!$B$10
+name PCA_Resid = ANCHORARRAY(PCA!$I$34)
+name PCA_SDn = ANCHORARRAY(PCA!$CF$4)
+name PCA_SUp = ANCHORARRAY(PCA!$CE$4)
+name PCA_Selected = ANCHORARRAY(PCA!$AB$4)
+name PCA_SigmaDays = PCA!$B$12
+name PCA_Standardize = PCA!$B$7
+name PCA_Tenor = ANCHORARRAY(PCA!$E$34)
+name PCA_Up = ANCHORARRAY(PCA!$BX$4)
+name PCA_WindowEnd = PCA!$B$4
+name PCA_k = PCA!$B$11
+name PCA_window = PCA!$B$5
+name PCG_Act1 = ANCHORARRAY(PCAGrid!$GQ$5)
+name PCG_Act10 = ANCHORARRAY(PCAGrid!$GQ$455)
+name PCG_Act2 = ANCHORARRAY(PCAGrid!$GQ$55)
+name PCG_Act3 = ANCHORARRAY(PCAGrid!$GQ$105)
+name PCG_Act4 = ANCHORARRAY(PCAGrid!$GQ$155)
+name PCG_Act5 = ANCHORARRAY(PCAGrid!$GQ$205)
+name PCG_Act6 = ANCHORARRAY(PCAGrid!$GQ$255)
+name PCG_Act7 = ANCHORARRAY(PCAGrid!$GQ$305)
+name PCG_Act8 = ANCHORARRAY(PCAGrid!$GQ$355)
+name PCG_Act9 = ANCHORARRAY(PCAGrid!$GQ$405)
+name PCG_Dn1 = ANCHORARRAY(PCAGrid!$HG$5)
+name PCG_Dn10 = ANCHORARRAY(PCAGrid!$HG$455)
+name PCG_Dn2 = ANCHORARRAY(PCAGrid!$HG$55)
+name PCG_Dn3 = ANCHORARRAY(PCAGrid!$HG$105)
+name PCG_Dn4 = ANCHORARRAY(PCAGrid!$HG$155)
+name PCG_Dn5 = ANCHORARRAY(PCAGrid!$HG$205)
+name PCG_Dn6 = ANCHORARRAY(PCAGrid!$HG$255)
+name PCG_Dn7 = ANCHORARRAY(PCAGrid!$HG$305)
+name PCG_Dn8 = ANCHORARRAY(PCAGrid!$HG$355)
+name PCG_Dn9 = ANCHORARRAY(PCAGrid!$HG$405)
+name PCG_Guide = ANCHORARRAY(PCAGrid!$CC$4)
+name PCG_GuideIn = PCAGrid!$A$58:$A$62
+name PCG_Mean1 = ANCHORARRAY(PCAGrid!$HD$5)
+name PCG_Mean10 = ANCHORARRAY(PCAGrid!$HD$455)
+name PCG_Mean2 = ANCHORARRAY(PCAGrid!$HD$55)
+name PCG_Mean3 = ANCHORARRAY(PCAGrid!$HD$105)
+name PCG_Mean4 = ANCHORARRAY(PCAGrid!$HD$155)
+name PCG_Mean5 = ANCHORARRAY(PCAGrid!$HD$205)
+name PCG_Mean6 = ANCHORARRAY(PCAGrid!$HD$255)
+name PCG_Mean7 = ANCHORARRAY(PCAGrid!$HD$305)
+name PCG_Mean8 = ANCHORARRAY(PCAGrid!$HD$355)
+name PCG_Mean9 = ANCHORARRAY(PCAGrid!$HD$405)
+name PCG_R10_1 = ANCHORARRAY(PCAGrid!$GR$455)
+name PCG_R10_2 = ANCHORARRAY(PCAGrid!$GS$455)
+name PCG_R10_3 = ANCHORARRAY(PCAGrid!$GT$455)
+name PCG_R10_4 = ANCHORARRAY(PCAGrid!$GU$455)
+name PCG_R10_5 = ANCHORARRAY(PCAGrid!$GV$455)
+name PCG_R1_1 = ANCHORARRAY(PCAGrid!$GR$5)
+name PCG_R1_2 = ANCHORARRAY(PCAGrid!$GS$5)
+name PCG_R1_3 = ANCHORARRAY(PCAGrid!$GT$5)
+name PCG_R1_4 = ANCHORARRAY(PCAGrid!$GU$5)
+name PCG_R1_5 = ANCHORARRAY(PCAGrid!$GV$5)
+name PCG_R2_1 = ANCHORARRAY(PCAGrid!$GR$55)
+name PCG_R2_2 = ANCHORARRAY(PCAGrid!$GS$55)
+name PCG_R2_3 = ANCHORARRAY(PCAGrid!$GT$55)
+name PCG_R2_4 = ANCHORARRAY(PCAGrid!$GU$55)
+name PCG_R2_5 = ANCHORARRAY(PCAGrid!$GV$55)
+name PCG_R3_1 = ANCHORARRAY(PCAGrid!$GR$105)
+name PCG_R3_2 = ANCHORARRAY(PCAGrid!$GS$105)
+name PCG_R3_3 = ANCHORARRAY(PCAGrid!$GT$105)
+name PCG_R3_4 = ANCHORARRAY(PCAGrid!$GU$105)
+name PCG_R3_5 = ANCHORARRAY(PCAGrid!$GV$105)
+name PCG_R4_1 = ANCHORARRAY(PCAGrid!$GR$155)
+name PCG_R4_2 = ANCHORARRAY(PCAGrid!$GS$155)
+name PCG_R4_3 = ANCHORARRAY(PCAGrid!$GT$155)
+name PCG_R4_4 = ANCHORARRAY(PCAGrid!$GU$155)
+name PCG_R4_5 = ANCHORARRAY(PCAGrid!$GV$155)
+name PCG_R5_1 = ANCHORARRAY(PCAGrid!$GR$205)
+name PCG_R5_2 = ANCHORARRAY(PCAGrid!$GS$205)
+name PCG_R5_3 = ANCHORARRAY(PCAGrid!$GT$205)
+name PCG_R5_4 = ANCHORARRAY(PCAGrid!$GU$205)
+name PCG_R5_5 = ANCHORARRAY(PCAGrid!$GV$205)
+name PCG_R6_1 = ANCHORARRAY(PCAGrid!$GR$255)
+name PCG_R6_2 = ANCHORARRAY(PCAGrid!$GS$255)
+name PCG_R6_3 = ANCHORARRAY(PCAGrid!$GT$255)
+name PCG_R6_4 = ANCHORARRAY(PCAGrid!$GU$255)
+name PCG_R6_5 = ANCHORARRAY(PCAGrid!$GV$255)
+name PCG_R7_1 = ANCHORARRAY(PCAGrid!$GR$305)
+name PCG_R7_2 = ANCHORARRAY(PCAGrid!$GS$305)
+name PCG_R7_3 = ANCHORARRAY(PCAGrid!$GT$305)
+name PCG_R7_4 = ANCHORARRAY(PCAGrid!$GU$305)
+name PCG_R7_5 = ANCHORARRAY(PCAGrid!$GV$305)
+name PCG_R8_1 = ANCHORARRAY(PCAGrid!$GR$355)
+name PCG_R8_2 = ANCHORARRAY(PCAGrid!$GS$355)
+name PCG_R8_3 = ANCHORARRAY(PCAGrid!$GT$355)
+name PCG_R8_4 = ANCHORARRAY(PCAGrid!$GU$355)
+name PCG_R8_5 = ANCHORARRAY(PCAGrid!$GV$355)
+name PCG_R9_1 = ANCHORARRAY(PCAGrid!$GR$405)
+name PCG_R9_2 = ANCHORARRAY(PCAGrid!$GS$405)
+name PCG_R9_3 = ANCHORARRAY(PCAGrid!$GT$405)
+name PCG_R9_4 = ANCHORARRAY(PCAGrid!$GU$405)
+name PCG_R9_5 = ANCHORARRAY(PCAGrid!$GV$405)
+name PCG_Rec1 = ANCHORARRAY(PCAGrid!$HE$5)
+name PCG_Rec10 = ANCHORARRAY(PCAGrid!$HE$455)
+name PCG_Rec2 = ANCHORARRAY(PCAGrid!$HE$55)
+name PCG_Rec3 = ANCHORARRAY(PCAGrid!$HE$105)
+name PCG_Rec4 = ANCHORARRAY(PCAGrid!$HE$155)
+name PCG_Rec5 = ANCHORARRAY(PCAGrid!$HE$205)
+name PCG_Rec6 = ANCHORARRAY(PCAGrid!$HE$255)
+name PCG_Rec7 = ANCHORARRAY(PCAGrid!$HE$305)
+name PCG_Rec8 = ANCHORARRAY(PCAGrid!$HE$355)
+name PCG_Rec9 = ANCHORARRAY(PCAGrid!$HE$405)
+name PCG_ReconDate = PCAGrid!$A$4
+name PCG_SDn10_1 = ANCHORARRAY(PCAGrid!$HI$455)
+name PCG_SDn10_2 = ANCHORARRAY(PCAGrid!$HK$455)
+name PCG_SDn10_3 = ANCHORARRAY(PCAGrid!$HM$455)
+name PCG_SDn10_4 = ANCHORARRAY(PCAGrid!$HO$455)
+name PCG_SDn10_5 = ANCHORARRAY(PCAGrid!$HQ$455)
+name PCG_SDn1_1 = ANCHORARRAY(PCAGrid!$HI$5)
+name PCG_SDn1_2 = ANCHORARRAY(PCAGrid!$HK$5)
+name PCG_SDn1_3 = ANCHORARRAY(PCAGrid!$HM$5)
+name PCG_SDn1_4 = ANCHORARRAY(PCAGrid!$HO$5)
+name PCG_SDn1_5 = ANCHORARRAY(PCAGrid!$HQ$5)
+name PCG_SDn2_1 = ANCHORARRAY(PCAGrid!$HI$55)
+name PCG_SDn2_2 = ANCHORARRAY(PCAGrid!$HK$55)
+name PCG_SDn2_3 = ANCHORARRAY(PCAGrid!$HM$55)
+name PCG_SDn2_4 = ANCHORARRAY(PCAGrid!$HO$55)
+name PCG_SDn2_5 = ANCHORARRAY(PCAGrid!$HQ$55)
+name PCG_SDn3_1 = ANCHORARRAY(PCAGrid!$HI$105)
+name PCG_SDn3_2 = ANCHORARRAY(PCAGrid!$HK$105)
+name PCG_SDn3_3 = ANCHORARRAY(PCAGrid!$HM$105)
+name PCG_SDn3_4 = ANCHORARRAY(PCAGrid!$HO$105)
+name PCG_SDn3_5 = ANCHORARRAY(PCAGrid!$HQ$105)
+name PCG_SDn4_1 = ANCHORARRAY(PCAGrid!$HI$155)
+name PCG_SDn4_2 = ANCHORARRAY(PCAGrid!$HK$155)
+name PCG_SDn4_3 = ANCHORARRAY(PCAGrid!$HM$155)
+name PCG_SDn4_4 = ANCHORARRAY(PCAGrid!$HO$155)
+name PCG_SDn4_5 = ANCHORARRAY(PCAGrid!$HQ$155)
+name PCG_SDn5_1 = ANCHORARRAY(PCAGrid!$HI$205)
+name PCG_SDn5_2 = ANCHORARRAY(PCAGrid!$HK$205)
+name PCG_SDn5_3 = ANCHORARRAY(PCAGrid!$HM$205)
+name PCG_SDn5_4 = ANCHORARRAY(PCAGrid!$HO$205)
+name PCG_SDn5_5 = ANCHORARRAY(PCAGrid!$HQ$205)
+name PCG_SDn6_1 = ANCHORARRAY(PCAGrid!$HI$255)
+name PCG_SDn6_2 = ANCHORARRAY(PCAGrid!$HK$255)
+name PCG_SDn6_3 = ANCHORARRAY(PCAGrid!$HM$255)
+name PCG_SDn6_4 = ANCHORARRAY(PCAGrid!$HO$255)
+name PCG_SDn6_5 = ANCHORARRAY(PCAGrid!$HQ$255)
+name PCG_SDn7_1 = ANCHORARRAY(PCAGrid!$HI$305)
+name PCG_SDn7_2 = ANCHORARRAY(PCAGrid!$HK$305)
+name PCG_SDn7_3 = ANCHORARRAY(PCAGrid!$HM$305)
+name PCG_SDn7_4 = ANCHORARRAY(PCAGrid!$HO$305)
+name PCG_SDn7_5 = ANCHORARRAY(PCAGrid!$HQ$305)
+name PCG_SDn8_1 = ANCHORARRAY(PCAGrid!$HI$355)
+name PCG_SDn8_2 = ANCHORARRAY(PCAGrid!$HK$355)
+name PCG_SDn8_3 = ANCHORARRAY(PCAGrid!$HM$355)
+name PCG_SDn8_4 = ANCHORARRAY(PCAGrid!$HO$355)
+name PCG_SDn8_5 = ANCHORARRAY(PCAGrid!$HQ$355)
+name PCG_SDn9_1 = ANCHORARRAY(PCAGrid!$HI$405)
+name PCG_SDn9_2 = ANCHORARRAY(PCAGrid!$HK$405)
+name PCG_SDn9_3 = ANCHORARRAY(PCAGrid!$HM$405)
+name PCG_SDn9_4 = ANCHORARRAY(PCAGrid!$HO$405)
+name PCG_SDn9_5 = ANCHORARRAY(PCAGrid!$HQ$405)
+name PCG_SUp10_1 = ANCHORARRAY(PCAGrid!$HH$455)
+name PCG_SUp10_2 = ANCHORARRAY(PCAGrid!$HJ$455)
+name PCG_SUp10_3 = ANCHORARRAY(PCAGrid!$HL$455)
+name PCG_SUp10_4 = ANCHORARRAY(PCAGrid!$HN$455)
+name PCG_SUp10_5 = ANCHORARRAY(PCAGrid!$HP$455)
+name PCG_SUp1_1 = ANCHORARRAY(PCAGrid!$HH$5)
+name PCG_SUp1_2 = ANCHORARRAY(PCAGrid!$HJ$5)
+name PCG_SUp1_3 = ANCHORARRAY(PCAGrid!$HL$5)
+name PCG_SUp1_4 = ANCHORARRAY(PCAGrid!$HN$5)
+name PCG_SUp1_5 = ANCHORARRAY(PCAGrid!$HP$5)
+name PCG_SUp2_1 = ANCHORARRAY(PCAGrid!$HH$55)
+name PCG_SUp2_2 = ANCHORARRAY(PCAGrid!$HJ$55)
+name PCG_SUp2_3 = ANCHORARRAY(PCAGrid!$HL$55)
+name PCG_SUp2_4 = ANCHORARRAY(PCAGrid!$HN$55)
+name PCG_SUp2_5 = ANCHORARRAY(PCAGrid!$HP$55)
+name PCG_SUp3_1 = ANCHORARRAY(PCAGrid!$HH$105)
+name PCG_SUp3_2 = ANCHORARRAY(PCAGrid!$HJ$105)
+name PCG_SUp3_3 = ANCHORARRAY(PCAGrid!$HL$105)
+name PCG_SUp3_4 = ANCHORARRAY(PCAGrid!$HN$105)
+name PCG_SUp3_5 = ANCHORARRAY(PCAGrid!$HP$105)
+name PCG_SUp4_1 = ANCHORARRAY(PCAGrid!$HH$155)
+name PCG_SUp4_2 = ANCHORARRAY(PCAGrid!$HJ$155)
+name PCG_SUp4_3 = ANCHORARRAY(PCAGrid!$HL$155)
+name PCG_SUp4_4 = ANCHORARRAY(PCAGrid!$HN$155)
+name PCG_SUp4_5 = ANCHORARRAY(PCAGrid!$HP$155)
+name PCG_SUp5_1 = ANCHORARRAY(PCAGrid!$HH$205)
+name PCG_SUp5_2 = ANCHORARRAY(PCAGrid!$HJ$205)
+name PCG_SUp5_3 = ANCHORARRAY(PCAGrid!$HL$205)
+name PCG_SUp5_4 = ANCHORARRAY(PCAGrid!$HN$205)
+name PCG_SUp5_5 = ANCHORARRAY(PCAGrid!$HP$205)
+name PCG_SUp6_1 = ANCHORARRAY(PCAGrid!$HH$255)
+name PCG_SUp6_2 = ANCHORARRAY(PCAGrid!$HJ$255)
+name PCG_SUp6_3 = ANCHORARRAY(PCAGrid!$HL$255)
+name PCG_SUp6_4 = ANCHORARRAY(PCAGrid!$HN$255)
+name PCG_SUp6_5 = ANCHORARRAY(PCAGrid!$HP$255)
+name PCG_SUp7_1 = ANCHORARRAY(PCAGrid!$HH$305)
+name PCG_SUp7_2 = ANCHORARRAY(PCAGrid!$HJ$305)
+name PCG_SUp7_3 = ANCHORARRAY(PCAGrid!$HL$305)
+name PCG_SUp7_4 = ANCHORARRAY(PCAGrid!$HN$305)
+name PCG_SUp7_5 = ANCHORARRAY(PCAGrid!$HP$305)
+name PCG_SUp8_1 = ANCHORARRAY(PCAGrid!$HH$355)
+name PCG_SUp8_2 = ANCHORARRAY(PCAGrid!$HJ$355)
+name PCG_SUp8_3 = ANCHORARRAY(PCAGrid!$HL$355)
+name PCG_SUp8_4 = ANCHORARRAY(PCAGrid!$HN$355)
+name PCG_SUp8_5 = ANCHORARRAY(PCAGrid!$HP$355)
+name PCG_SUp9_1 = ANCHORARRAY(PCAGrid!$HH$405)
+name PCG_SUp9_2 = ANCHORARRAY(PCAGrid!$HJ$405)
+name PCG_SUp9_3 = ANCHORARRAY(PCAGrid!$HL$405)
+name PCG_SUp9_4 = ANCHORARRAY(PCAGrid!$HN$405)
+name PCG_SUp9_5 = ANCHORARRAY(PCAGrid!$HP$405)
+name PCG_SigmaDays = PCAGrid!$B$55
+name PCG_Tenor = ANCHORARRAY(PCAGrid!$CB$4)
+name PCG_Up1 = ANCHORARRAY(PCAGrid!$HF$5)
+name PCG_Up10 = ANCHORARRAY(PCAGrid!$HF$455)
+name PCG_Up2 = ANCHORARRAY(PCAGrid!$HF$55)
+name PCG_Up3 = ANCHORARRAY(PCAGrid!$HF$105)
+name PCG_Up4 = ANCHORARRAY(PCAGrid!$HF$155)
+name PCG_Up5 = ANCHORARRAY(PCAGrid!$HF$205)
+name PCG_Up6 = ANCHORARRAY(PCAGrid!$HF$255)
+name PCG_Up7 = ANCHORARRAY(PCAGrid!$HF$305)
+name PCG_Up8 = ANCHORARRAY(PCAGrid!$HF$355)
+name PCG_Up9 = ANCHORARRAY(PCAGrid!$HF$405)
+name PCG_V10_1 = ANCHORARRAY(PCAGrid!$GX$455)
+name PCG_V10_2 = ANCHORARRAY(PCAGrid!$GY$455)
+name PCG_V10_3 = ANCHORARRAY(PCAGrid!$GZ$455)
+name PCG_V10_4 = ANCHORARRAY(PCAGrid!$HA$455)
+name PCG_V10_5 = ANCHORARRAY(PCAGrid!$HB$455)
+name PCG_V1_1 = ANCHORARRAY(PCAGrid!$GX$5)
+name PCG_V1_2 = ANCHORARRAY(PCAGrid!$GY$5)
+name PCG_V1_3 = ANCHORARRAY(PCAGrid!$GZ$5)
+name PCG_V1_4 = ANCHORARRAY(PCAGrid!$HA$5)
+name PCG_V1_5 = ANCHORARRAY(PCAGrid!$HB$5)
+name PCG_V2_1 = ANCHORARRAY(PCAGrid!$GX$55)
+name PCG_V2_2 = ANCHORARRAY(PCAGrid!$GY$55)
+name PCG_V2_3 = ANCHORARRAY(PCAGrid!$GZ$55)
+name PCG_V2_4 = ANCHORARRAY(PCAGrid!$HA$55)
+name PCG_V2_5 = ANCHORARRAY(PCAGrid!$HB$55)
+name PCG_V3_1 = ANCHORARRAY(PCAGrid!$GX$105)
+name PCG_V3_2 = ANCHORARRAY(PCAGrid!$GY$105)
+name PCG_V3_3 = ANCHORARRAY(PCAGrid!$GZ$105)
+name PCG_V3_4 = ANCHORARRAY(PCAGrid!$HA$105)
+name PCG_V3_5 = ANCHORARRAY(PCAGrid!$HB$105)
+name PCG_V4_1 = ANCHORARRAY(PCAGrid!$GX$155)
+name PCG_V4_2 = ANCHORARRAY(PCAGrid!$GY$155)
+name PCG_V4_3 = ANCHORARRAY(PCAGrid!$GZ$155)
+name PCG_V4_4 = ANCHORARRAY(PCAGrid!$HA$155)
+name PCG_V4_5 = ANCHORARRAY(PCAGrid!$HB$155)
+name PCG_V5_1 = ANCHORARRAY(PCAGrid!$GX$205)
+name PCG_V5_2 = ANCHORARRAY(PCAGrid!$GY$205)
+name PCG_V5_3 = ANCHORARRAY(PCAGrid!$GZ$205)
+name PCG_V5_4 = ANCHORARRAY(PCAGrid!$HA$205)
+name PCG_V5_5 = ANCHORARRAY(PCAGrid!$HB$205)
+name PCG_V6_1 = ANCHORARRAY(PCAGrid!$GX$255)
+name PCG_V6_2 = ANCHORARRAY(PCAGrid!$GY$255)
+name PCG_V6_3 = ANCHORARRAY(PCAGrid!$GZ$255)
+name PCG_V6_4 = ANCHORARRAY(PCAGrid!$HA$255)
+name PCG_V6_5 = ANCHORARRAY(PCAGrid!$HB$255)
+name PCG_V7_1 = ANCHORARRAY(PCAGrid!$GX$305)
+name PCG_V7_2 = ANCHORARRAY(PCAGrid!$GY$305)
+name PCG_V7_3 = ANCHORARRAY(PCAGrid!$GZ$305)
+name PCG_V7_4 = ANCHORARRAY(PCAGrid!$HA$305)
+name PCG_V7_5 = ANCHORARRAY(PCAGrid!$HB$305)
+name PCG_V8_1 = ANCHORARRAY(PCAGrid!$GX$355)
+name PCG_V8_2 = ANCHORARRAY(PCAGrid!$GY$355)
+name PCG_V8_3 = ANCHORARRAY(PCAGrid!$GZ$355)
+name PCG_V8_4 = ANCHORARRAY(PCAGrid!$HA$355)
+name PCG_V8_5 = ANCHORARRAY(PCAGrid!$HB$355)
+name PCG_V9_1 = ANCHORARRAY(PCAGrid!$GX$405)
+name PCG_V9_2 = ANCHORARRAY(PCAGrid!$GY$405)
+name PCG_V9_3 = ANCHORARRAY(PCAGrid!$GZ$405)
+name PCG_V9_4 = ANCHORARRAY(PCAGrid!$HA$405)
+name PCG_V9_5 = ANCHORARRAY(PCAGrid!$HB$405)
+name VHV_ChDate = ANCHORARRAY(VolHV!$BF$4)
+name VHV_ChGap = ANCHORARRAY(VolHV!$BJ$4)
+name VHV_ChGapS = ANCHORARRAY(VolHV!$BK$4)
+name VHV_ChHV = ANCHORARRAY(VolHV!$BH$4)
+name VHV_ChHVs = ANCHORARRAY(VolHV!$BI$4)
+name VHV_ChIV = ANCHORARRAY(VolHV!$BG$4)
+name VHV_Data = ANCHORARRAY(VolHV!$AB$3)
+name VHV_Date = ANCHORARRAY(VolHV!$AL$4)
+name VHV_Days = VolHV!$B$12
+name VHV_From = VolHV!$B$13
+name VLV_Col = LAMBDA(n,sfx,DROP(CHOOSECOLS(VLV_Data,XMATCH(n&" "&sfx,TAKE(VLV_Data,1))),1))
+name VLV_Data = ANCHORARRAY(VolLevel!$AS$3)
+name VLV_Dates = DROP(TAKE(VLV_Data,,1),1)
+name VLV_From = VolLevel!$B$7
+name VLV_GData = ANCHORARRAY(VolLevel!$CN$3)
+name VLV_GLabels = ANCHORARRAY(VolLevel!$CK$4)
+name VLV_GLiveFwd = ANCHORARRAY(VolLevel!$CL$4)
+name VLV_GNow = DROP(ANCHORARRAY(VolLevel!$VP$3),1)
+name VLV_GPoint = VolLevel!$B$33
+name VLV_GStats = DROP(ANCHORARRAY(VolLevel!$VA$3),1)
+name VLV_GValue = VolLevel!$B$32
+name VLV_LiveVol = ANCHORARRAY(VolLevel!$AA$3)
+name VLV_MinR2 = VolLevel!$B$34
+name VLV_PLiveFwd = ANCHORARRAY(VolLevel!$BD$4)
+name VLV_Recent = VolLevel!$B$8
+name VLV_Resids = LAMBDA(n,LET(h,TAKE(VLV_GData,1),d,DROP(TAKE(VLV_GData,,1),1),f,DROP(CHOOSECOLS(VLV_GData,XMATCH(n&" Fwd",h)),1),v,DROP(CHOOSECOLS(VLV_GData,XMATCH(n&" IV",h)),1),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),HSTACK(x,y,y-(INTERCEPT(y,x)+SLOPE(y,x)*x))))
+name VLV_Stat = LAMBDA(n,LET(s,VLV_Resids(n),x,INDEX(s,,1),y,INDEX(s,,2),r,INDEX(s,,3),m,ROWS(r),rr,LAMBDA(j,INDEX(r,MAX(1,m-j))),HSTACK(n,SLOPE(y,x),INTERCEPT(y,x),RSQ(y,x),STDEV.S(r),m,INDEX(x,m),INDEX(y,m),rr(0),rr(1),rr(4),rr(5),SUM(--(r<=rr(0)))/m)))
+name VOL_Expiries = ANCHORARRAY(VolPCA!$JD$4)
+name VOL_Labels = ANCHORARRAY(VolPCA!$JG$4)
+name VOL_Mode = VolPCA!$B$6
+name VOL_ReconDate = VolPCA!$B$10
+name VOL_Standardize = VolPCA!$B$7
+name VOL_Tenors = ANCHORARRAY(VolPCA!$JE$4)
+name VOL_WindowEnd = VolPCA!$B$4
+name VOL_k = VolPCA!$B$11
+name VOL_window = VolPCA!$B$5
+# PCA
+PCA!A1 : "Rates"
+PCA!B1 : "Live"
+PCA!C1 : "Updated"
+PCA!D1 = LiveInfo("swap",ANCHORARRAY($CA$4))
+PCA!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+PCA!A2 : "PCA (swap)"
+PCA!Z2 : "Calculation area (UDF outputs; do not edit)"
+PCA!CA2 : "Live rates (Ticker / Value / Start / End)"
+PCA!A3 : "Estimation (principal components)"
+PCA!E3 : "Estimation window"
+PCA!H3 : "Actual on recon date"
+PCA!AB3 : "Selected tenors"
+PCA!AC3 : "Mean (%) / Scale (σ if standardized, else 1) / Std / PC vectors"
+PCA!BX3 : "Mean+1σ"
+PCA!BY3 : "Mean-1σ"
+PCA!CE3 : "+1σ (bp)"
+PCA!CF3 : "-1σ (bp)"
+PCA!A4 : "Window end"
+PCA!E4 = PcaWindow(PCA_Selected,PCA_Mode,PCA_Standardize,PCA_window,PCA_WindowEnd)
+PCA!H4 = PcaActualInfo(PCA_Selected,PCA_Mode,PCA_ReconDate,CHOOSECOLS(ANCHORARRAY($CA$4),1,2))
+PCA!O4 : "z = (actual − mean) / scale, score = V_kᵀz, recon = mean + scale·V_k·score, residual = actual − recon"
+PCA!AB4 = FILTER($A$15:$A$56,$B$15:$B$56="○")
+PCA!AC4 = PcaModel(PCA_Selected,PCA_Mode,PCA_Standardize,PCA_window,PCA_WindowEnd)
+PCA!BX4 = DROP(CHOOSECOLS(ANCHORARRAY($AC$4),2),1)+DROP(CHOOSECOLS(ANCHORARRAY($AC$4),4),1)
+PCA!BY4 = DROP(CHOOSECOLS(ANCHORARRAY($AC$4),2),1)-DROP(CHOOSECOLS(ANCHORARRAY($AC$4),4),1)
+PCA!CA4 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+PCA!CE4 = PcaResidStd(PCA_Selected,PCA_Mode,PCA_Standardize,PCA_window,PCA_k,PCA_WindowEnd,PCA_SigmaDays)
+PCA!CF4 = -ANCHORARRAY($CE$4)
+PCA!A5 : "Window (bdays)"
+PCA!B5 : 250
+PCA!O5 : "In Change mode, actual / mean / recon are changes from the previous business day (%). Scores are in bp without standardization, unitless with it"
+PCA!A6 : "Mode"
+PCA!B6 : "Level"
+PCA!A7 : "Standardize"
+PCA!B7 : "No"
+PCA!A9 : "Reconstruction"
+PCA!A10 : "Recon date"
+PCA!A11 : "k (components)"
+PCA!B11 : 3
+PCA!A12 : "Resid σ days"
+PCA!A13 : "Tenors (○ = use in PCA; order = row order of the results)"
+PCA!A14 : "Tenor"
+PCA!B14 : "Use"
+PCA!A15 : "O/N"
+PCA!B15:B21 : "×"
+PCA!A16 : "1W"
+PCA!Z16 : "Eigenvalues (bp² without standardization, unitless with it)"
+PCA!A17 : "1M"
+PCA!Z17 = PcaEigen(PCA_Selected,PCA_Mode,PCA_Standardize,PCA_window,PCA_WindowEnd)
+PCA!A18 : "2M"
+PCA!A19 : "3M"
+PCA!A20 : "4M"
+PCA!A21 : "5M"
+PCA!A22 : "6M"
+PCA!B22 : "○"
+PCA!A23 : "7M"
+PCA!B23:B27 : "×"
+PCA!A24 : "8M"
+PCA!A25 : "9M"
+PCA!A26 : "10M"
+PCA!A27 : "11M"
+PCA!A28 : "12M"
+PCA!B28 : "○"
+PCA!A29 : "15M"
+PCA!B29 : "×"
+PCA!A30 : "18M"
+PCA!B30 : "○"
+PCA!A31 : "21M"
+PCA!B31 : "×"
+PCA!A32 : "24M"
+PCA!B32:B46 : "○"
+PCA!E32 : "Reconstruction by tenor"
+PCA!L32 : "Components"
+PCA!S32 : "PC vectors (PC1-PC5)"
+PCA!A33 : "36M"
+PCA!E33 : "Tenor"
+PCA!F33 : "Actual (%)"
+PCA!G33 : "Mean (%)"
+PCA!H33 : "Recon (%)"
+PCA!I33 : "Residual (bp)"
+PCA!J33 : "Deviation from mean (bp)"
+PCA!L33 : "PC"
+PCA!M33 : "Eigenvalue"
+PCA!N33 : "Share"
+PCA!O33 : "Cumulative"
+PCA!P33 : "Score"
+PCA!Q33 : "Used in recon"
+PCA!S33 : "Tenor"
+PCA!T33 : "PC1"
+PCA!U33 : "PC2"
+PCA!V33 : "PC3"
+PCA!W33 : "PC4"
+PCA!X33 : "PC5"
+PCA!A34 : "4Y"
+PCA!E34 = DROP(TAKE(ANCHORARRAY($AC$4),,1),1)
+PCA!F34 = PcaActual(PCA_Selected,PCA_Mode,PCA_ReconDate,CHOOSECOLS(ANCHORARRAY($CA$4),1,2))
+PCA!G34 = DROP(CHOOSECOLS(ANCHORARRAY($AC$4),2),1)
+PCA!H34 = LET(m,ANCHORARRAY(G34),s,DROP(CHOOSECOLS(ANCHORARRAY($AC$4),3),1),x,ANCHORARRAY(F34),V,TAKE(DROP(ANCHORARRAY($AC$4),1,4),,PCA_k),m+s*MMULT(V,MMULT(TRANSPOSE(V),(x-m)/s)))
+PCA!I34 = (ANCHORARRAY(F34)-ANCHORARRAY(H34))*100
+PCA!J34 = (ANCHORARRAY(F34)-ANCHORARRAY(G34))*100
+PCA!L34 = DROP(TAKE(ANCHORARRAY($Z$17),,1),1)
+PCA!M34 = DROP(CHOOSECOLS(ANCHORARRAY($Z$17),2),1)
+PCA!N34 = ANCHORARRAY(M34)/SUM(ANCHORARRAY(M34))
+PCA!O34 = SCAN(0,ANCHORARRAY(N34),LAMBDA(a,b,a+b))
+PCA!P34 = MMULT(TRANSPOSE(DROP(ANCHORARRAY($AC$4),1,4)),(ANCHORARRAY(F34)-ANCHORARRAY(G34))/DROP(CHOOSECOLS(ANCHORARRAY($AC$4),3),1))*IF(PCA_Standardize="Yes",1,100)
+PCA!Q34 = IF(SEQUENCE(ROWS(ANCHORARRAY(L34)))<=PCA_k,"Yes","")
+PCA!S34 = ANCHORARRAY(E34)
+PCA!T34 = LET(V,DROP(ANCHORARRAY($AC$4),1,4),IF(1<=COLUMNS(V),CHOOSECOLS(V,MIN(1,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA())))
+PCA!U34 = LET(V,DROP(ANCHORARRAY($AC$4),1,4),IF(2<=COLUMNS(V),CHOOSECOLS(V,MIN(2,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA())))
+PCA!V34 = LET(V,DROP(ANCHORARRAY($AC$4),1,4),IF(3<=COLUMNS(V),CHOOSECOLS(V,MIN(3,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA())))
+PCA!W34 = LET(V,DROP(ANCHORARRAY($AC$4),1,4),IF(4<=COLUMNS(V),CHOOSECOLS(V,MIN(4,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA())))
+PCA!X34 = LET(V,DROP(ANCHORARRAY($AC$4),1,4),IF(5<=COLUMNS(V),CHOOSECOLS(V,MIN(5,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA())))
+PCA!A35 : "5Y"
+PCA!A36 : "6Y"
+PCA!A37 : "7Y"
+PCA!A38 : "8Y"
+PCA!A39 : "9Y"
+PCA!A40 : "10Y"
+PCA!A41 : "11Y"
+PCA!A42 : "12Y"
+PCA!A43 : "15Y"
+PCA!A44 : "20Y"
+PCA!A45 : "25Y"
+PCA!A46 : "30Y"
+PCA!A47 : "35Y"
+PCA!B47 : "×"
+PCA!A48 : "40Y"
+PCA!B48 : "○"
+PCA!A49 : "M1"
+PCA!B49:B56 : "×"
+PCA!A50 : "M2"
+PCA!A51 : "M3"
+PCA!A52 : "M4"
+PCA!A53 : "M5"
+PCA!A54 : "M6"
+PCA!A55 : "M7"
+PCA!A56 : "M8"
+PCA!B1 validation list: "Live,Fixed"
+PCA!B10 validation any: 
+PCA!B11 validation whole: 1 | 50
+PCA!B12 validation whole greaterThanOrEqual: 2
+PCA!B15:B56 validation list: "○,×"
+PCA!B4 validation any: 
+PCA!B5 validation any: 
+PCA!B6 validation list: "Level,Change"
+PCA!B7 validation list: "Yes,No"
+PCA chart "Actual / Mean / Recon (%)": [0]!PCA_Tenor | [0]!PCA_Actual | [0]!PCA_Tenor | [0]!PCA_Mean | [0]!PCA_Tenor | [0]!PCA_Recon | [0]!PCA_Tenor | [0]!PCA_Up | [0]!PCA_Tenor | [0]!PCA_Dn
+PCA chart "Residual: actual − recon (bp)": [0]!PCA_Tenor | [0]!PCA_Resid | [0]!PCA_Tenor | [0]!PCA_SUp | [0]!PCA_Tenor | [0]!PCA_SDn
+PCA chart "PC vectors": [0]!PCA_Tenor | [0]!PCA_L1 | [0]!PCA_Tenor | [0]!PCA_L2 | [0]!PCA_Tenor | [0]!PCA_L3 | [0]!PCA_Tenor | [0]!PCA_L4 | [0]!PCA_Tenor | [0]!PCA_L5
+# PCAGrid
+PCAGrid!A1 : "Rates"
+PCAGrid!B1 : "Live"
+PCAGrid!C1 : "Updated"
+PCAGrid!D1 = LiveInfo("swap",ANCHORARRAY($CD$4))
+PCAGrid!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+PCAGrid!A2 : "PCA Grid (swap): residual by k x case"
+PCAGrid!CA2 : "Calculation area (UDF outputs; do not edit)"
+PCAGrid!A3 : "Recon date"
+PCAGrid!D3 : "Case"
+PCAGrid!E3 : "Case 1"
+PCAGrid!L3 : "Case 2"
+PCAGrid!S3 : "Case 3"
+PCAGrid!Z3 : "Case 4"
+PCAGrid!AG3 : "Case 5"
+PCAGrid!AN3 : "Case 6"
+PCAGrid!AU3 : "Case 7"
+PCAGrid!BB3 : "Case 8"
+PCAGrid!BI3 : "Case 9"
+PCAGrid!BP3 : "Case 10"
+PCAGrid!CB3 : "Tenors"
+PCAGrid!CC3 : "Guide"
+PCAGrid!CD3 : "Live rates (Ticker / Value / Start / End)"
+PCAGrid!CI3 : "Actual Level"
+PCAGrid!CJ3 : "Actual Change"
+PCAGrid!CL3 : "Actual info (Change)"
+PCAGrid!CO3 : "PcaGrid (all cases)"
+PCAGrid!HS3 : "PcaGridResidStd (all cases, k by band)"
+PCAGrid!D4 : "Window end"
+PCAGrid!CB4 = FILTER($A$12:$A$53,$B$12:$B$53="○")
+PCAGrid!CC4 = IF(ISNUMBER(MATCH(ANCHORARRAY($CB$4),$A$58:$A$62,0)),0,NA())
+PCAGrid!CD4 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+PCAGrid!CI4 = PcaActual(ANCHORARRAY($CB$4),"Level",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
+PCAGrid!CJ4 = PcaActual(ANCHORARRAY($CB$4),"Change",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
+PCAGrid!CL4 = PcaActualInfo(ANCHORARRAY($CB$4),"Change",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
+PCAGrid!CO4 = PcaGrid(ANCHORARRAY($CB$4),LET(r,$E$4:$BP$7,CHOOSECOLS(IF(r="","",r),SEQUENCE(1,10,1,7))))
+PCAGrid!EP4 : "Case 1"
+PCAGrid!EQ4 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=1))
+PCAGrid!GQ4 : "Actual"
+PCAGrid!GR4 = IFERROR(LET(R,ANCHORARRAY($GR$5),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS4 = IFERROR(LET(R,ANCHORARRAY($GS$5),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT4 = IFERROR(LET(R,ANCHORARRAY($GT$5),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU4 = IFERROR(LET(R,ANCHORARRAY($GU$5),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV4 = IFERROR(LET(R,ANCHORARRAY($GV$5),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX4 : "PC1"
+PCAGrid!GY4 : "PC2"
+PCAGrid!GZ4 : "PC3"
+PCAGrid!HA4 : "PC4"
+PCAGrid!HB4 : "PC5"
+PCAGrid!HD4 : "Mean"
+PCAGrid!HE4 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF4 : "+1σ"
+PCAGrid!HG4 : "-1σ"
+PCAGrid!HH4 : "+1σ (bp) band 1"
+PCAGrid!HI4 : "-1σ (bp) band 1"
+PCAGrid!HJ4 : "+1σ (bp) band 2"
+PCAGrid!HK4 : "-1σ (bp) band 2"
+PCAGrid!HL4 : "+1σ (bp) band 3"
+PCAGrid!HM4 : "-1σ (bp) band 3"
+PCAGrid!HN4 : "+1σ (bp) band 4"
+PCAGrid!HO4 : "-1σ (bp) band 4"
+PCAGrid!HP4 : "+1σ (bp) band 5"
+PCAGrid!HQ4 : "-1σ (bp) band 5"
+PCAGrid!HR4 : "σ warning"
+PCAGrid!HS4 = PcaGridResidStd(ANCHORARRAY($CB$4),LET(r,$E$4:$BP$7,CHOOSECOLS(IF(r="","",r),SEQUENCE(1,10,1,7))),VSTACK($D$12,$D$28,$D$44,$D$60,$D$76),$B$55)
+PCAGrid!A5 : "Source"
+PCAGrid!D5 : "Window"
+PCAGrid!E5 : 20
+PCAGrid!L5 : 50
+PCAGrid!S5 : 100
+PCAGrid!Z5 : 20
+PCAGrid!AG5 : 50
+PCAGrid!AN5 : 20
+PCAGrid!AU5 : 50
+PCAGrid!BB5 : 100
+PCAGrid!BI5 : 20
+PCAGrid!BP5 : 50
+PCAGrid!GQ5 = IF($E$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX5 = LET(V,DROP(ANCHORARRAY($EQ$4),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY5 = LET(V,DROP(ANCHORARRAY($EQ$4),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ5 = LET(V,DROP(ANCHORARRAY($EQ$4),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA5 = LET(V,DROP(ANCHORARRAY($EQ$4),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB5 = LET(V,DROP(ANCHORARRAY($EQ$4),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)
+PCAGrid!HE5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)+CHOOSECOLS(ANCHORARRAY($EQ$4),10)
+PCAGrid!HG5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)-CHOOSECOLS(ANCHORARRAY($EQ$4),10)
+PCAGrid!HH5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),3),IF(v="",NA(),v))
+PCAGrid!HI5 = -ANCHORARRAY($HH$5)
+PCAGrid!HJ5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),4),IF(v="",NA(),v))
+PCAGrid!HK5 = -ANCHORARRAY($HJ$5)
+PCAGrid!HL5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),5),IF(v="",NA(),v))
+PCAGrid!HM5 = -ANCHORARRAY($HL$5)
+PCAGrid!HN5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),6),IF(v="",NA(),v))
+PCAGrid!HO5 = -ANCHORARRAY($HN$5)
+PCAGrid!HP5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),7),IF(v="",NA(),v))
+PCAGrid!HQ5 = -ANCHORARRAY($HP$5)
+PCAGrid!HR5 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),1,2),"")
+PCAGrid!A6 = IFERROR(INDEX(ANCHORARRAY($CL$4),2,2),"")
+PCAGrid!D6 : "Mode"
+PCAGrid!E6 : "Change"
+PCAGrid!L6 : "Change"
+PCAGrid!S6 : "Change"
+PCAGrid!Z6 : "Change"
+PCAGrid!AG6 : "Change"
+PCAGrid!AN6 : "Level"
+PCAGrid!AU6 : "Level"
+PCAGrid!BB6 : "Level"
+PCAGrid!BI6 : "Level"
+PCAGrid!BP6 : "Level"
+PCAGrid!D7 : "Standardize"
+PCAGrid!E7 : "No"
+PCAGrid!L7 : "No"
+PCAGrid!S7 : "No"
+PCAGrid!Z7 : "Yes"
+PCAGrid!AG7 : "Yes"
+PCAGrid!AN7 : "No"
+PCAGrid!AU7 : "No"
+PCAGrid!BB7 : "No"
+PCAGrid!BI7 : "Yes"
+PCAGrid!BP7 : "Yes"
+PCAGrid!D8 : "Est. period"
+PCAGrid!E8 = IFERROR(LET(sl,ANCHORARRAY($EQ$4),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!L8 = IFERROR(LET(sl,ANCHORARRAY($EQ$54),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!S8 = IFERROR(LET(sl,ANCHORARRAY($EQ$104),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!Z8 = IFERROR(LET(sl,ANCHORARRAY($EQ$154),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!AG8 = IFERROR(LET(sl,ANCHORARRAY($EQ$204),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!AN8 = IFERROR(LET(sl,ANCHORARRAY($EQ$254),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!AU8 = IFERROR(LET(sl,ANCHORARRAY($EQ$304),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!BB8 = IFERROR(LET(sl,ANCHORARRAY($EQ$354),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!BI8 = IFERROR(LET(sl,ANCHORARRAY($EQ$404),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!BP8 = IFERROR(LET(sl,ANCHORARRAY($EQ$454),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!D9 : "Warning"
+PCAGrid!E9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$4),1,6),IF($E$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$5),"")
+PCAGrid!L9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$54),1,6),IF($L$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$55),"")
+PCAGrid!S9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$104),1,6),IF($S$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$105),"")
+PCAGrid!Z9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$154),1,6),IF($Z$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$155),"")
+PCAGrid!AG9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$204),1,6),IF($AG$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$205),"")
+PCAGrid!AN9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$254),1,6),IF($AN$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$255),"")
+PCAGrid!AU9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$304),1,6),IF($AU$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$305),"")
+PCAGrid!BB9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$354),1,6),IF($BB$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$355),"")
+PCAGrid!BI9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$404),1,6),IF($BI$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$405),"")
+PCAGrid!BP9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$454),1,6),IF($BP$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$455),"")
+PCAGrid!A10 : "Tenors"
+PCAGrid!A11 : "Tenor"
+PCAGrid!B11 : "Use"
+PCAGrid!D11 : "k"
+PCAGrid!A12 : "O/N"
+PCAGrid!B12:B18 : "×"
+PCAGrid!D12 : 1
+PCAGrid!A13 : "1W"
+PCAGrid!A14 : "1M"
+PCAGrid!A15 : "2M"
+PCAGrid!A16 : "3M"
+PCAGrid!A17 : "4M"
+PCAGrid!A18 : "5M"
+PCAGrid!A19 : "6M"
+PCAGrid!B19 : "○"
+PCAGrid!A20 : "7M"
+PCAGrid!B20:B24 : "×"
+PCAGrid!A21 : "8M"
+PCAGrid!A22 : "9M"
+PCAGrid!A23 : "10M"
+PCAGrid!A24 : "11M"
+PCAGrid!A25 : "12M"
+PCAGrid!B25 : "○"
+PCAGrid!A26 : "15M"
+PCAGrid!B26 : "×"
+PCAGrid!A27 : "18M"
+PCAGrid!B27 : "○"
+PCAGrid!D27 : "k"
+PCAGrid!A28 : "21M"
+PCAGrid!B28 : "×"
+PCAGrid!D28 : 2
+PCAGrid!A29 : "24M"
+PCAGrid!B29:B37 : "○"
+PCAGrid!A30 : "36M"
+PCAGrid!A31 : "4Y"
+PCAGrid!A32 : "5Y"
+PCAGrid!A33 : "6Y"
+PCAGrid!A34 : "7Y"
+PCAGrid!A35 : "8Y"
+PCAGrid!A36 : "9Y"
+PCAGrid!A37 : "10Y"
+PCAGrid!A38 : "11Y"
+PCAGrid!B38 : "×"
+PCAGrid!A39 : "12Y"
+PCAGrid!B39:B43 : "○"
+PCAGrid!A40 : "15Y"
+PCAGrid!A41 : "20Y"
+PCAGrid!A42 : "25Y"
+PCAGrid!A43 : "30Y"
+PCAGrid!D43 : "k"
+PCAGrid!A44 : "35Y"
+PCAGrid!B44 : "×"
+PCAGrid!D44 : 3
+PCAGrid!A45 : "40Y"
+PCAGrid!B45 : "○"
+PCAGrid!A46 : "M1"
+PCAGrid!B46:B53 : "×"
+PCAGrid!A47 : "M2"
+PCAGrid!A48 : "M3"
+PCAGrid!A49 : "M4"
+PCAGrid!A50 : "M5"
+PCAGrid!A51 : "M6"
+PCAGrid!A52 : "M7"
+PCAGrid!A53 : "M8"
+PCAGrid!EP54 : "Case 2"
+PCAGrid!EQ54 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=2))
+PCAGrid!GQ54 : "Actual"
+PCAGrid!GR54 = IFERROR(LET(R,ANCHORARRAY($GR$55),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS54 = IFERROR(LET(R,ANCHORARRAY($GS$55),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT54 = IFERROR(LET(R,ANCHORARRAY($GT$55),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU54 = IFERROR(LET(R,ANCHORARRAY($GU$55),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV54 = IFERROR(LET(R,ANCHORARRAY($GV$55),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX54 : "PC1"
+PCAGrid!GY54 : "PC2"
+PCAGrid!GZ54 : "PC3"
+PCAGrid!HA54 : "PC4"
+PCAGrid!HB54 : "PC5"
+PCAGrid!HD54 : "Mean"
+PCAGrid!HE54 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF54 : "+1σ"
+PCAGrid!HG54 : "-1σ"
+PCAGrid!HH54 : "+1σ (bp) band 1"
+PCAGrid!HI54 : "-1σ (bp) band 1"
+PCAGrid!HJ54 : "+1σ (bp) band 2"
+PCAGrid!HK54 : "-1σ (bp) band 2"
+PCAGrid!HL54 : "+1σ (bp) band 3"
+PCAGrid!HM54 : "-1σ (bp) band 3"
+PCAGrid!HN54 : "+1σ (bp) band 4"
+PCAGrid!HO54 : "-1σ (bp) band 4"
+PCAGrid!HP54 : "+1σ (bp) band 5"
+PCAGrid!HQ54 : "-1σ (bp) band 5"
+PCAGrid!HR54 : "σ warning"
+PCAGrid!A55 : "Resid σ days"
+PCAGrid!GQ55 = IF($L$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX55 = LET(V,DROP(ANCHORARRAY($EQ$54),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY55 = LET(V,DROP(ANCHORARRAY($EQ$54),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ55 = LET(V,DROP(ANCHORARRAY($EQ$54),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA55 = LET(V,DROP(ANCHORARRAY($EQ$54),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB55 = LET(V,DROP(ANCHORARRAY($EQ$54),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)
+PCAGrid!HE55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)+CHOOSECOLS(ANCHORARRAY($EQ$54),10)
+PCAGrid!HG55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)-CHOOSECOLS(ANCHORARRAY($EQ$54),10)
+PCAGrid!HH55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),3),IF(v="",NA(),v))
+PCAGrid!HI55 = -ANCHORARRAY($HH$55)
+PCAGrid!HJ55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),4),IF(v="",NA(),v))
+PCAGrid!HK55 = -ANCHORARRAY($HJ$55)
+PCAGrid!HL55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),5),IF(v="",NA(),v))
+PCAGrid!HM55 = -ANCHORARRAY($HL$55)
+PCAGrid!HN55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),6),IF(v="",NA(),v))
+PCAGrid!HO55 = -ANCHORARRAY($HN$55)
+PCAGrid!HP55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),7),IF(v="",NA(),v))
+PCAGrid!HQ55 = -ANCHORARRAY($HP$55)
+PCAGrid!HR55 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),1,2),"")
+PCAGrid!A57 : "Guide tenors"
+PCAGrid!A58 : "5Y"
+PCAGrid!A59 : "10Y"
+PCAGrid!D59 : "k"
+PCAGrid!A60 : "20Y"
+PCAGrid!D60 : 4
+PCAGrid!A61 : "24M"
+PCAGrid!D75 : "k"
+PCAGrid!D76 : 5
+PCAGrid!D91 : "Vectors"
+PCAGrid!EP104 : "Case 3"
+PCAGrid!EQ104 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=3))
+PCAGrid!GQ104 : "Actual"
+PCAGrid!GR104 = IFERROR(LET(R,ANCHORARRAY($GR$105),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS104 = IFERROR(LET(R,ANCHORARRAY($GS$105),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT104 = IFERROR(LET(R,ANCHORARRAY($GT$105),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU104 = IFERROR(LET(R,ANCHORARRAY($GU$105),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV104 = IFERROR(LET(R,ANCHORARRAY($GV$105),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX104 : "PC1"
+PCAGrid!GY104 : "PC2"
+PCAGrid!GZ104 : "PC3"
+PCAGrid!HA104 : "PC4"
+PCAGrid!HB104 : "PC5"
+PCAGrid!HD104 : "Mean"
+PCAGrid!HE104 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF104 : "+1σ"
+PCAGrid!HG104 : "-1σ"
+PCAGrid!HH104 : "+1σ (bp) band 1"
+PCAGrid!HI104 : "-1σ (bp) band 1"
+PCAGrid!HJ104 : "+1σ (bp) band 2"
+PCAGrid!HK104 : "-1σ (bp) band 2"
+PCAGrid!HL104 : "+1σ (bp) band 3"
+PCAGrid!HM104 : "-1σ (bp) band 3"
+PCAGrid!HN104 : "+1σ (bp) band 4"
+PCAGrid!HO104 : "-1σ (bp) band 4"
+PCAGrid!HP104 : "+1σ (bp) band 5"
+PCAGrid!HQ104 : "-1σ (bp) band 5"
+PCAGrid!HR104 : "σ warning"
+PCAGrid!GQ105 = IF($S$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX105 = LET(V,DROP(ANCHORARRAY($EQ$104),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY105 = LET(V,DROP(ANCHORARRAY($EQ$104),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ105 = LET(V,DROP(ANCHORARRAY($EQ$104),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA105 = LET(V,DROP(ANCHORARRAY($EQ$104),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB105 = LET(V,DROP(ANCHORARRAY($EQ$104),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)
+PCAGrid!HE105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)+CHOOSECOLS(ANCHORARRAY($EQ$104),10)
+PCAGrid!HG105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)-CHOOSECOLS(ANCHORARRAY($EQ$104),10)
+PCAGrid!HH105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),3),IF(v="",NA(),v))
+PCAGrid!HI105 = -ANCHORARRAY($HH$105)
+PCAGrid!HJ105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),4),IF(v="",NA(),v))
+PCAGrid!HK105 = -ANCHORARRAY($HJ$105)
+PCAGrid!HL105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),5),IF(v="",NA(),v))
+PCAGrid!HM105 = -ANCHORARRAY($HL$105)
+PCAGrid!HN105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),6),IF(v="",NA(),v))
+PCAGrid!HO105 = -ANCHORARRAY($HN$105)
+PCAGrid!HP105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),7),IF(v="",NA(),v))
+PCAGrid!HQ105 = -ANCHORARRAY($HP$105)
+PCAGrid!HR105 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),1,2),"")
+PCAGrid!D107 : "k"
+PCAGrid!D108 : 3
+PCAGrid!EP154 : "Case 4"
+PCAGrid!EQ154 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=4))
+PCAGrid!GQ154 : "Actual"
+PCAGrid!GR154 = IFERROR(LET(R,ANCHORARRAY($GR$155),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS154 = IFERROR(LET(R,ANCHORARRAY($GS$155),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT154 = IFERROR(LET(R,ANCHORARRAY($GT$155),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU154 = IFERROR(LET(R,ANCHORARRAY($GU$155),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV154 = IFERROR(LET(R,ANCHORARRAY($GV$155),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX154 : "PC1"
+PCAGrid!GY154 : "PC2"
+PCAGrid!GZ154 : "PC3"
+PCAGrid!HA154 : "PC4"
+PCAGrid!HB154 : "PC5"
+PCAGrid!HD154 : "Mean"
+PCAGrid!HE154 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF154 : "+1σ"
+PCAGrid!HG154 : "-1σ"
+PCAGrid!HH154 : "+1σ (bp) band 1"
+PCAGrid!HI154 : "-1σ (bp) band 1"
+PCAGrid!HJ154 : "+1σ (bp) band 2"
+PCAGrid!HK154 : "-1σ (bp) band 2"
+PCAGrid!HL154 : "+1σ (bp) band 3"
+PCAGrid!HM154 : "-1σ (bp) band 3"
+PCAGrid!HN154 : "+1σ (bp) band 4"
+PCAGrid!HO154 : "-1σ (bp) band 4"
+PCAGrid!HP154 : "+1σ (bp) band 5"
+PCAGrid!HQ154 : "-1σ (bp) band 5"
+PCAGrid!HR154 : "σ warning"
+PCAGrid!GQ155 = IF($Z$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX155 = LET(V,DROP(ANCHORARRAY($EQ$154),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY155 = LET(V,DROP(ANCHORARRAY($EQ$154),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ155 = LET(V,DROP(ANCHORARRAY($EQ$154),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA155 = LET(V,DROP(ANCHORARRAY($EQ$154),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB155 = LET(V,DROP(ANCHORARRAY($EQ$154),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)
+PCAGrid!HE155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)+CHOOSECOLS(ANCHORARRAY($EQ$154),10)
+PCAGrid!HG155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)-CHOOSECOLS(ANCHORARRAY($EQ$154),10)
+PCAGrid!HH155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),3),IF(v="",NA(),v))
+PCAGrid!HI155 = -ANCHORARRAY($HH$155)
+PCAGrid!HJ155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),4),IF(v="",NA(),v))
+PCAGrid!HK155 = -ANCHORARRAY($HJ$155)
+PCAGrid!HL155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),5),IF(v="",NA(),v))
+PCAGrid!HM155 = -ANCHORARRAY($HL$155)
+PCAGrid!HN155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),6),IF(v="",NA(),v))
+PCAGrid!HO155 = -ANCHORARRAY($HN$155)
+PCAGrid!HP155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),7),IF(v="",NA(),v))
+PCAGrid!HQ155 = -ANCHORARRAY($HP$155)
+PCAGrid!HR155 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),1,2),"")
+PCAGrid!EP204 : "Case 5"
+PCAGrid!EQ204 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=5))
+PCAGrid!GQ204 : "Actual"
+PCAGrid!GR204 = IFERROR(LET(R,ANCHORARRAY($GR$205),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS204 = IFERROR(LET(R,ANCHORARRAY($GS$205),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT204 = IFERROR(LET(R,ANCHORARRAY($GT$205),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU204 = IFERROR(LET(R,ANCHORARRAY($GU$205),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV204 = IFERROR(LET(R,ANCHORARRAY($GV$205),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX204 : "PC1"
+PCAGrid!GY204 : "PC2"
+PCAGrid!GZ204 : "PC3"
+PCAGrid!HA204 : "PC4"
+PCAGrid!HB204 : "PC5"
+PCAGrid!HD204 : "Mean"
+PCAGrid!HE204 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF204 : "+1σ"
+PCAGrid!HG204 : "-1σ"
+PCAGrid!HH204 : "+1σ (bp) band 1"
+PCAGrid!HI204 : "-1σ (bp) band 1"
+PCAGrid!HJ204 : "+1σ (bp) band 2"
+PCAGrid!HK204 : "-1σ (bp) band 2"
+PCAGrid!HL204 : "+1σ (bp) band 3"
+PCAGrid!HM204 : "-1σ (bp) band 3"
+PCAGrid!HN204 : "+1σ (bp) band 4"
+PCAGrid!HO204 : "-1σ (bp) band 4"
+PCAGrid!HP204 : "+1σ (bp) band 5"
+PCAGrid!HQ204 : "-1σ (bp) band 5"
+PCAGrid!HR204 : "σ warning"
+PCAGrid!GQ205 = IF($AG$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX205 = LET(V,DROP(ANCHORARRAY($EQ$204),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY205 = LET(V,DROP(ANCHORARRAY($EQ$204),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ205 = LET(V,DROP(ANCHORARRAY($EQ$204),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA205 = LET(V,DROP(ANCHORARRAY($EQ$204),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB205 = LET(V,DROP(ANCHORARRAY($EQ$204),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)
+PCAGrid!HE205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)+CHOOSECOLS(ANCHORARRAY($EQ$204),10)
+PCAGrid!HG205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)-CHOOSECOLS(ANCHORARRAY($EQ$204),10)
+PCAGrid!HH205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),3),IF(v="",NA(),v))
+PCAGrid!HI205 = -ANCHORARRAY($HH$205)
+PCAGrid!HJ205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),4),IF(v="",NA(),v))
+PCAGrid!HK205 = -ANCHORARRAY($HJ$205)
+PCAGrid!HL205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),5),IF(v="",NA(),v))
+PCAGrid!HM205 = -ANCHORARRAY($HL$205)
+PCAGrid!HN205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),6),IF(v="",NA(),v))
+PCAGrid!HO205 = -ANCHORARRAY($HN$205)
+PCAGrid!HP205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),7),IF(v="",NA(),v))
+PCAGrid!HQ205 = -ANCHORARRAY($HP$205)
+PCAGrid!HR205 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),1,2),"")
+PCAGrid!EP254 : "Case 6"
+PCAGrid!EQ254 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=6))
+PCAGrid!GQ254 : "Actual"
+PCAGrid!GR254 = IFERROR(LET(R,ANCHORARRAY($GR$255),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS254 = IFERROR(LET(R,ANCHORARRAY($GS$255),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT254 = IFERROR(LET(R,ANCHORARRAY($GT$255),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU254 = IFERROR(LET(R,ANCHORARRAY($GU$255),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV254 = IFERROR(LET(R,ANCHORARRAY($GV$255),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX254 : "PC1"
+PCAGrid!GY254 : "PC2"
+PCAGrid!GZ254 : "PC3"
+PCAGrid!HA254 : "PC4"
+PCAGrid!HB254 : "PC5"
+PCAGrid!HD254 : "Mean"
+PCAGrid!HE254 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF254 : "+1σ"
+PCAGrid!HG254 : "-1σ"
+PCAGrid!HH254 : "+1σ (bp) band 1"
+PCAGrid!HI254 : "-1σ (bp) band 1"
+PCAGrid!HJ254 : "+1σ (bp) band 2"
+PCAGrid!HK254 : "-1σ (bp) band 2"
+PCAGrid!HL254 : "+1σ (bp) band 3"
+PCAGrid!HM254 : "-1σ (bp) band 3"
+PCAGrid!HN254 : "+1σ (bp) band 4"
+PCAGrid!HO254 : "-1σ (bp) band 4"
+PCAGrid!HP254 : "+1σ (bp) band 5"
+PCAGrid!HQ254 : "-1σ (bp) band 5"
+PCAGrid!HR254 : "σ warning"
+PCAGrid!GQ255 = IF($AN$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX255 = LET(V,DROP(ANCHORARRAY($EQ$254),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY255 = LET(V,DROP(ANCHORARRAY($EQ$254),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ255 = LET(V,DROP(ANCHORARRAY($EQ$254),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA255 = LET(V,DROP(ANCHORARRAY($EQ$254),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB255 = LET(V,DROP(ANCHORARRAY($EQ$254),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)
+PCAGrid!HE255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)+CHOOSECOLS(ANCHORARRAY($EQ$254),10)
+PCAGrid!HG255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)-CHOOSECOLS(ANCHORARRAY($EQ$254),10)
+PCAGrid!HH255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),3),IF(v="",NA(),v))
+PCAGrid!HI255 = -ANCHORARRAY($HH$255)
+PCAGrid!HJ255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),4),IF(v="",NA(),v))
+PCAGrid!HK255 = -ANCHORARRAY($HJ$255)
+PCAGrid!HL255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),5),IF(v="",NA(),v))
+PCAGrid!HM255 = -ANCHORARRAY($HL$255)
+PCAGrid!HN255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),6),IF(v="",NA(),v))
+PCAGrid!HO255 = -ANCHORARRAY($HN$255)
+PCAGrid!HP255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),7),IF(v="",NA(),v))
+PCAGrid!HQ255 = -ANCHORARRAY($HP$255)
+PCAGrid!HR255 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),1,2),"")
+PCAGrid!EP304 : "Case 7"
+PCAGrid!EQ304 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=7))
+PCAGrid!GQ304 : "Actual"
+PCAGrid!GR304 = IFERROR(LET(R,ANCHORARRAY($GR$305),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS304 = IFERROR(LET(R,ANCHORARRAY($GS$305),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT304 = IFERROR(LET(R,ANCHORARRAY($GT$305),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU304 = IFERROR(LET(R,ANCHORARRAY($GU$305),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV304 = IFERROR(LET(R,ANCHORARRAY($GV$305),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX304 : "PC1"
+PCAGrid!GY304 : "PC2"
+PCAGrid!GZ304 : "PC3"
+PCAGrid!HA304 : "PC4"
+PCAGrid!HB304 : "PC5"
+PCAGrid!HD304 : "Mean"
+PCAGrid!HE304 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF304 : "+1σ"
+PCAGrid!HG304 : "-1σ"
+PCAGrid!HH304 : "+1σ (bp) band 1"
+PCAGrid!HI304 : "-1σ (bp) band 1"
+PCAGrid!HJ304 : "+1σ (bp) band 2"
+PCAGrid!HK304 : "-1σ (bp) band 2"
+PCAGrid!HL304 : "+1σ (bp) band 3"
+PCAGrid!HM304 : "-1σ (bp) band 3"
+PCAGrid!HN304 : "+1σ (bp) band 4"
+PCAGrid!HO304 : "-1σ (bp) band 4"
+PCAGrid!HP304 : "+1σ (bp) band 5"
+PCAGrid!HQ304 : "-1σ (bp) band 5"
+PCAGrid!HR304 : "σ warning"
+PCAGrid!GQ305 = IF($AU$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX305 = LET(V,DROP(ANCHORARRAY($EQ$304),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY305 = LET(V,DROP(ANCHORARRAY($EQ$304),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ305 = LET(V,DROP(ANCHORARRAY($EQ$304),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA305 = LET(V,DROP(ANCHORARRAY($EQ$304),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB305 = LET(V,DROP(ANCHORARRAY($EQ$304),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)
+PCAGrid!HE305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)+CHOOSECOLS(ANCHORARRAY($EQ$304),10)
+PCAGrid!HG305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)-CHOOSECOLS(ANCHORARRAY($EQ$304),10)
+PCAGrid!HH305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),3),IF(v="",NA(),v))
+PCAGrid!HI305 = -ANCHORARRAY($HH$305)
+PCAGrid!HJ305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),4),IF(v="",NA(),v))
+PCAGrid!HK305 = -ANCHORARRAY($HJ$305)
+PCAGrid!HL305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),5),IF(v="",NA(),v))
+PCAGrid!HM305 = -ANCHORARRAY($HL$305)
+PCAGrid!HN305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),6),IF(v="",NA(),v))
+PCAGrid!HO305 = -ANCHORARRAY($HN$305)
+PCAGrid!HP305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),7),IF(v="",NA(),v))
+PCAGrid!HQ305 = -ANCHORARRAY($HP$305)
+PCAGrid!HR305 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),1,2),"")
+PCAGrid!EP354 : "Case 8"
+PCAGrid!EQ354 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=8))
+PCAGrid!GQ354 : "Actual"
+PCAGrid!GR354 = IFERROR(LET(R,ANCHORARRAY($GR$355),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS354 = IFERROR(LET(R,ANCHORARRAY($GS$355),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT354 = IFERROR(LET(R,ANCHORARRAY($GT$355),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU354 = IFERROR(LET(R,ANCHORARRAY($GU$355),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV354 = IFERROR(LET(R,ANCHORARRAY($GV$355),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX354 : "PC1"
+PCAGrid!GY354 : "PC2"
+PCAGrid!GZ354 : "PC3"
+PCAGrid!HA354 : "PC4"
+PCAGrid!HB354 : "PC5"
+PCAGrid!HD354 : "Mean"
+PCAGrid!HE354 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF354 : "+1σ"
+PCAGrid!HG354 : "-1σ"
+PCAGrid!HH354 : "+1σ (bp) band 1"
+PCAGrid!HI354 : "-1σ (bp) band 1"
+PCAGrid!HJ354 : "+1σ (bp) band 2"
+PCAGrid!HK354 : "-1σ (bp) band 2"
+PCAGrid!HL354 : "+1σ (bp) band 3"
+PCAGrid!HM354 : "-1σ (bp) band 3"
+PCAGrid!HN354 : "+1σ (bp) band 4"
+PCAGrid!HO354 : "-1σ (bp) band 4"
+PCAGrid!HP354 : "+1σ (bp) band 5"
+PCAGrid!HQ354 : "-1σ (bp) band 5"
+PCAGrid!HR354 : "σ warning"
+PCAGrid!GQ355 = IF($BB$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX355 = LET(V,DROP(ANCHORARRAY($EQ$354),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY355 = LET(V,DROP(ANCHORARRAY($EQ$354),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ355 = LET(V,DROP(ANCHORARRAY($EQ$354),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA355 = LET(V,DROP(ANCHORARRAY($EQ$354),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB355 = LET(V,DROP(ANCHORARRAY($EQ$354),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)
+PCAGrid!HE355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)+CHOOSECOLS(ANCHORARRAY($EQ$354),10)
+PCAGrid!HG355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)-CHOOSECOLS(ANCHORARRAY($EQ$354),10)
+PCAGrid!HH355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),3),IF(v="",NA(),v))
+PCAGrid!HI355 = -ANCHORARRAY($HH$355)
+PCAGrid!HJ355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),4),IF(v="",NA(),v))
+PCAGrid!HK355 = -ANCHORARRAY($HJ$355)
+PCAGrid!HL355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),5),IF(v="",NA(),v))
+PCAGrid!HM355 = -ANCHORARRAY($HL$355)
+PCAGrid!HN355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),6),IF(v="",NA(),v))
+PCAGrid!HO355 = -ANCHORARRAY($HN$355)
+PCAGrid!HP355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),7),IF(v="",NA(),v))
+PCAGrid!HQ355 = -ANCHORARRAY($HP$355)
+PCAGrid!HR355 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),1,2),"")
+PCAGrid!EP404 : "Case 9"
+PCAGrid!EQ404 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=9))
+PCAGrid!GQ404 : "Actual"
+PCAGrid!GR404 = IFERROR(LET(R,ANCHORARRAY($GR$405),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS404 = IFERROR(LET(R,ANCHORARRAY($GS$405),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT404 = IFERROR(LET(R,ANCHORARRAY($GT$405),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU404 = IFERROR(LET(R,ANCHORARRAY($GU$405),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV404 = IFERROR(LET(R,ANCHORARRAY($GV$405),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX404 : "PC1"
+PCAGrid!GY404 : "PC2"
+PCAGrid!GZ404 : "PC3"
+PCAGrid!HA404 : "PC4"
+PCAGrid!HB404 : "PC5"
+PCAGrid!HD404 : "Mean"
+PCAGrid!HE404 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF404 : "+1σ"
+PCAGrid!HG404 : "-1σ"
+PCAGrid!HH404 : "+1σ (bp) band 1"
+PCAGrid!HI404 : "-1σ (bp) band 1"
+PCAGrid!HJ404 : "+1σ (bp) band 2"
+PCAGrid!HK404 : "-1σ (bp) band 2"
+PCAGrid!HL404 : "+1σ (bp) band 3"
+PCAGrid!HM404 : "-1σ (bp) band 3"
+PCAGrid!HN404 : "+1σ (bp) band 4"
+PCAGrid!HO404 : "-1σ (bp) band 4"
+PCAGrid!HP404 : "+1σ (bp) band 5"
+PCAGrid!HQ404 : "-1σ (bp) band 5"
+PCAGrid!HR404 : "σ warning"
+PCAGrid!GQ405 = IF($BI$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX405 = LET(V,DROP(ANCHORARRAY($EQ$404),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY405 = LET(V,DROP(ANCHORARRAY($EQ$404),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ405 = LET(V,DROP(ANCHORARRAY($EQ$404),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA405 = LET(V,DROP(ANCHORARRAY($EQ$404),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB405 = LET(V,DROP(ANCHORARRAY($EQ$404),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)
+PCAGrid!HE405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)+CHOOSECOLS(ANCHORARRAY($EQ$404),10)
+PCAGrid!HG405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)-CHOOSECOLS(ANCHORARRAY($EQ$404),10)
+PCAGrid!HH405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),3),IF(v="",NA(),v))
+PCAGrid!HI405 = -ANCHORARRAY($HH$405)
+PCAGrid!HJ405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),4),IF(v="",NA(),v))
+PCAGrid!HK405 = -ANCHORARRAY($HJ$405)
+PCAGrid!HL405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),5),IF(v="",NA(),v))
+PCAGrid!HM405 = -ANCHORARRAY($HL$405)
+PCAGrid!HN405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),6),IF(v="",NA(),v))
+PCAGrid!HO405 = -ANCHORARRAY($HN$405)
+PCAGrid!HP405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),7),IF(v="",NA(),v))
+PCAGrid!HQ405 = -ANCHORARRAY($HP$405)
+PCAGrid!HR405 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),1,2),"")
+PCAGrid!EP454 : "Case 10"
+PCAGrid!EQ454 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=10))
+PCAGrid!GQ454 : "Actual"
+PCAGrid!GR454 = IFERROR(LET(R,ANCHORARRAY($GR$455),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
+PCAGrid!GS454 = IFERROR(LET(R,ANCHORARRAY($GS$455),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
+PCAGrid!GT454 = IFERROR(LET(R,ANCHORARRAY($GT$455),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
+PCAGrid!GU454 = IFERROR(LET(R,ANCHORARRAY($GU$455),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
+PCAGrid!GV454 = IFERROR(LET(R,ANCHORARRAY($GV$455),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GX454 : "PC1"
+PCAGrid!GY454 : "PC2"
+PCAGrid!GZ454 : "PC3"
+PCAGrid!HA454 : "PC4"
+PCAGrid!HB454 : "PC5"
+PCAGrid!HD454 : "Mean"
+PCAGrid!HE454 = "Actual / Mean / Recon (k="&$D$108&")  dashed: Mean ±1σ"
+PCAGrid!HF454 : "+1σ"
+PCAGrid!HG454 : "-1σ"
+PCAGrid!HH454 : "+1σ (bp) band 1"
+PCAGrid!HI454 : "-1σ (bp) band 1"
+PCAGrid!HJ454 : "+1σ (bp) band 2"
+PCAGrid!HK454 : "-1σ (bp) band 2"
+PCAGrid!HL454 : "+1σ (bp) band 3"
+PCAGrid!HM454 : "-1σ (bp) band 3"
+PCAGrid!HN454 : "+1σ (bp) band 4"
+PCAGrid!HO454 : "-1σ (bp) band 4"
+PCAGrid!HP454 : "+1σ (bp) band 5"
+PCAGrid!HQ454 : "-1σ (bp) band 5"
+PCAGrid!HR454 : "σ warning"
+PCAGrid!GQ455 = IF($BP$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
+PCAGrid!GR455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GS455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GT455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$44),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GU455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$60),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GV455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$76),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
+PCAGrid!GX455 = LET(V,DROP(ANCHORARRAY($EQ$454),,10),IF(1<=COLUMNS(V),CHOOSECOLS(V,1),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GY455 = LET(V,DROP(ANCHORARRAY($EQ$454),,10),IF(2<=COLUMNS(V),CHOOSECOLS(V,2),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!GZ455 = LET(V,DROP(ANCHORARRAY($EQ$454),,10),IF(3<=COLUMNS(V),CHOOSECOLS(V,3),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HA455 = LET(V,DROP(ANCHORARRAY($EQ$454),,10),IF(4<=COLUMNS(V),CHOOSECOLS(V,4),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HB455 = LET(V,DROP(ANCHORARRAY($EQ$454),,10),IF(5<=COLUMNS(V),CHOOSECOLS(V,5),IF(SEQUENCE(ROWS(V)),NA())))
+PCAGrid!HD455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)
+PCAGrid!HE455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
+PCAGrid!HF455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)+CHOOSECOLS(ANCHORARRAY($EQ$454),10)
+PCAGrid!HG455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)-CHOOSECOLS(ANCHORARRAY($EQ$454),10)
+PCAGrid!HH455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),3),IF(v="",NA(),v))
+PCAGrid!HI455 = -ANCHORARRAY($HH$455)
+PCAGrid!HJ455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),4),IF(v="",NA(),v))
+PCAGrid!HK455 = -ANCHORARRAY($HJ$455)
+PCAGrid!HL455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),5),IF(v="",NA(),v))
+PCAGrid!HM455 = -ANCHORARRAY($HL$455)
+PCAGrid!HN455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),6),IF(v="",NA(),v))
+PCAGrid!HO455 = -ANCHORARRAY($HN$455)
+PCAGrid!HP455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),7),IF(v="",NA(),v))
+PCAGrid!HQ455 = -ANCHORARRAY($HP$455)
+PCAGrid!HR455 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),1,2),"")
+PCAGrid!A4 validation date greaterThanOrEqual: 1
+PCAGrid!A58:A62 validation list: $A$12:$A$53
+PCAGrid!AG4 AN4 AU4 BB4 BI4 BP4 E4 L4 S4 Z4 validation date greaterThanOrEqual: 1
+PCAGrid!AG5 AN5 AU5 BB5 BI5 BP5 E5 L5 S5 Z5 validation whole greaterThanOrEqual: 2
+PCAGrid!AG6 AN6 AU6 BB6 BI6 BP6 E6 L6 S6 Z6 validation list: "Level,Change"
+PCAGrid!AG7 AN7 AU7 BB7 BI7 BP7 E7 L7 S7 Z7 validation list: "Yes,No"
+PCAGrid!B1 validation list: "Live,Fixed"
+PCAGrid!B12:B53 validation list: "○,×"
+PCAGrid!B55 validation whole greaterThanOrEqual: 2
+PCAGrid!D108 validation whole: 1 | 42
+PCAGrid!D12 D28 D44 D60 D76 validation whole: 1 | 42
+PCAGrid chart "": PCAGrid!$GR$4 | [0]!PCG_Tenor | [0]!PCG_R1_1 | [0]!PCG_Tenor | [0]!PCG_SUp1_1 | [0]!PCG_Tenor | [0]!PCG_SDn1_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$4 | [0]!PCG_Tenor | [0]!PCG_R1_2 | [0]!PCG_Tenor | [0]!PCG_SUp1_2 | [0]!PCG_Tenor | [0]!PCG_SDn1_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$4 | [0]!PCG_Tenor | [0]!PCG_R1_3 | [0]!PCG_Tenor | [0]!PCG_SUp1_3 | [0]!PCG_Tenor | [0]!PCG_SDn1_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$4 | [0]!PCG_Tenor | [0]!PCG_R1_4 | [0]!PCG_Tenor | [0]!PCG_SUp1_4 | [0]!PCG_Tenor | [0]!PCG_SDn1_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$4 | [0]!PCG_Tenor | [0]!PCG_R1_5 | [0]!PCG_Tenor | [0]!PCG_SUp1_5 | [0]!PCG_Tenor | [0]!PCG_SDn1_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 1)": [0]!PCG_Tenor | [0]!PCG_V1_1 | [0]!PCG_Tenor | [0]!PCG_V1_2 | [0]!PCG_Tenor | [0]!PCG_V1_3 | [0]!PCG_Tenor | [0]!PCG_V1_4 | [0]!PCG_Tenor | [0]!PCG_V1_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$54 | [0]!PCG_Tenor | [0]!PCG_R2_1 | [0]!PCG_Tenor | [0]!PCG_SUp2_1 | [0]!PCG_Tenor | [0]!PCG_SDn2_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$54 | [0]!PCG_Tenor | [0]!PCG_R2_2 | [0]!PCG_Tenor | [0]!PCG_SUp2_2 | [0]!PCG_Tenor | [0]!PCG_SDn2_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$54 | [0]!PCG_Tenor | [0]!PCG_R2_3 | [0]!PCG_Tenor | [0]!PCG_SUp2_3 | [0]!PCG_Tenor | [0]!PCG_SDn2_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$54 | [0]!PCG_Tenor | [0]!PCG_R2_4 | [0]!PCG_Tenor | [0]!PCG_SUp2_4 | [0]!PCG_Tenor | [0]!PCG_SDn2_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$54 | [0]!PCG_Tenor | [0]!PCG_R2_5 | [0]!PCG_Tenor | [0]!PCG_SUp2_5 | [0]!PCG_Tenor | [0]!PCG_SDn2_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 2)": [0]!PCG_Tenor | [0]!PCG_V2_1 | [0]!PCG_Tenor | [0]!PCG_V2_2 | [0]!PCG_Tenor | [0]!PCG_V2_3 | [0]!PCG_Tenor | [0]!PCG_V2_4 | [0]!PCG_Tenor | [0]!PCG_V2_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$104 | [0]!PCG_Tenor | [0]!PCG_R3_1 | [0]!PCG_Tenor | [0]!PCG_SUp3_1 | [0]!PCG_Tenor | [0]!PCG_SDn3_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$104 | [0]!PCG_Tenor | [0]!PCG_R3_2 | [0]!PCG_Tenor | [0]!PCG_SUp3_2 | [0]!PCG_Tenor | [0]!PCG_SDn3_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$104 | [0]!PCG_Tenor | [0]!PCG_R3_3 | [0]!PCG_Tenor | [0]!PCG_SUp3_3 | [0]!PCG_Tenor | [0]!PCG_SDn3_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$104 | [0]!PCG_Tenor | [0]!PCG_R3_4 | [0]!PCG_Tenor | [0]!PCG_SUp3_4 | [0]!PCG_Tenor | [0]!PCG_SDn3_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$104 | [0]!PCG_Tenor | [0]!PCG_R3_5 | [0]!PCG_Tenor | [0]!PCG_SUp3_5 | [0]!PCG_Tenor | [0]!PCG_SDn3_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 3)": [0]!PCG_Tenor | [0]!PCG_V3_1 | [0]!PCG_Tenor | [0]!PCG_V3_2 | [0]!PCG_Tenor | [0]!PCG_V3_3 | [0]!PCG_Tenor | [0]!PCG_V3_4 | [0]!PCG_Tenor | [0]!PCG_V3_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$154 | [0]!PCG_Tenor | [0]!PCG_R4_1 | [0]!PCG_Tenor | [0]!PCG_SUp4_1 | [0]!PCG_Tenor | [0]!PCG_SDn4_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$154 | [0]!PCG_Tenor | [0]!PCG_R4_2 | [0]!PCG_Tenor | [0]!PCG_SUp4_2 | [0]!PCG_Tenor | [0]!PCG_SDn4_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$154 | [0]!PCG_Tenor | [0]!PCG_R4_3 | [0]!PCG_Tenor | [0]!PCG_SUp4_3 | [0]!PCG_Tenor | [0]!PCG_SDn4_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$154 | [0]!PCG_Tenor | [0]!PCG_R4_4 | [0]!PCG_Tenor | [0]!PCG_SUp4_4 | [0]!PCG_Tenor | [0]!PCG_SDn4_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$154 | [0]!PCG_Tenor | [0]!PCG_R4_5 | [0]!PCG_Tenor | [0]!PCG_SUp4_5 | [0]!PCG_Tenor | [0]!PCG_SDn4_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 4)": [0]!PCG_Tenor | [0]!PCG_V4_1 | [0]!PCG_Tenor | [0]!PCG_V4_2 | [0]!PCG_Tenor | [0]!PCG_V4_3 | [0]!PCG_Tenor | [0]!PCG_V4_4 | [0]!PCG_Tenor | [0]!PCG_V4_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$204 | [0]!PCG_Tenor | [0]!PCG_R5_1 | [0]!PCG_Tenor | [0]!PCG_SUp5_1 | [0]!PCG_Tenor | [0]!PCG_SDn5_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$204 | [0]!PCG_Tenor | [0]!PCG_R5_2 | [0]!PCG_Tenor | [0]!PCG_SUp5_2 | [0]!PCG_Tenor | [0]!PCG_SDn5_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$204 | [0]!PCG_Tenor | [0]!PCG_R5_3 | [0]!PCG_Tenor | [0]!PCG_SUp5_3 | [0]!PCG_Tenor | [0]!PCG_SDn5_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$204 | [0]!PCG_Tenor | [0]!PCG_R5_4 | [0]!PCG_Tenor | [0]!PCG_SUp5_4 | [0]!PCG_Tenor | [0]!PCG_SDn5_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$204 | [0]!PCG_Tenor | [0]!PCG_R5_5 | [0]!PCG_Tenor | [0]!PCG_SUp5_5 | [0]!PCG_Tenor | [0]!PCG_SDn5_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 5)": [0]!PCG_Tenor | [0]!PCG_V5_1 | [0]!PCG_Tenor | [0]!PCG_V5_2 | [0]!PCG_Tenor | [0]!PCG_V5_3 | [0]!PCG_Tenor | [0]!PCG_V5_4 | [0]!PCG_Tenor | [0]!PCG_V5_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$254 | [0]!PCG_Tenor | [0]!PCG_R6_1 | [0]!PCG_Tenor | [0]!PCG_SUp6_1 | [0]!PCG_Tenor | [0]!PCG_SDn6_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$254 | [0]!PCG_Tenor | [0]!PCG_R6_2 | [0]!PCG_Tenor | [0]!PCG_SUp6_2 | [0]!PCG_Tenor | [0]!PCG_SDn6_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$254 | [0]!PCG_Tenor | [0]!PCG_R6_3 | [0]!PCG_Tenor | [0]!PCG_SUp6_3 | [0]!PCG_Tenor | [0]!PCG_SDn6_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$254 | [0]!PCG_Tenor | [0]!PCG_R6_4 | [0]!PCG_Tenor | [0]!PCG_SUp6_4 | [0]!PCG_Tenor | [0]!PCG_SDn6_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$254 | [0]!PCG_Tenor | [0]!PCG_R6_5 | [0]!PCG_Tenor | [0]!PCG_SUp6_5 | [0]!PCG_Tenor | [0]!PCG_SDn6_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 6)": [0]!PCG_Tenor | [0]!PCG_V6_1 | [0]!PCG_Tenor | [0]!PCG_V6_2 | [0]!PCG_Tenor | [0]!PCG_V6_3 | [0]!PCG_Tenor | [0]!PCG_V6_4 | [0]!PCG_Tenor | [0]!PCG_V6_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$304 | [0]!PCG_Tenor | [0]!PCG_R7_1 | [0]!PCG_Tenor | [0]!PCG_SUp7_1 | [0]!PCG_Tenor | [0]!PCG_SDn7_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$304 | [0]!PCG_Tenor | [0]!PCG_R7_2 | [0]!PCG_Tenor | [0]!PCG_SUp7_2 | [0]!PCG_Tenor | [0]!PCG_SDn7_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$304 | [0]!PCG_Tenor | [0]!PCG_R7_3 | [0]!PCG_Tenor | [0]!PCG_SUp7_3 | [0]!PCG_Tenor | [0]!PCG_SDn7_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$304 | [0]!PCG_Tenor | [0]!PCG_R7_4 | [0]!PCG_Tenor | [0]!PCG_SUp7_4 | [0]!PCG_Tenor | [0]!PCG_SDn7_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$304 | [0]!PCG_Tenor | [0]!PCG_R7_5 | [0]!PCG_Tenor | [0]!PCG_SUp7_5 | [0]!PCG_Tenor | [0]!PCG_SDn7_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 7)": [0]!PCG_Tenor | [0]!PCG_V7_1 | [0]!PCG_Tenor | [0]!PCG_V7_2 | [0]!PCG_Tenor | [0]!PCG_V7_3 | [0]!PCG_Tenor | [0]!PCG_V7_4 | [0]!PCG_Tenor | [0]!PCG_V7_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$354 | [0]!PCG_Tenor | [0]!PCG_R8_1 | [0]!PCG_Tenor | [0]!PCG_SUp8_1 | [0]!PCG_Tenor | [0]!PCG_SDn8_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$354 | [0]!PCG_Tenor | [0]!PCG_R8_2 | [0]!PCG_Tenor | [0]!PCG_SUp8_2 | [0]!PCG_Tenor | [0]!PCG_SDn8_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$354 | [0]!PCG_Tenor | [0]!PCG_R8_3 | [0]!PCG_Tenor | [0]!PCG_SUp8_3 | [0]!PCG_Tenor | [0]!PCG_SDn8_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$354 | [0]!PCG_Tenor | [0]!PCG_R8_4 | [0]!PCG_Tenor | [0]!PCG_SUp8_4 | [0]!PCG_Tenor | [0]!PCG_SDn8_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$354 | [0]!PCG_Tenor | [0]!PCG_R8_5 | [0]!PCG_Tenor | [0]!PCG_SUp8_5 | [0]!PCG_Tenor | [0]!PCG_SDn8_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 8)": [0]!PCG_Tenor | [0]!PCG_V8_1 | [0]!PCG_Tenor | [0]!PCG_V8_2 | [0]!PCG_Tenor | [0]!PCG_V8_3 | [0]!PCG_Tenor | [0]!PCG_V8_4 | [0]!PCG_Tenor | [0]!PCG_V8_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$404 | [0]!PCG_Tenor | [0]!PCG_R9_1 | [0]!PCG_Tenor | [0]!PCG_SUp9_1 | [0]!PCG_Tenor | [0]!PCG_SDn9_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$404 | [0]!PCG_Tenor | [0]!PCG_R9_2 | [0]!PCG_Tenor | [0]!PCG_SUp9_2 | [0]!PCG_Tenor | [0]!PCG_SDn9_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$404 | [0]!PCG_Tenor | [0]!PCG_R9_3 | [0]!PCG_Tenor | [0]!PCG_SUp9_3 | [0]!PCG_Tenor | [0]!PCG_SDn9_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$404 | [0]!PCG_Tenor | [0]!PCG_R9_4 | [0]!PCG_Tenor | [0]!PCG_SUp9_4 | [0]!PCG_Tenor | [0]!PCG_SDn9_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$404 | [0]!PCG_Tenor | [0]!PCG_R9_5 | [0]!PCG_Tenor | [0]!PCG_SUp9_5 | [0]!PCG_Tenor | [0]!PCG_SDn9_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 9)": [0]!PCG_Tenor | [0]!PCG_V9_1 | [0]!PCG_Tenor | [0]!PCG_V9_2 | [0]!PCG_Tenor | [0]!PCG_V9_3 | [0]!PCG_Tenor | [0]!PCG_V9_4 | [0]!PCG_Tenor | [0]!PCG_V9_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GR$454 | [0]!PCG_Tenor | [0]!PCG_R10_1 | [0]!PCG_Tenor | [0]!PCG_SUp10_1 | [0]!PCG_Tenor | [0]!PCG_SDn10_1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GS$454 | [0]!PCG_Tenor | [0]!PCG_R10_2 | [0]!PCG_Tenor | [0]!PCG_SUp10_2 | [0]!PCG_Tenor | [0]!PCG_SDn10_2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GT$454 | [0]!PCG_Tenor | [0]!PCG_R10_3 | [0]!PCG_Tenor | [0]!PCG_SUp10_3 | [0]!PCG_Tenor | [0]!PCG_SDn10_3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GU$454 | [0]!PCG_Tenor | [0]!PCG_R10_4 | [0]!PCG_Tenor | [0]!PCG_SUp10_4 | [0]!PCG_Tenor | [0]!PCG_SDn10_4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$GV$454 | [0]!PCG_Tenor | [0]!PCG_R10_5 | [0]!PCG_Tenor | [0]!PCG_SUp10_5 | [0]!PCG_Tenor | [0]!PCG_SDn10_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "PC1-PC5 (Case 10)": [0]!PCG_Tenor | [0]!PCG_V10_1 | [0]!PCG_Tenor | [0]!PCG_V10_2 | [0]!PCG_Tenor | [0]!PCG_V10_3 | [0]!PCG_Tenor | [0]!PCG_V10_4 | [0]!PCG_Tenor | [0]!PCG_V10_5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$4 | [0]!PCG_Tenor | [0]!PCG_Rec1 | [0]!PCG_Tenor | [0]!PCG_Up1 | [0]!PCG_Tenor | [0]!PCG_Dn1 | [0]!PCG_Tenor | [0]!PCG_Mean1 | [0]!PCG_Tenor | [0]!PCG_Act1 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$54 | [0]!PCG_Tenor | [0]!PCG_Rec2 | [0]!PCG_Tenor | [0]!PCG_Up2 | [0]!PCG_Tenor | [0]!PCG_Dn2 | [0]!PCG_Tenor | [0]!PCG_Mean2 | [0]!PCG_Tenor | [0]!PCG_Act2 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$104 | [0]!PCG_Tenor | [0]!PCG_Rec3 | [0]!PCG_Tenor | [0]!PCG_Up3 | [0]!PCG_Tenor | [0]!PCG_Dn3 | [0]!PCG_Tenor | [0]!PCG_Mean3 | [0]!PCG_Tenor | [0]!PCG_Act3 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$154 | [0]!PCG_Tenor | [0]!PCG_Rec4 | [0]!PCG_Tenor | [0]!PCG_Up4 | [0]!PCG_Tenor | [0]!PCG_Dn4 | [0]!PCG_Tenor | [0]!PCG_Mean4 | [0]!PCG_Tenor | [0]!PCG_Act4 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$204 | [0]!PCG_Tenor | [0]!PCG_Rec5 | [0]!PCG_Tenor | [0]!PCG_Up5 | [0]!PCG_Tenor | [0]!PCG_Dn5 | [0]!PCG_Tenor | [0]!PCG_Mean5 | [0]!PCG_Tenor | [0]!PCG_Act5 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$254 | [0]!PCG_Tenor | [0]!PCG_Rec6 | [0]!PCG_Tenor | [0]!PCG_Up6 | [0]!PCG_Tenor | [0]!PCG_Dn6 | [0]!PCG_Tenor | [0]!PCG_Mean6 | [0]!PCG_Tenor | [0]!PCG_Act6 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$304 | [0]!PCG_Tenor | [0]!PCG_Rec7 | [0]!PCG_Tenor | [0]!PCG_Up7 | [0]!PCG_Tenor | [0]!PCG_Dn7 | [0]!PCG_Tenor | [0]!PCG_Mean7 | [0]!PCG_Tenor | [0]!PCG_Act7 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$354 | [0]!PCG_Tenor | [0]!PCG_Rec8 | [0]!PCG_Tenor | [0]!PCG_Up8 | [0]!PCG_Tenor | [0]!PCG_Dn8 | [0]!PCG_Tenor | [0]!PCG_Mean8 | [0]!PCG_Tenor | [0]!PCG_Act8 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$404 | [0]!PCG_Tenor | [0]!PCG_Rec9 | [0]!PCG_Tenor | [0]!PCG_Up9 | [0]!PCG_Tenor | [0]!PCG_Dn9 | [0]!PCG_Tenor | [0]!PCG_Mean9 | [0]!PCG_Tenor | [0]!PCG_Act9 | [0]!PCG_Tenor | [0]!PCG_Guide
+PCAGrid chart "": PCAGrid!$HE$454 | [0]!PCG_Tenor | [0]!PCG_Rec10 | [0]!PCG_Tenor | [0]!PCG_Up10 | [0]!PCG_Tenor | [0]!PCG_Dn10 | [0]!PCG_Tenor | [0]!PCG_Mean10 | [0]!PCG_Tenor | [0]!PCG_Act10 | [0]!PCG_Tenor | [0]!PCG_Guide
+# VolPCA
+VolPCA!A1 : "Rates"
+VolPCA!B1 : "Live"
+VolPCA!C1 : "Updated"
+VolPCA!D1 = LiveInfo("vol",ANCHORARRAY($LA$3))
+VolPCA!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+VolPCA!A2 : "VolPCA (swaption ATM normal vol, bp)"
+VolPCA!BF2 : "Calculation area (UDF outputs and per-label calculations; do not edit)"
+VolPCA!LA2 : "Live vol (Name / RIC / Value)"
+VolPCA!A3 : "Estimation (principal components)"
+VolPCA!F3 : "Estimation window"
+VolPCA!I3 : "Actual on recon date"
+VolPCA!BI3 : "By label (bp)"
+VolPCA!BP3 : "Mean (bp) / Scale / Std / PC vectors"
+VolPCA!JD3 : "Selected expiries"
+VolPCA!JE3 : "Selected tenors"
+VolPCA!JG3 : "Labels"
+VolPCA!LA3 = IF($B$1="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
+VolPCA!A4 : "Window end"
+VolPCA!F4 = PcaWindow(VOL_Labels,VOL_Mode,VOL_Standardize,VOL_window,VOL_WindowEnd,"vol")
+VolPCA!I4 = PcaActualInfo(VOL_Labels,VOL_Mode,VOL_ReconDate,ANCHORARRAY($LA$3),"vol")
+VolPCA!P4 : "z = (actual − mean) / scale, score = V_kᵀz, recon = mean + scale·V_k·score, residual = actual − recon (bp)"
+VolPCA!BI4 : "Label"
+VolPCA!BJ4 : "Actual"
+VolPCA!BK4 : "Mean"
+VolPCA!BL4 : "Scale"
+VolPCA!BM4 : "Recon"
+VolPCA!BN4 : "Residual"
+VolPCA!BP4 = PcaModel(VOL_Labels,VOL_Mode,VOL_Standardize,VOL_window,VOL_WindowEnd,"vol")
+VolPCA!JD4 = FILTER($A$15:$A$30,$B$15:$B$30="○")
+VolPCA!JE4 = FILTER($C$15:$C$26,$D$15:$D$26="○")
+VolPCA!JG4 = TOCOL(ANCHORARRAY(JD4)&"x"&TRANSPOSE(ANCHORARRAY(JE4)))
+VolPCA!A5 : "Window (bdays)"
+VolPCA!B5 : 250
+VolPCA!P5 : "In Change mode, actual and recon are changes from the previous business day (bp)"
+VolPCA!BI5 = DROP(TAKE(ANCHORARRAY($BP$4),,1),1)
+VolPCA!BJ5 = PcaActual(VOL_Labels,VOL_Mode,VOL_ReconDate,ANCHORARRAY($LA$3),"vol")
+VolPCA!BK5 = DROP(CHOOSECOLS(ANCHORARRAY($BP$4),2),1)
+VolPCA!BL5 = DROP(CHOOSECOLS(ANCHORARRAY($BP$4),3),1)
+VolPCA!BM5 = LET(m,ANCHORARRAY(BK5),s,ANCHORARRAY(BL5),x,ANCHORARRAY(BJ5),V,TAKE(DROP(ANCHORARRAY($BP$4),1,4),,VOL_k),m+s*MMULT(V,MMULT(TRANSPOSE(V),(x-m)/s)))
+VolPCA!BN5 = ANCHORARRAY(BJ5)-ANCHORARRAY(BM5)
+VolPCA!A6 : "Mode"
+VolPCA!B6 : "Level"
+VolPCA!A7 : "Standardize"
+VolPCA!B7 : "No"
+VolPCA!A9 : "Reconstruction"
+VolPCA!A10 : "Recon date"
+VolPCA!F10 : "Residual: actual − recon (bp)"
+VolPCA!U10 : "Actual (bp)"
+VolPCA!AJ10 : "Components (top 10)"
+VolPCA!A11 : "k (components)"
+VolPCA!B11 : 3
+VolPCA!F11 : "Expiry \ Tenor"
+VolPCA!G11 = TRANSPOSE(VOL_Tenors)
+VolPCA!U11 : "Expiry \ Tenor"
+VolPCA!V11 = TRANSPOSE(VOL_Tenors)
+VolPCA!AJ11 : "PC"
+VolPCA!AK11 : "Eigenvalue"
+VolPCA!AL11 : "Share"
+VolPCA!AM11 : "Cumulative"
+VolPCA!AN11 : "Score"
+VolPCA!AO11 : "Used in recon"
+VolPCA!F12 = VOL_Expiries
+VolPCA!G12 = XLOOKUP(ANCHORARRAY(F12)&"x"&ANCHORARRAY(G11),ANCHORARRAY($BI$5),ANCHORARRAY($BN$5))
+VolPCA!U12 = VOL_Expiries
+VolPCA!V12 = XLOOKUP(ANCHORARRAY(U12)&"x"&ANCHORARRAY(V11),ANCHORARRAY($BI$5),ANCHORARRAY($BJ$5))
+VolPCA!AJ12 = TAKE(DROP(TAKE(ANCHORARRAY($BF$17),,1),1),10)
+VolPCA!AK12 = TAKE(DROP(CHOOSECOLS(ANCHORARRAY($BF$17),2),1),10)
+VolPCA!AL12 = ANCHORARRAY(AK12)/SUM(DROP(CHOOSECOLS(ANCHORARRAY($BF$17),2),1))
+VolPCA!AM12 = SCAN(0,ANCHORARRAY(AL12),LAMBDA(a,b,a+b))
+VolPCA!AN12 = TAKE(MMULT(TRANSPOSE(DROP(ANCHORARRAY($BP$4),1,4)),(ANCHORARRAY($BJ$5)-ANCHORARRAY($BK$5))/ANCHORARRAY($BL$5)),10)
+VolPCA!AO12 = IF(SEQUENCE(ROWS(ANCHORARRAY(AJ12)))<=VOL_k,"Yes","")
+VolPCA!A13 : "Labels = all points of the selected expiries × selected tenors (order = row/column order of the results)"
+VolPCA!A14 : "Expiry"
+VolPCA!B14 : "Use"
+VolPCA!C14 : "Tenor"
+VolPCA!D14 : "Use"
+VolPCA!A15 : "1M"
+VolPCA!B15:B27 : "○"
+VolPCA!C15 : "1Y"
+VolPCA!D15:D26 : "○"
+VolPCA!A16 : "3M"
+VolPCA!C16 : "2Y"
+VolPCA!BF16 : "Eigenvalues (bp² without standardization, unitless with it)"
+VolPCA!A17 : "6M"
+VolPCA!C17 : "3Y"
+VolPCA!BF17 = PcaEigen(VOL_Labels,VOL_Mode,VOL_Standardize,VOL_window,VOL_WindowEnd,"vol")
+VolPCA!A18 : "9M"
+VolPCA!C18 : "4Y"
+VolPCA!A19 : "1Y"
+VolPCA!C19 : "5Y"
+VolPCA!A20 : "2Y"
+VolPCA!C20 : "6Y"
+VolPCA!A21 : "3Y"
+VolPCA!C21 : "7Y"
+VolPCA!A22 : "4Y"
+VolPCA!C22 : "8Y"
+VolPCA!A23 : "5Y"
+VolPCA!C23 : "9Y"
+VolPCA!A24 : "7Y"
+VolPCA!C24 : "10Y"
+VolPCA!A25 : "10Y"
+VolPCA!C25 : "15Y"
+VolPCA!A26 : "15Y"
+VolPCA!C26 : "20Y"
+VolPCA!A27 : "20Y"
+VolPCA!F34 : "Recon (bp)"
+VolPCA!U34 : "Mean (bp)"
+VolPCA!F35 : "Expiry \ Tenor"
+VolPCA!G35 = TRANSPOSE(VOL_Tenors)
+VolPCA!U35 : "Expiry \ Tenor"
+VolPCA!V35 = TRANSPOSE(VOL_Tenors)
+VolPCA!F36 = VOL_Expiries
+VolPCA!G36 = XLOOKUP(ANCHORARRAY(F36)&"x"&ANCHORARRAY(G35),ANCHORARRAY($BI$5),ANCHORARRAY($BM$5))
+VolPCA!U36 = VOL_Expiries
+VolPCA!V36 = XLOOKUP(ANCHORARRAY(U36)&"x"&ANCHORARRAY(V35),ANCHORARRAY($BI$5),ANCHORARRAY($BK$5))
+VolPCA!F58 : "PC1 vector"
+VolPCA!U58 : "PC2 vector"
+VolPCA!AJ58 : "PC3 vector"
+VolPCA!F59 : "Expiry \ Tenor"
+VolPCA!G59 = TRANSPOSE(VOL_Tenors)
+VolPCA!U59 : "Expiry \ Tenor"
+VolPCA!V59 = TRANSPOSE(VOL_Tenors)
+VolPCA!AJ59 : "Expiry \ Tenor"
+VolPCA!AK59 = TRANSPOSE(VOL_Tenors)
+VolPCA!F60 = VOL_Expiries
+VolPCA!G60 = XLOOKUP(ANCHORARRAY(F60)&"x"&ANCHORARRAY(G59),ANCHORARRAY($BI$5),LET(V,DROP(ANCHORARRAY($BP$4),1,4),IF(1<=COLUMNS(V),CHOOSECOLS(V,MIN(1,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA()))))
+VolPCA!U60 = VOL_Expiries
+VolPCA!V60 = XLOOKUP(ANCHORARRAY(U60)&"x"&ANCHORARRAY(V59),ANCHORARRAY($BI$5),LET(V,DROP(ANCHORARRAY($BP$4),1,4),IF(2<=COLUMNS(V),CHOOSECOLS(V,MIN(2,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA()))))
+VolPCA!AJ60 = VOL_Expiries
+VolPCA!AK60 = XLOOKUP(ANCHORARRAY(AJ60)&"x"&ANCHORARRAY(AK59),ANCHORARRAY($BI$5),LET(V,DROP(ANCHORARRAY($BP$4),1,4),IF(3<=COLUMNS(V),CHOOSECOLS(V,MIN(3,COLUMNS(V))),IF(SEQUENCE(ROWS(V)),NA()))))
+VolPCA!B1 validation list: "Live,Fixed"
+VolPCA!B10 validation any: 
+VolPCA!B11 validation whole: 1 | 50
+VolPCA!B15:B30 D15:D26 validation list: "○,×"
+VolPCA!B4 validation any: 
+VolPCA!B5 validation any: 
+VolPCA!B6 validation list: "Level,Change"
+VolPCA!B7 validation list: "Yes,No"
+VolPCA!G12:R27 format colorScale
+# VolHV
+VolHV!A1 : "Rates"
+VolHV!B1 : "Live"
+VolHV!C1 : "Updated"
+VolHV!D1 = LiveInfo("vol",ANCHORARRAY($BB$3))
+VolHV!E1 : "Live: reads the latest vols on every Shift+F9. Fixed: keeps the vols last read on this sheet. Only 'IV (Live)' uses them; history is from the DB (morning batch)."
+VolHV!A2 : "VolHV (implied vs historical normal vol, bp/yr)"
+VolHV!AB2 : "VolHistory (Date / IV / Fwd / dF per leg)"
+VolHV!AV2 : "Combined (weighted)"
+VolHV!BB2 : "Live vol (Name / RIC / Value)"
+VolHV!BF2 : "Chart data (From onwards)"
+VolHV!A3 : "Legs"
+VolHV!F3 : "Summary"
+VolHV!AB3 = VolHistory($B$5:$B$7)
+VolHV!AL3 : "Date"
+VolHV!AM3 : "Leg1 IV"
+VolHV!AN3 : "Leg1 HV"
+VolHV!AO3 : "Leg1 HV short"
+VolHV!AP3 : "Leg2 IV"
+VolHV!AQ3 : "Leg2 HV"
+VolHV!AR3 : "Leg2 HV short"
+VolHV!AS3 : "Leg3 IV"
+VolHV!AT3 : "Leg3 HV"
+VolHV!AU3 : "Leg3 HV short"
+VolHV!AV3 : "IV"
+VolHV!AW3 : "HV"
+VolHV!AX3 : "HV short"
+VolHV!AY3 : "IV - HV"
+VolHV!AZ3 : "IV - HV short"
+VolHV!BB3 = IF($B$1="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
+VolHV!BF3 : "Date"
+VolHV!BG3 : "IV"
+VolHV!BH3 : "HV"
+VolHV!BI3 : "HV short"
+VolHV!BJ3 : "IV - HV"
+VolHV!BK3 : "IV - HV short"
+VolHV!A4 : "Leg"
+VolHV!B4 : "Option"
+VolHV!C4 : "Weight"
+VolHV!D4 : "Window (bd)"
+VolHV!G4 : "Leg 1"
+VolHV!H4 : "Leg 2"
+VolHV!I4 : "Leg 3"
+VolHV!J4 : "Combined"
+VolHV!AL4 = DROP(TAKE(VHV_Data,,1),1)
+VolHV!AM4 = IF($B$5="",NA(),LET(h,TAKE(VHV_Data,1),v,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$5&" IV",h)),1),IF(v="",NA(),v)))
+VolHV!AN4 = IF($B$5="",NA(),LET(n,$D$5,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$5&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AO4 = IF($B$5="",NA(),LET(n,$B$11,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$5&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AP4 = IF($B$6="",NA(),LET(h,TAKE(VHV_Data,1),v,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$6&" IV",h)),1),IF(v="",NA(),v)))
+VolHV!AQ4 = IF($B$6="",NA(),LET(n,$D$6,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$6&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AR4 = IF($B$6="",NA(),LET(n,$B$11,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$6&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AS4 = IF($B$7="",NA(),LET(h,TAKE(VHV_Data,1),v,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$7&" IV",h)),1),IF(v="",NA(),v)))
+VolHV!AT4 = IF($B$7="",NA(),LET(n,$D$7,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$7&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AU4 = IF($B$7="",NA(),LET(n,$B$11,h,TAKE(VHV_Data,1),x,DROP(CHOOSECOLS(VHV_Data,XMATCH($B$7&" dF",h)),1),c,SCAN(0,x^2,LAMBDA(a,b,a+b)),i,SEQUENCE(ROWS(c)),lag,IF(i>n,INDEX(c,IF(i>n,i-n,1)),IF(i=n,0,NA())),SQRT((c-lag)/n*VHV_Days)))
+VolHV!AV4:AX4 = IF($B$5="",0,$C$5*ANCHORARRAY(AM4))+IF($B$6="",0,$C$6*ANCHORARRAY(AP4))+IF($B$7="",0,$C$7*ANCHORARRAY(AS4))
+VolHV!AY4 = ANCHORARRAY(AV4)-ANCHORARRAY(AW4)
+VolHV!AZ4 = ANCHORARRAY(AV4)-ANCHORARRAY(AX4)
+VolHV!BF4 = FILTER(ANCHORARRAY(AL4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!BG4 = FILTER(ANCHORARRAY(AV4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!BH4 = FILTER(ANCHORARRAY(AW4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!BI4 = FILTER(ANCHORARRAY(AX4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!BJ4 = FILTER(ANCHORARRAY(AY4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!BK4 = FILTER(ANCHORARRAY(AZ4),ANCHORARRAY(AL4)>=IF(VHV_From="",0,VHV_From))
+VolHV!A5 : 1
+VolHV!B5 : "1mx10y"
+VolHV!C5 : 1
+VolHV!D5:D7 = IF(B5="","",IF($B$9="Match",LET(e,UPPER(TEXTBEFORE(UPPER(B5),"X")),MIN($B$10,VALUE(LEFT(e,LEN(e)-1))*IF(RIGHT(e)="Y",12,1)*21)),$B$9))
+VolHV!F5 : "Option"
+VolHV!G5 = IF($B$5="","",$B$5)
+VolHV!H5 = IF($B$6="","",$B$6)
+VolHV!I5 = IF($B$7="","",$B$7)
+VolHV!J5 : "Weighted"
+VolHV!A6 : 2
+VolHV!B6 : "1mx5y"
+VolHV!C6 : -1
+VolHV!F6 : "Latest date (DB)"
+VolHV!G6 = IF($B$5="","",MAX(VHV_Date))
+VolHV!H6 = IF($B$6="","",MAX(VHV_Date))
+VolHV!I6 = IF($B$7="","",MAX(VHV_Date))
+VolHV!J6 = MAX(VHV_Date)
+VolHV!A7 : 3
+VolHV!F7 : "IV (DB)"
+VolHV!G7 = IF($B$5="","",TAKE(ANCHORARRAY(AM4),-1))
+VolHV!H7 = IF($B$6="","",TAKE(ANCHORARRAY(AP4),-1))
+VolHV!I7 = IF($B$7="","",TAKE(ANCHORARRAY(AS4),-1))
+VolHV!J7 = TAKE(ANCHORARRAY(AV4),-1)
+VolHV!F8 : "IV (Live)"
+VolHV!G8 = IF($B$5="","",XLOOKUP($B$5,INDEX(ANCHORARRAY($BB$3),,1),INDEX(ANCHORARRAY($BB$3),,3),NA()))
+VolHV!H8 = IF($B$6="","",XLOOKUP($B$6,INDEX(ANCHORARRAY($BB$3),,1),INDEX(ANCHORARRAY($BB$3),,3),NA()))
+VolHV!I8 = IF($B$7="","",XLOOKUP($B$7,INDEX(ANCHORARRAY($BB$3),,1),INDEX(ANCHORARRAY($BB$3),,3),NA()))
+VolHV!J8 = SUM(IF($B$5:$B$7="",0,$C$5:$C$7*IF($B$5:$B$7="",0,G8:I8)))
+VolHV!A9 : "Window (bd)"
+VolHV!B9 : "Match"
+VolHV!F9 : "HV (window)"
+VolHV!G9 = IF($B$5="","",TAKE(ANCHORARRAY(AN4),-1))
+VolHV!H9 = IF($B$6="","",TAKE(ANCHORARRAY(AQ4),-1))
+VolHV!I9 = IF($B$7="","",TAKE(ANCHORARRAY(AT4),-1))
+VolHV!J9 = TAKE(ANCHORARRAY(AW4),-1)
+VolHV!A10 : "Max window (bd)"
+VolHV!B10 : 126
+VolHV!F10 : "HV (short)"
+VolHV!G10 = IF($B$5="","",TAKE(ANCHORARRAY(AO4),-1))
+VolHV!H10 = IF($B$6="","",TAKE(ANCHORARRAY(AR4),-1))
+VolHV!I10 = IF($B$7="","",TAKE(ANCHORARRAY(AU4),-1))
+VolHV!J10 = TAKE(ANCHORARRAY(AX4),-1)
+VolHV!A11 : "Short window (bd)"
+VolHV!B11 : 20
+VolHV!F11 : "IV - HV"
+VolHV!G11 = IF($B$5="","",G7-G9)
+VolHV!H11 = IF($B$6="","",H7-H9)
+VolHV!I11 = IF($B$7="","",I7-I9)
+VolHV!J11 = J7-J9
+VolHV!A12 : "Days per year"
+VolHV!B12 : 252
+VolHV!F12 : "Live IV - HV"
+VolHV!G12 = IF($B$5="","",G8-G9)
+VolHV!H12 = IF($B$6="","",H8-H9)
+VolHV!I12 = IF($B$7="","",I8-I9)
+VolHV!J12 = J8-J9
+VolHV!A13 : "From"
+VolHV!F13 : "IV - HV short"
+VolHV!G13 = IF($B$5="","",G7-G10)
+VolHV!H13 = IF($B$6="","",H7-H10)
+VolHV!I13 = IF($B$7="","",I7-I10)
+VolHV!J13 = J7-J10
+VolHV!F14 : "Pctl of IV - HV"
+VolHV!G14 = IF($B$5="","",LET(g,ANCHORARRAY(AM4)-ANCHORARRAY(AN4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=G11))/ROWS(s)))
+VolHV!H14 = IF($B$6="","",LET(g,ANCHORARRAY(AP4)-ANCHORARRAY(AQ4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=H11))/ROWS(s)))
+VolHV!I14 = IF($B$7="","",LET(g,ANCHORARRAY(AS4)-ANCHORARRAY(AT4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=I11))/ROWS(s)))
+VolHV!J14 = LET(s,FILTER(VHV_ChGap,ISNUMBER(VHV_ChGap)),SUM(--(s<=J11))/ROWS(s))
+VolHV!A15 : "HV = vol of daily moves of the same forward swap (start = spot + expiry), zero mean."
+VolHV!F15 : "Pctl of IV"
+VolHV!G15 = IF($B$5="","",LET(g,ANCHORARRAY(AM4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=G7))/ROWS(s)))
+VolHV!H15 = IF($B$6="","",LET(g,ANCHORARRAY(AP4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=H7))/ROWS(s)))
+VolHV!I15 = IF($B$7="","",LET(g,ANCHORARRAY(AS4),s,FILTER(g,ISNUMBER(g)*(VHV_Date>=IF(VHV_From="",0,VHV_From))),SUM(--(s<=I7))/ROWS(s)))
+VolHV!J15 = LET(s,FILTER(VHV_ChIV,ISNUMBER(VHV_ChIV)),SUM(--(s<=J7))/ROWS(s))
+VolHV!A16 : "Combined = weighted sum of the legs (vol spread), e.g. IV(1Yx10Y) - IV(1Yx2Y)."
+VolHV!F16 : "Window (bd)"
+VolHV!G16 = IF($B$5="","",$D$5)
+VolHV!H16 = IF($B$6="","",$D$6)
+VolHV!I16 = IF($B$7="","",$D$7)
+VolHV!B1 validation list: "Live,Fixed"
+VolHV!B10 validation any: 
+VolHV!B11 validation any: 
+VolHV!B12 validation any: 
+VolHV!B13 validation any: 
+VolHV!B5:B7 validation any: 
+VolHV!B9 validation any: 
+VolHV!C5:C7 validation any: 
+VolHV!F12 validation any: 
+VolHV!F14 validation any: 
+VolHV!F15 validation any: 
+VolHV chart "Combined: IV vs HV (bp/yr)": [0]!VHV_ChDate | [0]!VHV_ChIV | [0]!VHV_ChDate | [0]!VHV_ChHV | [0]!VHV_ChDate | [0]!VHV_ChHVs
+VolHV chart "Combined: IV - HV (bp/yr)": [0]!VHV_ChDate | [0]!VHV_ChGap | [0]!VHV_ChDate | [0]!VHV_ChGapS
+# VolLevel
+VolLevel!A1 : "Rates"
+VolLevel!B1 : "Live"
+VolLevel!C1 : "Vol upd."
+VolLevel!D1 = LiveInfo("vol",ANCHORARRAY($AA$3))
+VolLevel!E1 : "Swap upd."
+VolLevel!F1 = LiveInfo("swap",ANCHORARRAY($AE$3))
+VolLevel!G1 : "Live: reads the latest vols and swap rates on every Shift+F9. Fixed: keeps the values last read on this sheet. History is from the DB (morning batch)."
+VolLevel!A2 : "VolLevel (normal vol vs forward rate: rich / cheap)"
+VolLevel!AA2 : "Live vol (Name / RIC / Value)"
+VolLevel!AE2 : "Live rates (Ticker / Value / Start / End)"
+VolLevel!AJ2 : "Curve inputs (Flag / Ticker / Value / Start / End)"
+VolLevel!AP2 : "Curve tenors (Flag: 1 or blank = use, 0 = exclude)"
+VolLevel!AS2 : "VolHistory (pairs: Date / IV / Fwd / dF)"
+VolLevel!BD2 : "Live Fwd (%)"
+VolLevel!BF2 : "Pairs (From onward, days with IV): Date / Fwd / IV / Residual / IV older / IV recent"
+VolLevel!CA2 : "Chart points per pair"
+VolLevel!CK2 : "Map options"
+VolLevel!CN2 : "VolHistory (map options)"
+VolLevel!VA2 : "Fit per map option (DB only): Resid k = residual k DB days before the latest"
+VolLevel!VP2 : "Map options at the grid point"
+VolLevel!WP2 : "Ranking bars (Option / Z)"
+VolLevel!A3 : "Settings"
+VolLevel!AA3 = IF($B$1="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
+VolLevel!AE3 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+VolLevel!AJ3 = LET(q,ANCHORARRAY($AE$3),t,$AP$4:$AP$47,HSTACK($AQ$4:$AQ$47,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+VolLevel!AP3 : "Ticker"
+VolLevel!AQ3 : "Flag"
+VolLevel!AS3 = VolHistory($B$4:$B$6)
+VolLevel!BD3 : "Live Fwd"
+VolLevel!BF3 : "P1 Date"
+VolLevel!BG3 : "P1 Fwd"
+VolLevel!BH3 : "P1 IV"
+VolLevel!BI3 : "P1 Resid"
+VolLevel!BJ3 : "P1 Hist"
+VolLevel!BK3 : "P1 Recent"
+VolLevel!BM3 : "P2 Date"
+VolLevel!BN3 : "P2 Fwd"
+VolLevel!BO3 : "P2 IV"
+VolLevel!BP3 : "P2 Resid"
+VolLevel!BQ3 : "P2 Hist"
+VolLevel!BR3 : "P2 Recent"
+VolLevel!BT3 : "P3 Date"
+VolLevel!BU3 : "P3 Fwd"
+VolLevel!BV3 : "P3 IV"
+VolLevel!BW3 : "P3 Resid"
+VolLevel!BX3 : "P3 Hist"
+VolLevel!BY3 : "P3 Recent"
+VolLevel!CA3 : "Pair"
+VolLevel!CB3 : "Live Fwd"
+VolLevel!CC3 : "Live IV"
+VolLevel!CD3 : "DB Fwd"
+VolLevel!CE3 : "DB IV"
+VolLevel!CF3 : "Fit x1"
+VolLevel!CG3 : "Fit x2"
+VolLevel!CH3 : "Fit y1"
+VolLevel!CI3 : "Fit y2"
+VolLevel!CK3 : "Option"
+VolLevel!CL3 : "Live Fwd"
+VolLevel!CN3 = VolHistory(ANCHORARRAY($CK$4))
+VolLevel!VA3 = REDUCE({"Option","Slope","Intercept","R2","Resid sd","Obs","Fwd DB","IV DB","Resid 0","Resid 1","Resid 4","Resid 5","Pctl DB"},VLV_GLabels,LAMBDA(acc,n,VSTACK(acc,IFERROR(VLV_Stat(n),HSTACK(n,IF(SEQUENCE(1,12),NA()))))))
+VolLevel!VP3 = LET(s,VLV_GStats,n,INDEX(s,,1),b,INDEX(s,,2),a,INDEX(s,,3),sd,INDEX(s,,5),live,VLV_GPoint="Live",ivl,XLOOKUP(n,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()),fl,XLOOKUP(n,VLV_GLabels,VLV_GLiveFwd,NA()),fp,IF(live,fl,INDEX(s,,7)),ip,IF(live,ivl,INDEX(s,,8)),rp,ip-(a+b*fp),z,rp/sd,ra,IF(live,INDEX(s,,9),INDEX(s,,10)),rb,IF(live,INDEX(s,,11),INDEX(s,,12)),pc,IF(VLV_GValue="Pctl",IF(live,MAP(n,rp,LAMBDA(o,q,IFERROR(LET(r,INDEX(VLV_Resids(o),,3),SUM(--(r<=q))/ROWS(r)),NA()))),INDEX(s,,13)),IF(SEQUENCE(ROWS(n)),NA())),VSTACK({"Option","Fwd","IV","Resid","Z","dZ 1D","dZ 1W","R2","Pctl"},HSTACK(n,fp,ip,rp,z,z-ra/sd,z-rb/sd,INDEX(s,,4),pc)))
+VolLevel!WP3 = LET(r,DROP(ANCHORARRAY($A$53),1),c,DROP(ANCHORARRAY($A$65),1),v,VSTACK(TAKE(r,,2),TAKE(c,,2)),SORTBY(v,INDEX(v,,2),1))
+VolLevel!A4 : "Pair 1"
+VolLevel!B4 : "5Yx5Y"
+VolLevel!AP4 : "O/N"
+VolLevel!BD4 = VolFwdLive($B$4:$B$6,TAKE(ANCHORARRAY($AJ$3),,3))
+VolLevel!BF4 = IF($B$4="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$4,"Fwd"),v,VLV_Col($B$4,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
+VolLevel!BM4 = IF($B$5="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$5,"Fwd"),v,VLV_Col($B$5,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
+VolLevel!BT4 = IF($B$6="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$6,"Fwd"),v,VLV_Col($B$6,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
+VolLevel!CA4 = IF($B$4="",NA(),$B$4)
+VolLevel!CB4 = IF($B$4="",NA(),B18)
+VolLevel!CC4 = IF($B$4="",NA(),B17)
+VolLevel!CD4 = IF($B$4="",NA(),B14)
+VolLevel!CE4 = IF($B$4="",NA(),B13)
+VolLevel!CF4 = IF($B$4="",NA(),LET(x,INDEX(ANCHORARRAY($BF$4),,2),IF(ISNUMBER(CB4),MIN(x,CB4),MIN(x))))
+VolLevel!CG4 = IF($B$4="",NA(),LET(x,INDEX(ANCHORARRAY($BF$4),,2),IF(ISNUMBER(CB4),MAX(x,CB4),MAX(x))))
+VolLevel!CH4 = IF($B$4="",NA(),B24+B23*CF4)
+VolLevel!CI4 = IF($B$4="",NA(),B24+B23*CG4)
+VolLevel!CK4 = LET(es,$A$36:$A$48,ts,$B$35:$M$35,TOCOL(IF((es<>"")*(ts<>""),es&"x"&ts,NA()),2))
+VolLevel!CL4 = VolFwdLive(ANCHORARRAY($CK$4),TAKE(ANCHORARRAY($AJ$3),,3))
+VolLevel!A5 : "Pair 2"
+VolLevel!B5 : "5Yx10Y"
+VolLevel!AP5 : "1W"
+VolLevel!AQ5:AQ37 : 1
+VolLevel!CA5 = IF($B$5="",NA(),$B$5)
+VolLevel!CB5 = IF($B$5="",NA(),C18)
+VolLevel!CC5 = IF($B$5="",NA(),C17)
+VolLevel!CD5 = IF($B$5="",NA(),C14)
+VolLevel!CE5 = IF($B$5="",NA(),C13)
+VolLevel!CF5 = IF($B$5="",NA(),LET(x,INDEX(ANCHORARRAY($BM$4),,2),IF(ISNUMBER(CB5),MIN(x,CB5),MIN(x))))
+VolLevel!CG5 = IF($B$5="",NA(),LET(x,INDEX(ANCHORARRAY($BM$4),,2),IF(ISNUMBER(CB5),MAX(x,CB5),MAX(x))))
+VolLevel!CH5 = IF($B$5="",NA(),C24+C23*CF5)
+VolLevel!CI5 = IF($B$5="",NA(),C24+C23*CG5)
+VolLevel!A6 : "Pair 3"
+VolLevel!B6 : "10Yx10Y"
+VolLevel!AP6 : "1M"
+VolLevel!CA6 = IF($B$6="",NA(),$B$6)
+VolLevel!CB6 = IF($B$6="",NA(),D18)
+VolLevel!CC6 = IF($B$6="",NA(),D17)
+VolLevel!CD6 = IF($B$6="",NA(),D14)
+VolLevel!CE6 = IF($B$6="",NA(),D13)
+VolLevel!CF6 = IF($B$6="",NA(),LET(x,INDEX(ANCHORARRAY($BT$4),,2),IF(ISNUMBER(CB6),MIN(x,CB6),MIN(x))))
+VolLevel!CG6 = IF($B$6="",NA(),LET(x,INDEX(ANCHORARRAY($BT$4),,2),IF(ISNUMBER(CB6),MAX(x,CB6),MAX(x))))
+VolLevel!CH6 = IF($B$6="",NA(),D24+D23*CF6)
+VolLevel!CI6 = IF($B$6="",NA(),D24+D23*CG6)
+VolLevel!A7 : "From"
+VolLevel!AP7 : "2M"
+VolLevel!A8 : "Recent days (bd)"
+VolLevel!B8 : 20
+VolLevel!AP8 : "3M"
+VolLevel!AP9 : "4M"
+VolLevel!A10 : "Summary"
+VolLevel!AP10 : "5M"
+VolLevel!A11 : "Pair"
+VolLevel!B11 = IF($B$4="","",$B$4)
+VolLevel!C11 = IF($B$5="","",$B$5)
+VolLevel!D11 = IF($B$6="","",$B$6)
+VolLevel!AP11 : "6M"
+VolLevel!A12 : "Latest date (DB)"
+VolLevel!B12 = IF($B$4="","",TAKE(INDEX(ANCHORARRAY($BF$4),,1),-1))
+VolLevel!C12 = IF($B$5="","",TAKE(INDEX(ANCHORARRAY($BM$4),,1),-1))
+VolLevel!D12 = IF($B$6="","",TAKE(INDEX(ANCHORARRAY($BT$4),,1),-1))
+VolLevel!AP12 : "7M"
+VolLevel!A13 : "IV (DB)"
+VolLevel!B13 = IF($B$4="","",TAKE(INDEX(ANCHORARRAY($BF$4),,3),-1))
+VolLevel!C13 = IF($B$5="","",TAKE(INDEX(ANCHORARRAY($BM$4),,3),-1))
+VolLevel!D13 = IF($B$6="","",TAKE(INDEX(ANCHORARRAY($BT$4),,3),-1))
+VolLevel!AP13 : "8M"
+VolLevel!A14 : "Fwd (DB, %)"
+VolLevel!B14 = IF($B$4="","",TAKE(INDEX(ANCHORARRAY($BF$4),,2),-1))
+VolLevel!C14 = IF($B$5="","",TAKE(INDEX(ANCHORARRAY($BM$4),,2),-1))
+VolLevel!D14 = IF($B$6="","",TAKE(INDEX(ANCHORARRAY($BT$4),,2),-1))
+VolLevel!AP14 : "9M"
+VolLevel!A15 : "Residual (DB)"
+VolLevel!B15 = IF($B$4="","",TAKE(INDEX(ANCHORARRAY($BF$4),,4),-1))
+VolLevel!C15 = IF($B$5="","",TAKE(INDEX(ANCHORARRAY($BM$4),,4),-1))
+VolLevel!D15 = IF($B$6="","",TAKE(INDEX(ANCHORARRAY($BT$4),,4),-1))
+VolLevel!AP15 : "10M"
+VolLevel!A16 : "Z (DB)"
+VolLevel!B16 = IF($B$4="","",B15/B26)
+VolLevel!C16 = IF($B$5="","",C15/C26)
+VolLevel!D16 = IF($B$6="","",D15/D26)
+VolLevel!AP16 : "11M"
+VolLevel!A17 : "IV (Live)"
+VolLevel!B17 = IF($B$4="","",XLOOKUP($B$4,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()))
+VolLevel!C17 = IF($B$5="","",XLOOKUP($B$5,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()))
+VolLevel!D17 = IF($B$6="","",XLOOKUP($B$6,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()))
+VolLevel!AP17 : "12M"
+VolLevel!A18 : "Fwd (Live, %)"
+VolLevel!B18 = IF($B$4="","",INDEX(VLV_PLiveFwd,1))
+VolLevel!C18 = IF($B$5="","",INDEX(VLV_PLiveFwd,2))
+VolLevel!D18 = IF($B$6="","",INDEX(VLV_PLiveFwd,3))
+VolLevel!AP18 : "15M"
+VolLevel!A19 : "Fit IV (Live)"
+VolLevel!B19 = IF($B$4="","",B24+B23*B18)
+VolLevel!C19 = IF($B$5="","",C24+C23*C18)
+VolLevel!D19 = IF($B$6="","",D24+D23*D18)
+VolLevel!AP19 : "18M"
+VolLevel!A20 : "Residual (Live)"
+VolLevel!B20 = IF($B$4="","",B17-B19)
+VolLevel!C20 = IF($B$5="","",C17-C19)
+VolLevel!D20 = IF($B$6="","",D17-D19)
+VolLevel!AP20 : "21M"
+VolLevel!A21 : "Z (Live)"
+VolLevel!B21 = IF($B$4="","",B20/B26)
+VolLevel!C21 = IF($B$5="","",C20/C26)
+VolLevel!D21 = IF($B$6="","",D20/D26)
+VolLevel!AP21 : "24M"
+VolLevel!A22 : "Pctl of residual (Live)"
+VolLevel!B22 = IF($B$4="","",LET(rs,INDEX(ANCHORARRAY($BF$4),,4),SUM(--(rs<=B20))/ROWS(rs)))
+VolLevel!C22 = IF($B$5="","",LET(rs,INDEX(ANCHORARRAY($BM$4),,4),SUM(--(rs<=C20))/ROWS(rs)))
+VolLevel!D22 = IF($B$6="","",LET(rs,INDEX(ANCHORARRAY($BT$4),,4),SUM(--(rs<=D20))/ROWS(rs)))
+VolLevel!AP22 : "36M"
+VolLevel!A23 : "Slope (vol per 1% fwd)"
+VolLevel!B23 = IF($B$4="","",SLOPE(INDEX(ANCHORARRAY($BF$4),,3),INDEX(ANCHORARRAY($BF$4),,2)))
+VolLevel!C23 = IF($B$5="","",SLOPE(INDEX(ANCHORARRAY($BM$4),,3),INDEX(ANCHORARRAY($BM$4),,2)))
+VolLevel!D23 = IF($B$6="","",SLOPE(INDEX(ANCHORARRAY($BT$4),,3),INDEX(ANCHORARRAY($BT$4),,2)))
+VolLevel!AP23 : "4Y"
+VolLevel!A24 : "Intercept"
+VolLevel!B24 = IF($B$4="","",INTERCEPT(INDEX(ANCHORARRAY($BF$4),,3),INDEX(ANCHORARRAY($BF$4),,2)))
+VolLevel!C24 = IF($B$5="","",INTERCEPT(INDEX(ANCHORARRAY($BM$4),,3),INDEX(ANCHORARRAY($BM$4),,2)))
+VolLevel!D24 = IF($B$6="","",INTERCEPT(INDEX(ANCHORARRAY($BT$4),,3),INDEX(ANCHORARRAY($BT$4),,2)))
+VolLevel!AP24 : "5Y"
+VolLevel!A25 : "R2"
+VolLevel!B25 = IF($B$4="","",RSQ(INDEX(ANCHORARRAY($BF$4),,3),INDEX(ANCHORARRAY($BF$4),,2)))
+VolLevel!C25 = IF($B$5="","",RSQ(INDEX(ANCHORARRAY($BM$4),,3),INDEX(ANCHORARRAY($BM$4),,2)))
+VolLevel!D25 = IF($B$6="","",RSQ(INDEX(ANCHORARRAY($BT$4),,3),INDEX(ANCHORARRAY($BT$4),,2)))
+VolLevel!AP25 : "6Y"
+VolLevel!A26 : "Residual stdev"
+VolLevel!B26 = IF($B$4="","",STDEV.S(INDEX(ANCHORARRAY($BF$4),,4)))
+VolLevel!C26 = IF($B$5="","",STDEV.S(INDEX(ANCHORARRAY($BM$4),,4)))
+VolLevel!D26 = IF($B$6="","",STDEV.S(INDEX(ANCHORARRAY($BT$4),,4)))
+VolLevel!AP26 : "7Y"
+VolLevel!A27 : "Obs"
+VolLevel!B27 = IF($B$4="","",ROWS(INDEX(ANCHORARRAY($BF$4),,1)))
+VolLevel!C27 = IF($B$5="","",ROWS(INDEX(ANCHORARRAY($BM$4),,1)))
+VolLevel!D27 = IF($B$6="","",ROWS(INDEX(ANCHORARRAY($BT$4),,1)))
+VolLevel!AP27 : "8Y"
+VolLevel!A28 : "Fit: IV = Intercept + Slope x Fwd (least squares, From to the latest DB date). Residual = IV - fit: + = rich, - = cheap. Z = residual / residual stdev."
+VolLevel!AP28 : "9Y"
+VolLevel!A29 : "Fwd = the option's underlying forward swap (start = spot + expiry), same contract as VolHV."
+VolLevel!AP29 : "10Y"
+VolLevel!AP30 : "11Y"
+VolLevel!A31 : "Rich / cheap map (each option vs its own fit)"
+VolLevel!AP31 : "12Y"
+VolLevel!A32 : "Grid value"
+VolLevel!B32 : "Z"
+VolLevel!C32 : "Z = residual / stdev, Residual = vol bp, Pctl = share of past residuals at or below, dZ 1D / 1W = change of Z from 1 / 5 DB days before"
+VolLevel!AP32 : "15Y"
+VolLevel!A33 : "Grid point"
+VolLevel!B33 : "Live"
+VolLevel!C33 : "Live = live IV and Fwd (vs the latest DB close for dZ), DB = latest DB date"
+VolLevel!AP33 : "20Y"
+VolLevel!A34 : "Min R2"
+VolLevel!B34 : 0.3
+VolLevel!C34 : "Gray = R2 below this (the fwd explains little of the vol), also left out of the ranking"
+VolLevel!AP34 : "25Y"
+VolLevel!A35 : "Expiry \ Tenor"
+VolLevel!B35 : "1Y"
+VolLevel!C35 : "2Y"
+VolLevel!D35 : "3Y"
+VolLevel!E35 : "4Y"
+VolLevel!F35 : "5Y"
+VolLevel!G35 : "6Y"
+VolLevel!H35 : "7Y"
+VolLevel!I35 : "8Y"
+VolLevel!J35 : "9Y"
+VolLevel!K35 : "10Y"
+VolLevel!L35 : "15Y"
+VolLevel!M35 : "20Y"
+VolLevel!AP35 : "30Y"
+VolLevel!WA35 : "R2 grid (gray cells of the map)"
+VolLevel!A36 : "1M"
+VolLevel!B36 = LET(es,$A$36:$A$48,ts,$B$35:$M$35,v,CHOOSECOLS(VLV_GNow,CHOOSE(XMATCH(VLV_GValue,{"Residual","Z","dZ 1D","dZ 1W","Pctl"}),4,5,6,7,9)),MAKEARRAY(13,12,LAMBDA(i,j,LET(e,INDEX(es,i),t,INDEX(ts,j),IF(OR(e="",t=""),"",XLOOKUP(e&"x"&t,INDEX(VLV_GNow,,1),v,NA()))))))
+VolLevel!AP36 : "35Y"
+VolLevel!WA36 = LET(es,$A$36:$A$48,ts,$B$35:$M$35,v,INDEX(VLV_GNow,,8),MAKEARRAY(13,12,LAMBDA(i,j,LET(e,INDEX(es,i),t,INDEX(ts,j),IF(OR(e="",t=""),"",XLOOKUP(e&"x"&t,INDEX(VLV_GNow,,1),v,NA()))))))
+VolLevel!A37 : "3M"
+VolLevel!AP37 : "40Y"
+VolLevel!A38 : "6M"
+VolLevel!AP38 : "RD"
+VolLevel!AQ38:AQ47 : 0
+VolLevel!A39 : "9M"
+VolLevel!AP39 : "M1"
+VolLevel!A40 : "1Y"
+VolLevel!AP40 : "M2"
+VolLevel!A41 : "2Y"
+VolLevel!AP41 : "M3"
+VolLevel!A42 : "3Y"
+VolLevel!AP42 : "M4"
+VolLevel!A43 : "4Y"
+VolLevel!AP43 : "M5"
+VolLevel!A44 : "5Y"
+VolLevel!AP44 : "M6"
+VolLevel!A45 : "7Y"
+VolLevel!AP45 : "M7"
+VolLevel!A46 : "10Y"
+VolLevel!AP46 : "M8"
+VolLevel!A47 : "15Y"
+VolLevel!AP47 : "M9"
+VolLevel!A48 : "20Y"
+VolLevel!A50 : "Red = rich (vol above its fit against the forward), blue = cheap. dZ: red = Z went up. The first calculation after the morning batch takes a few seconds."
+VolLevel!A52 : "Rich / cheap ranking (Z at the grid point, R2 >= Min R2)"
+VolLevel!A53 = LET(g,FILTER(VLV_GNow,ISNUMBER(INDEX(VLV_GNow,,5))*(INDEX(VLV_GNow,,8)>=VLV_MinR2)),VSTACK({"Rich","Z","Resid (bp)","dZ 1D","dZ 1W","R2","IV","Fwd (%)"},TAKE(SORTBY(CHOOSECOLS(g,1,5,4,6,7,8,3,2),INDEX(g,,5),-1),10)))
+VolLevel!A65 = LET(g,FILTER(VLV_GNow,ISNUMBER(INDEX(VLV_GNow,,5))*(INDEX(VLV_GNow,,8)>=VLV_MinR2)),VSTACK({"Cheap","Z","Resid (bp)","dZ 1D","dZ 1W","R2","IV","Fwd (%)"},TAKE(SORTBY(CHOOSECOLS(g,1,5,4,6,7,8,3,2),INDEX(g,,5),1),10)))
+VolLevel!A77 : "dZ: green = moving back toward the fit (sign opposite to Z), orange = moving away."
+VolLevel!B1 validation list: "Live,Fixed"
+VolLevel!B32 validation list: "Z,Residual,Pctl,dZ 1D,dZ 1W"
+VolLevel!B33 validation list: "Live,DB"
+VolLevel!B36:M48 format colorScale
+VolLevel!B36:M48 format expression: AND(ISNUMBER(WA36),WA36<$B$34)
+VolLevel!D54:E63 format expression: AND(ISNUMBER(D54),$B54*D54<0)
+VolLevel!D54:E63 format expression: AND(ISNUMBER(D54),$B54*D54>0)
+VolLevel!D66:E75 format expression: AND(ISNUMBER(D66),$B66*D66<0)
+VolLevel!D66:E75 format expression: AND(ISNUMBER(D66),$B66*D66>0)
+VolLevel chart "Z: rich (top) / cheap (bottom)": VolLevel!$WP$3:$WP$22 | VolLevel!$WQ$3:$WQ$22
+VolLevel chart "Pair 1": VolLevel!$BG$4:$BG$3000 | VolLevel!$BJ$4:$BJ$3000 | VolLevel!$BG$4:$BG$3000 | VolLevel!$BK$4:$BK$3000 | VolLevel!$CD$4 | VolLevel!$CE$4 | VolLevel!$CB$4 | VolLevel!$CC$4 | VolLevel!$CF$4:$CG$4 | VolLevel!$CH$4:$CI$4
+VolLevel chart "Pair 2": VolLevel!$BN$4:$BN$3000 | VolLevel!$BQ$4:$BQ$3000 | VolLevel!$BN$4:$BN$3000 | VolLevel!$BR$4:$BR$3000 | VolLevel!$CD$5 | VolLevel!$CE$5 | VolLevel!$CB$5 | VolLevel!$CC$5 | VolLevel!$CF$5:$CG$5 | VolLevel!$CH$5:$CI$5
+VolLevel chart "Pair 3": VolLevel!$BU$4:$BU$3000 | VolLevel!$BX$4:$BX$3000 | VolLevel!$BU$4:$BU$3000 | VolLevel!$BY$4:$BY$3000 | VolLevel!$CD$6 | VolLevel!$CE$6 | VolLevel!$CB$6 | VolLevel!$CC$6 | VolLevel!$CF$6:$CG$6 | VolLevel!$CH$6:$CI$6
+# BOJ
+BOJ!A1 : "Rates"
+BOJ!B1 : "Live"
+BOJ!C1 : "Updated"
+BOJ!D1 = LiveInfo("swap",ANCHORARRAY($K$3))
+BOJ!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet (e.g. to price new rows on the same rates). Updated = when the rates last changed in LiveFeed."
+BOJ!A2 : "BOJ meeting swaps vs spot (1Y and under)"
+BOJ!K2 : "Live rates (Ticker / Value / Start / End)"
+BOJ!P2 : "Curve inputs (Flag / Ticker / Value / Start / End)"
+BOJ!V2 : "Curve tenors (Flag: 1 or blank = use, 0 = exclude)"
+BOJ!A3 : "O/N (%)"
+BOJ!B3 = XLOOKUP("O/N",INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,3),"")
+BOJ!K3 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+BOJ!P3 = LET(q,ANCHORARRAY($K$3),t,$V$4:$V$47,HSTACK($W$4:$W$47,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+BOJ!V3 : "Ticker"
+BOJ!W3 : "Flag"
+BOJ!V4 : "O/N"
+BOJ!V5 : "1W"
+BOJ!W5:W37 : 1
+BOJ!A6 : "A. Meeting-period forwards from the spot curve (same curve as pricing)"
+BOJ!V6 : "1M"
+BOJ!A7 : "Ticker"
+BOJ!B7 : "Start"
+BOJ!C7 : "End"
+BOJ!D7 : "Days"
+BOJ!E7 : "Meeting swap (%)"
+BOJ!F7 : "Fwd from spot (%)"
+BOJ!G7 : "Gap (bp) meeting - spot"
+BOJ!H7 : "Change (bp)"
+BOJ!V7 : "2M"
+BOJ!A8 : "RD"
+BOJ!B8:B17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,4),"")
+BOJ!C8:C17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,5),"")
+BOJ!D8:D17 = IF(AND(ISNUMBER(B8),ISNUMBER(C8)),C8-B8,"")
+BOJ!E8:E17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,3),"")
+BOJ!F8 = BojSpotForwards(B8:C17,TAKE(ANCHORARRAY($P$3),,3))
+BOJ!G8:G17 = IF(AND(ISNUMBER(E8),ISNUMBER(F8)),(E8-F8)*100,"")
+BOJ!H8 = IF(AND(ISNUMBER(E8),ISNUMBER($B$3)),(E8-$B$3)*100,"")
+BOJ!V8 : "3M"
+BOJ!A9 : "M1"
+BOJ!H9:H17 = IF(AND(ISNUMBER(E9),ISNUMBER(E8)),(E9-E8)*100,"")
+BOJ!V9 : "4M"
+BOJ!A10 : "M2"
+BOJ!V10 : "5M"
+BOJ!A11 : "M3"
+BOJ!V11 : "6M"
+BOJ!A12 : "M4"
+BOJ!V12 : "7M"
+BOJ!A13 : "M5"
+BOJ!V13 : "8M"
+BOJ!A14 : "M6"
+BOJ!V14 : "9M"
+BOJ!A15 : "M7"
+BOJ!V15 : "10M"
+BOJ!A16 : "M8"
+BOJ!V16 : "11M"
+BOJ!A17 : "M9"
+BOJ!V17 : "12M"
+BOJ!V18 : "15M"
+BOJ!V19 : "18M"
+BOJ!A20 : "B. Spot from the meeting-swap step curve (O/N + meeting swaps, standard convention, today only)"
+BOJ!V20 : "21M"
+BOJ!A21 : "Tenor"
+BOJ!B21 : "Spot (%)"
+BOJ!C21 : "Par from meeting curve (%)"
+BOJ!D21 : "Gap (bp) spot - meeting"
+BOJ!V21 : "24M"
+BOJ!A22 : "1W"
+BOJ!B22:B34 = XLOOKUP($A22,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,3),"")
+BOJ!C22 = BojImpliedRates(A22:A34,TAKE(ANCHORARRAY($P$3),,3),HSTACK(A8:A17,E8:E17,B8:C17))
+BOJ!D22:D34 = IF(AND(ISNUMBER(B22),ISNUMBER(C22)),(B22-C22)*100,"")
+BOJ!V22 : "36M"
+BOJ!A23 : "1M"
+BOJ!V23 : "4Y"
+BOJ!A24 : "2M"
+BOJ!V24 : "5Y"
+BOJ!A25 : "3M"
+BOJ!V25 : "6Y"
+BOJ!A26 : "4M"
+BOJ!V26 : "7Y"
+BOJ!A27 : "5M"
+BOJ!V27 : "8Y"
+BOJ!A28 : "6M"
+BOJ!V28 : "9Y"
+BOJ!A29 : "7M"
+BOJ!V29 : "10Y"
+BOJ!A30 : "8M"
+BOJ!V30 : "11Y"
+BOJ!A31 : "9M"
+BOJ!V31 : "12Y"
+BOJ!A32 : "10M"
+BOJ!V32 : "15Y"
+BOJ!A33 : "11M"
+BOJ!V33 : "20Y"
+BOJ!A34 : "12M"
+BOJ!V34 : "25Y"
+BOJ!V35 : "30Y"
+BOJ!V36 : "35Y"
+BOJ!A37 : "Notes"
+BOJ!V37 : "40Y"
+BOJ!A38 : "- Meeting swaps: Tradition JPBOJ{n}ONI=TRDT. RD = spot date to meeting 1 decision date, M{n} = business day after meeting n to meeting n+1 decision date (dates are LSEG GV1_DATE/GV2_DATE)."
+BOJ!V38 : "RD"
+BOJ!W38:W47 : 0
+BOJ!A39 : "- A: par rate of each meeting period on the same curve as pricing (spot tenors + O/N), by BojSpotForwards."
+BOJ!V39 : "M1"
+BOJ!A40 : "- B: step curve with a flat forward per meeting period from O/N + RD + M1-M9, and the par rates of 1W-12M on it, by BojImpliedRates."
+BOJ!V40 : "M2"
+BOJ!A41 : "  The night from a decision date to the next business day uses the previous (pre-decision) forward. Nothing beyond the last meeting period."
+BOJ!V41 : "M3"
+BOJ!A42 : "- Gap = quote - value from the other curve. Mid vs mid (bid/ask spread not considered)."
+BOJ!V42 : "M4"
+BOJ!A43 : "- Curve tenors and flags are in V:W. This sheet does not refer to any other workbook."
+BOJ!V43 : "M5"
+BOJ!V44 : "M6"
+BOJ!V45 : "M7"
+BOJ!V46 : "M8"
+BOJ!V47 : "M9"
+BOJ!B1 validation list: "Live,Fixed"
+BOJ!D22:D34 format dataBar
+BOJ!G8:G17 format dataBar
+# FwdMonitor
+FwdMonitor!A1 : "Rates"
+FwdMonitor!B1 : "Live"
+FwdMonitor!C1 : "Updated"
+FwdMonitor!D1 = LiveInfo("swap",ANCHORARRAY($AW$3))
+FwdMonitor!E1 : "Live: reads the latest rates on every Shift+F9. Fixed: keeps the rates last read on this sheet. History is from the DB (morning batch); 'Live (%)' and today's change use the live curve."
+FwdMonitor!A2 : "FwdMonitor (JPY OIS forwards NyMy: live vs history)"
+FwdMonitor!AW2 : "Live rates (Ticker / Value / Start / End)"
+FwdMonitor!BB2 : "Curve inputs (Flag / Ticker / Value / Start / End)"
+FwdMonitor!BH2 : "Curve tenors (Flag: 1 or blank = use, 0 = exclude)"
+FwdMonitor!BK2 : "FwdHistory CMT (%, dF = same-trade daily change in bp)"
+FwdMonitor!DG2 : "FwdHistory FIXED (%, dF = same-trade daily change in bp)"
+FwdMonitor!FC2 : "FwdHistory ROLLING (%, dF = same-trade daily change in bp)"
+FwdMonitor!GY2 : "Strip Nx1Y"
+FwdMonitor!HD2 : "Strip Nx5Y"
+FwdMonitor!HI2 : "Comparison chart (first 4 rows with Show = Yes)"
+FwdMonitor!HO2 : "Live (FwdLive on the labels without the blank row)"
+FwdMonitor!A3 : "Settings"
+FwdMonitor!AW3 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
+FwdMonitor!BB3 = LET(q,ANCHORARRAY($AW$3),t,$BH$4:$BH$47,HSTACK($BI$4:$BI$47,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
+FwdMonitor!BH3 : "Ticker"
+FwdMonitor!BI3 : "Flag"
+FwdMonitor!BK3 = FwdHistory($A$12:$A$35,"CMT",FWM_Base)
+FwdMonitor!DG3 = FwdHistory($A$12:$A$35,"FIXED",FWM_Base)
+FwdMonitor!FC3 = FwdHistory($A$12:$A$35,"ROLLING",FWM_Base)
+FwdMonitor!GY3 : "N (y)"
+FwdMonitor!GZ3 : "Live"
+FwdMonitor!HA3 = "Compare "&TEXT(FWM_Cmp,"yyyy-mm-dd")
+FwdMonitor!HB3 : "Chg (bp)"
+FwdMonitor!HD3 : "N (y)"
+FwdMonitor!HE3 : "Live"
+FwdMonitor!HF3 = HA3
+FwdMonitor!HG3 : "Chg (bp)"
+FwdMonitor!HI3 : "Date"
+FwdMonitor!HJ3 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),1),0),IF(r=0,"",INDEX(FWM_TName,r)&" ("&INDEX(FWM_TMode,r)&")"))
+FwdMonitor!HK3 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),2),0),IF(r=0,"",INDEX(FWM_TName,r)&" ("&INDEX(FWM_TMode,r)&")"))
+FwdMonitor!HL3 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),3),0),IF(r=0,"",INDEX(FWM_TName,r)&" ("&INDEX(FWM_TMode,r)&")"))
+FwdMonitor!HM3 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),4),0),IF(r=0,"",INDEX(FWM_TName,r)&" ("&INDEX(FWM_TMode,r)&")"))
+FwdMonitor!HO3 : "Series"
+FwdMonitor!HP3 : "Live (%)"
+FwdMonitor!A4 : "Base date"
+FwdMonitor!C4 : "FIXED / ROLLING: trades of this date (blank = today)"
+FwdMonitor!BH4 : "O/N"
+FwdMonitor!GY4 = VALUE(TEXTBEFORE($A$12,"y"))
+FwdMonitor!GZ4 = $B$12
+FwdMonitor!HA4 = IFERROR($B$12-$G$12/100,NA())
+FwdMonitor!HB4 = $G$12
+FwdMonitor!HD4 = VALUE(TEXTBEFORE($A$29,"y"))
+FwdMonitor!HE4 = $B$29
+FwdMonitor!HF4 = IFERROR($B$29-$G$29/100,NA())
+FwdMonitor!HG4 = $G$29
+FwdMonitor!HI4 = FILTER(FWM_Dates,FWM_Dates>=N(FWM_From))
+FwdMonitor!HJ4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),1),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
+FwdMonitor!HK4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),2),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
+FwdMonitor!HL4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),3),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
+FwdMonitor!HM4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),4),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
+FwdMonitor!HO4 = FILTER($A$12:$A$35,$A$12:$A$35<>"")
+FwdMonitor!HP4 = FwdLive(ANCHORARRAY($HO$4),TAKE(ANCHORARRAY($BB$3),,3))
+FwdMonitor!A5 : "Compare date"
+FwdMonitor!B5 : 46290
+FwdMonitor!C5 : "Strip and 'vs compare' column (nearest DB date on or before)"
+FwdMonitor!BH5 : "1W"
+FwdMonitor!BI5:BI37 : 1
+FwdMonitor!GY5 = VALUE(TEXTBEFORE($A$13,"y"))
+FwdMonitor!GZ5 = $B$13
+FwdMonitor!HA5 = IFERROR($B$13-$G$13/100,NA())
+FwdMonitor!HB5 = $G$13
+FwdMonitor!HD5 = VALUE(TEXTBEFORE($A$30,"y"))
+FwdMonitor!HE5 = $B$30
+FwdMonitor!HF5 = IFERROR($B$30-$G$30/100,NA())
+FwdMonitor!HG5 = $G$30
+FwdMonitor!A6 : "Sigma window (bd)"
+FwdMonitor!B6 : 63
+FwdMonitor!C6 : "Business days for the sigma of the comparison table's Z-scores"
+FwdMonitor!BH6 : "1M"
+FwdMonitor!GY6 = VALUE(TEXTBEFORE($A$14,"y"))
+FwdMonitor!GZ6 = $B$14
+FwdMonitor!HA6 = IFERROR($B$14-$G$14/100,NA())
+FwdMonitor!HB6 = $G$14
+FwdMonitor!HD6 = VALUE(TEXTBEFORE($A$31,"y"))
+FwdMonitor!HE6 = $B$31
+FwdMonitor!HF6 = IFERROR($B$31-$G$31/100,NA())
+FwdMonitor!HG6 = $G$31
+FwdMonitor!A7 : "Chart from"
+FwdMonitor!B7 : 45955
+FwdMonitor!C7 : "Start of the comparison chart (blank = all)"
+FwdMonitor!BH7 : "2M"
+FwdMonitor!GY7 = VALUE(TEXTBEFORE($A$15,"y"))
+FwdMonitor!GZ7 = $B$15
+FwdMonitor!HA7 = IFERROR($B$15-$G$15/100,NA())
+FwdMonitor!HB7 = $G$15
+FwdMonitor!HD7 = VALUE(TEXTBEFORE($A$32,"y"))
+FwdMonitor!HE7 = $B$32
+FwdMonitor!HF7 = IFERROR($B$32-$G$32/100,NA())
+FwdMonitor!HG7 = $G$32
+FwdMonitor!A8 : "Chart view"
+FwdMonitor!B8 : "Level"
+FwdMonitor!C8 : "Level / Change (change from the chart start)"
+FwdMonitor!BH8 : "3M"
+FwdMonitor!GY8 = VALUE(TEXTBEFORE($A$16,"y"))
+FwdMonitor!GZ8 = $B$16
+FwdMonitor!HA8 = IFERROR($B$16-$G$16/100,NA())
+FwdMonitor!HB8 = $G$16
+FwdMonitor!HD8 = VALUE(TEXTBEFORE($A$33,"y"))
+FwdMonitor!HE8 = $B$33
+FwdMonitor!HF8 = IFERROR($B$33-$G$33/100,NA())
+FwdMonitor!HG8 = $G$33
+FwdMonitor!BH9 : "4M"
+FwdMonitor!GY9 = VALUE(TEXTBEFORE($A$17,"y"))
+FwdMonitor!GZ9 = $B$17
+FwdMonitor!HA9 = IFERROR($B$17-$G$17/100,NA())
+FwdMonitor!HB9 = $G$17
+FwdMonitor!HD9 = VALUE(TEXTBEFORE($A$34,"y"))
+FwdMonitor!HE9 = $B$34
+FwdMonitor!HF9 = IFERROR($B$34-$G$34/100,NA())
+FwdMonitor!HG9 = $G$34
+FwdMonitor!A10 : "Monitor (CMT: spot + N years, M years)"
+FwdMonitor!G10 : "Z window (bd)"
+FwdMonitor!H10 : 20
+FwdMonitor!I10 : 50
+FwdMonitor!J10 : 100
+FwdMonitor!L10 : "Curve vs prev contract by day (bp): this row - row above (today = live, then closes, newest first)"
+FwdMonitor!BH10 : "5M"
+FwdMonitor!GY10 = VALUE(TEXTBEFORE($A$18,"y"))
+FwdMonitor!GZ10 = $B$18
+FwdMonitor!HA10 = IFERROR($B$18-$G$18/100,NA())
+FwdMonitor!HB10 = $G$18
+FwdMonitor!HD10 = VALUE(TEXTBEFORE($A$35,"y"))
+FwdMonitor!HE10 = $B$35
+FwdMonitor!HF10 = IFERROR($B$35-$G$35/100,NA())
+FwdMonitor!HG10 = $G$35
+FwdMonitor!A11 : "Series"
+FwdMonitor!B11 : "Live (%)"
+FwdMonitor!C11 : "Close (%)"
+FwdMonitor!D11 : "Chg 1W (bp)"
+FwdMonitor!E11 : "Chg 1M (bp)"
+FwdMonitor!F11 : "vs compare (bp)"
+FwdMonitor!G11 : "Curve vs prev (bp)"
+FwdMonitor!H11:J11 = "Z 1D ("&H$10&")"
+FwdMonitor!L11 = HSTACK(TODAY(),INDEX(TAKE(FWM_Dates,-19),SEQUENCE(1,19,19,-1)))
+FwdMonitor!BH11 : "6M"
+FwdMonitor!GY11 = VALUE(TEXTBEFORE($A$19,"y"))
+FwdMonitor!GZ11 = $B$19
+FwdMonitor!HA11 = IFERROR($B$19-$G$19/100,NA())
+FwdMonitor!HB11 = $G$19
+FwdMonitor!A12 : "1y1y"
+FwdMonitor!B12:B27 = XLOOKUP($A12,ANCHORARRAY($HO$4),ANCHORARRAY($HP$4),"")
+FwdMonitor!C12:C27 = LET(h,FWM_HC,c,XMATCH($A12,TAKE(h,1)),INDEX(h,ROWS(h),c))
+FwdMonitor!D12:D27 = LET(h,FWM_HC,c,XMATCH($A12,TAKE(h,1)),(B12-INDEX(h,ROWS(h)-4,c))*100)
+FwdMonitor!E12:E27 = LET(h,FWM_HC,c,XMATCH($A12,TAKE(h,1)),(B12-INDEX(h,ROWS(h)-20,c))*100)
+FwdMonitor!F12:F27 = LET(h,FWM_HC,c,XMATCH($A12,TAKE(h,1)),(B12-XLOOKUP(FWM_Cmp,DROP(INDEX(h,,1),1),DROP(INDEX(h,,c),1),"",-1))*100)
+FwdMonitor!G12:G27 = IF(ISNUMBER(B11),(B12-B11)*100,"")
+FwdMonitor!H12:J27 = LET(h,FWM_HC,d,DROP(INDEX(h,,XMATCH($A12&" dF",TAKE(h,1))),1),t,TAKE(d,-H$10),($B12-$C12)*100/SQRT(SUMSQ(t)/ROWS(t)))
+FwdMonitor!BH12 : "7M"
+FwdMonitor!GY12 = VALUE(TEXTBEFORE($A$20,"y"))
+FwdMonitor!GZ12 = $B$20
+FwdMonitor!HA12 = IFERROR($B$20-$G$20/100,NA())
+FwdMonitor!HB12 = $G$20
+FwdMonitor!A13 : "2y1y"
+FwdMonitor!L13:L27 = LET(h,FWM_HC,c,XMATCH($A13,TAKE(h,1)),p,XMATCH($A12,TAKE(h,1)),d,(TAKE(DROP(INDEX(h,,c),1),-19)-TAKE(DROP(INDEX(h,,p),1),-19))*100,HSTACK(($B13-$B12)*100,INDEX(d,SEQUENCE(1,19,19,-1))))
+FwdMonitor!BH13 : "8M"
+FwdMonitor!GY13 = VALUE(TEXTBEFORE($A$21,"y"))
+FwdMonitor!GZ13 = $B$21
+FwdMonitor!HA13 = IFERROR($B$21-$G$21/100,NA())
+FwdMonitor!HB13 = $G$21
+FwdMonitor!A14 : "3y1y"
+FwdMonitor!BH14 : "9M"
+FwdMonitor!GY14 = VALUE(TEXTBEFORE($A$22,"y"))
+FwdMonitor!GZ14 = $B$22
+FwdMonitor!HA14 = IFERROR($B$22-$G$22/100,NA())
+FwdMonitor!HB14 = $G$22
+FwdMonitor!A15 : "4y1y"
+FwdMonitor!BH15 : "10M"
+FwdMonitor!GY15 = VALUE(TEXTBEFORE($A$23,"y"))
+FwdMonitor!GZ15 = $B$23
+FwdMonitor!HA15 = IFERROR($B$23-$G$23/100,NA())
+FwdMonitor!HB15 = $G$23
+FwdMonitor!A16 : "5y1y"
+FwdMonitor!BH16 : "11M"
+FwdMonitor!GY16 = VALUE(TEXTBEFORE($A$24,"y"))
+FwdMonitor!GZ16 = $B$24
+FwdMonitor!HA16 = IFERROR($B$24-$G$24/100,NA())
+FwdMonitor!HB16 = $G$24
+FwdMonitor!A17 : "6y1y"
+FwdMonitor!BH17 : "12M"
+FwdMonitor!GY17 = VALUE(TEXTBEFORE($A$25,"y"))
+FwdMonitor!GZ17 = $B$25
+FwdMonitor!HA17 = IFERROR($B$25-$G$25/100,NA())
+FwdMonitor!HB17 = $G$25
+FwdMonitor!A18 : "7y1y"
+FwdMonitor!BH18 : "15M"
+FwdMonitor!GY18 = VALUE(TEXTBEFORE($A$26,"y"))
+FwdMonitor!GZ18 = $B$26
+FwdMonitor!HA18 = IFERROR($B$26-$G$26/100,NA())
+FwdMonitor!HB18 = $G$26
+FwdMonitor!A19 : "8y1y"
+FwdMonitor!BH19 : "18M"
+FwdMonitor!GY19 = VALUE(TEXTBEFORE($A$27,"y"))
+FwdMonitor!GZ19 = $B$27
+FwdMonitor!HA19 = IFERROR($B$27-$G$27/100,NA())
+FwdMonitor!HB19 = $G$27
+FwdMonitor!A20 : "9y1y"
+FwdMonitor!BH20 : "21M"
+FwdMonitor!A21 : "10y1y"
+FwdMonitor!BH21 : "24M"
+FwdMonitor!A22 : "11y1y"
+FwdMonitor!BH22 : "36M"
+FwdMonitor!A23 : "15y1y"
+FwdMonitor!BH23 : "4Y"
+FwdMonitor!A24 : "20y1y"
+FwdMonitor!BH24 : "5Y"
+FwdMonitor!A25 : "25y1y"
+FwdMonitor!BH25 : "6Y"
+FwdMonitor!A26 : "30y1y"
+FwdMonitor!BH26 : "7Y"
+FwdMonitor!A27 : "35y1y"
+FwdMonitor!BH27 : "8Y"
+FwdMonitor!BH28 : "9Y"
+FwdMonitor!A29 : "5y5y"
+FwdMonitor!B29:B35 = XLOOKUP($A29,ANCHORARRAY($HO$4),ANCHORARRAY($HP$4),"")
+FwdMonitor!C29:C35 = LET(h,FWM_HC,c,XMATCH($A29,TAKE(h,1)),INDEX(h,ROWS(h),c))
+FwdMonitor!D29:D35 = LET(h,FWM_HC,c,XMATCH($A29,TAKE(h,1)),(B29-INDEX(h,ROWS(h)-4,c))*100)
+FwdMonitor!E29:E35 = LET(h,FWM_HC,c,XMATCH($A29,TAKE(h,1)),(B29-INDEX(h,ROWS(h)-20,c))*100)
+FwdMonitor!F29:F35 = LET(h,FWM_HC,c,XMATCH($A29,TAKE(h,1)),(B29-XLOOKUP(FWM_Cmp,DROP(INDEX(h,,1),1),DROP(INDEX(h,,c),1),"",-1))*100)
+FwdMonitor!G29:G35 = IF(ISNUMBER(B28),(B29-B28)*100,"")
+FwdMonitor!H29:J35 = LET(h,FWM_HC,d,DROP(INDEX(h,,XMATCH($A29&" dF",TAKE(h,1))),1),t,TAKE(d,-H$10),($B29-$C29)*100/SQRT(SUMSQ(t)/ROWS(t)))
+FwdMonitor!BH29 : "10Y"
+FwdMonitor!A30 : "10y5y"
+FwdMonitor!L30:L35 = LET(h,FWM_HC,c,XMATCH($A30,TAKE(h,1)),p,XMATCH($A29,TAKE(h,1)),d,(TAKE(DROP(INDEX(h,,c),1),-19)-TAKE(DROP(INDEX(h,,p),1),-19))*100,HSTACK(($B30-$B29)*100,INDEX(d,SEQUENCE(1,19,19,-1))))
+FwdMonitor!BH30 : "11Y"
+FwdMonitor!A31 : "15y5y"
+FwdMonitor!BH31 : "12Y"
+FwdMonitor!A32 : "20y5y"
+FwdMonitor!BH32 : "15Y"
+FwdMonitor!A33 : "25y5y"
+FwdMonitor!BH33 : "20Y"
+FwdMonitor!A34 : "30y5y"
+FwdMonitor!BH34 : "25Y"
+FwdMonitor!A35 : "35y5y"
+FwdMonitor!BH35 : "30Y"
+FwdMonitor!A36 : "Chg = live - DB close (same tenor definition, includes roll-down). Z 1D = today's change / sigma; sigma = RMS of same-trade daily changes over the window in row 10 (H10:J10)."
+FwdMonitor!BH36 : "35Y"
+FwdMonitor!A37 : "Comparison (1 leg = forward, 2 legs = curve, 3 legs = fly; weights in bp, e.g. -1/+1, -1/+2/-1)"
+FwdMonitor!BH37 : "40Y"
+FwdMonitor!A38 : "Show"
+FwdMonitor!B38 : "Name"
+FwdMonitor!C38 : "Mode"
+FwdMonitor!D38 : "Leg1"
+FwdMonitor!E38 : "w1"
+FwdMonitor!F38 : "Leg2"
+FwdMonitor!G38 : "w2"
+FwdMonitor!H38 : "Leg3"
+FwdMonitor!I38 : "w3"
+FwdMonitor!J38 : "Live (bp)"
+FwdMonitor!K38 : "Chg 1D (bp)"
+FwdMonitor!L38 : "Chg 1M (bp)"
+FwdMonitor!M38 : "Sigma (bp/day)"
+FwdMonitor!N38 : "Z (1D)"
+FwdMonitor!O38 : "Z (1W)"
+FwdMonitor!BH38 : "RD"
+FwdMonitor!BI38:BI47 : 0
+FwdMonitor!A39:A41 : "Yes"
+FwdMonitor!B39:B48 = IF(D39="","",D39&IF(F39="","","/"&F39)&IF(H39="","","/"&H39))
+FwdMonitor!C39 : "CMT"
+FwdMonitor!D39:D41 : "5y5y"
+FwdMonitor!E39:E40 : 1
+FwdMonitor!J39:J48 = IF(D39="","",100*(N(E39)*FWM_LiveOf(D39)+N(G39)*FWM_LiveOf(F39)+N(I39)*FWM_LiveOf(H39)))
+FwdMonitor!K39 = IF(D39="","",LET(x,FWM_Row(1,""),J39-INDEX(x,ROWS(x))))
+FwdMonitor!L39 = IF(D39="","",LET(x,FWM_Row(1,""),J39-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M39 = IF(D39="","",FWM_Sigma(FWM_Row(1," dF")))
+FwdMonitor!N39:N48 = IF(D39="","",K39/M39)
+FwdMonitor!O39 = IF(D39="","",LET(x,FWM_Row(1,""),(J39-INDEX(x,ROWS(x)-4))/(M39*SQRT(5))))
+FwdMonitor!BH39 : "M1"
+FwdMonitor!C40 : "FIXED"
+FwdMonitor!K40 = IF(D40="","",LET(x,FWM_Row(2,""),J40-INDEX(x,ROWS(x))))
+FwdMonitor!L40 = IF(D40="","",LET(x,FWM_Row(2,""),J40-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M40 = IF(D40="","",FWM_Sigma(FWM_Row(2," dF")))
+FwdMonitor!O40 = IF(D40="","",LET(x,FWM_Row(2,""),(J40-INDEX(x,ROWS(x)-4))/(M40*SQRT(5))))
+FwdMonitor!BH40 : "M2"
+FwdMonitor!C41:C48 : "CMT"
+FwdMonitor!E41:E44 : -1
+FwdMonitor!F41 : "10y5y"
+FwdMonitor!G41 : 1
+FwdMonitor!K41 = IF(D41="","",LET(x,FWM_Row(3,""),J41-INDEX(x,ROWS(x))))
+FwdMonitor!L41 = IF(D41="","",LET(x,FWM_Row(3,""),J41-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M41 = IF(D41="","",FWM_Sigma(FWM_Row(3," dF")))
+FwdMonitor!O41 = IF(D41="","",LET(x,FWM_Row(3,""),(J41-INDEX(x,ROWS(x)-4))/(M41*SQRT(5))))
+FwdMonitor!BH41 : "M3"
+FwdMonitor!D42 : "5y1y"
+FwdMonitor!F42 : "10y1y"
+FwdMonitor!G42 : 2
+FwdMonitor!H42 : "20y1y"
+FwdMonitor!I42 : -1
+FwdMonitor!K42 = IF(D42="","",LET(x,FWM_Row(4,""),J42-INDEX(x,ROWS(x))))
+FwdMonitor!L42 = IF(D42="","",LET(x,FWM_Row(4,""),J42-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M42 = IF(D42="","",FWM_Sigma(FWM_Row(4," dF")))
+FwdMonitor!O42 = IF(D42="","",LET(x,FWM_Row(4,""),(J42-INDEX(x,ROWS(x)-4))/(M42*SQRT(5))))
+FwdMonitor!BH42 : "M4"
+FwdMonitor!D43 : "1y1y"
+FwdMonitor!F43 : "2y1y"
+FwdMonitor!G43:G44 : 1
+FwdMonitor!K43 = IF(D43="","",LET(x,FWM_Row(5,""),J43-INDEX(x,ROWS(x))))
+FwdMonitor!L43 = IF(D43="","",LET(x,FWM_Row(5,""),J43-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M43 = IF(D43="","",FWM_Sigma(FWM_Row(5," dF")))
+FwdMonitor!O43 = IF(D43="","",LET(x,FWM_Row(5,""),(J43-INDEX(x,ROWS(x)-4))/(M43*SQRT(5))))
+FwdMonitor!BH43 : "M5"
+FwdMonitor!D44 : "10y1y"
+FwdMonitor!F44 : "30y1y"
+FwdMonitor!K44 = IF(D44="","",LET(x,FWM_Row(6,""),J44-INDEX(x,ROWS(x))))
+FwdMonitor!L44 = IF(D44="","",LET(x,FWM_Row(6,""),J44-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M44 = IF(D44="","",FWM_Sigma(FWM_Row(6," dF")))
+FwdMonitor!O44 = IF(D44="","",LET(x,FWM_Row(6,""),(J44-INDEX(x,ROWS(x)-4))/(M44*SQRT(5))))
+FwdMonitor!BH44 : "M6"
+FwdMonitor!K45 = IF(D45="","",LET(x,FWM_Row(7,""),J45-INDEX(x,ROWS(x))))
+FwdMonitor!L45 = IF(D45="","",LET(x,FWM_Row(7,""),J45-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M45 = IF(D45="","",FWM_Sigma(FWM_Row(7," dF")))
+FwdMonitor!O45 = IF(D45="","",LET(x,FWM_Row(7,""),(J45-INDEX(x,ROWS(x)-4))/(M45*SQRT(5))))
+FwdMonitor!BH45 : "M7"
+FwdMonitor!K46 = IF(D46="","",LET(x,FWM_Row(8,""),J46-INDEX(x,ROWS(x))))
+FwdMonitor!L46 = IF(D46="","",LET(x,FWM_Row(8,""),J46-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M46 = IF(D46="","",FWM_Sigma(FWM_Row(8," dF")))
+FwdMonitor!O46 = IF(D46="","",LET(x,FWM_Row(8,""),(J46-INDEX(x,ROWS(x)-4))/(M46*SQRT(5))))
+FwdMonitor!BH46 : "M8"
+FwdMonitor!K47 = IF(D47="","",LET(x,FWM_Row(9,""),J47-INDEX(x,ROWS(x))))
+FwdMonitor!L47 = IF(D47="","",LET(x,FWM_Row(9,""),J47-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M47 = IF(D47="","",FWM_Sigma(FWM_Row(9," dF")))
+FwdMonitor!O47 = IF(D47="","",LET(x,FWM_Row(9,""),(J47-INDEX(x,ROWS(x)-4))/(M47*SQRT(5))))
+FwdMonitor!BH47 : "M9"
+FwdMonitor!K48 = IF(D48="","",LET(x,FWM_Row(10,""),J48-INDEX(x,ROWS(x))))
+FwdMonitor!L48 = IF(D48="","",LET(x,FWM_Row(10,""),J48-INDEX(x,ROWS(x)-20)))
+FwdMonitor!M48 = IF(D48="","",FWM_Sigma(FWM_Row(10," dF")))
+FwdMonitor!O48 = IF(D48="","",LET(x,FWM_Row(10,""),(J48-INDEX(x,ROWS(x)-4))/(M48*SQRT(5))))
+FwdMonitor!A49 : "Show: the first 4 rows with Show = Yes go to the chart. Mode per row: CMT = spot + N years, FIXED = trade dates of the base date fixed, ROLLING = business-day offsets of the base date kept."
+FwdMonitor!A39:A48 validation list: "Yes,No"
+FwdMonitor!B1 validation list: "Live,Fixed"
+FwdMonitor!B8 validation list: "Level,Change"
+FwdMonitor!C39:C48 validation list: "CMT,FIXED,ROLLING"
+FwdMonitor!D39:D48 F39:F48 H39:H48 validation list: $A$12:$A$35
+FwdMonitor!D12:D27 format colorScale
+FwdMonitor!D29:D35 format colorScale
+FwdMonitor!E12:E27 format colorScale
+FwdMonitor!E29:E35 format colorScale
+FwdMonitor!F12:F27 format colorScale
+FwdMonitor!F29:F35 format colorScale
+FwdMonitor!H12:J27 format colorScale
+FwdMonitor!H29:J35 format colorScale
+FwdMonitor!K39:K48 format colorScale
+FwdMonitor!L12:AE27 format colorScale
+FwdMonitor!L29:AE35 format colorScale
+FwdMonitor!L39:L48 format colorScale
+FwdMonitor!N39:N48 format colorScale
+FwdMonitor!O39:O48 format colorScale
+FwdMonitor chart "Strip Nx1Y (%)": FwdMonitor!$GY$4:$GY$19 | FwdMonitor!$GZ$4:$GZ$19 | FwdMonitor!$HA$3 | FwdMonitor!$GY$4:$GY$19 | FwdMonitor!$HA$4:$HA$19
+FwdMonitor chart "Change vs compare Nx1Y (bp)": FwdMonitor!$A$12:$A$27 | FwdMonitor!$HB$4:$HB$19
+FwdMonitor chart "Strip Nx5Y (%)": FwdMonitor!$HD$4:$HD$10 | FwdMonitor!$HE$4:$HE$10 | FwdMonitor!$HF$3 | FwdMonitor!$HD$4:$HD$10 | FwdMonitor!$HF$4:$HF$10
+FwdMonitor chart "Change vs compare Nx5Y (bp)": FwdMonitor!$A$29:$A$35 | FwdMonitor!$HG$4:$HG$10
+FwdMonitor chart "Comparison (bp)": FwdMonitor!$HJ$3 | [0]!FWM_ChDate | [0]!FWM_Ch1 | FwdMonitor!$HK$3 | [0]!FWM_ChDate | [0]!FWM_Ch2 | FwdMonitor!$HL$3 | [0]!FWM_ChDate | [0]!FWM_Ch3 | FwdMonitor!$HM$3 | [0]!FWM_ChDate | [0]!FWM_Ch4
+# FutBasis
+FutBasis!A1 : "FutBasis (JGB 10y futures: CTD basis, front-month history, contract overlay)"
+FutBasis!A2 : "History is from the DB (morning batch: futures settles, 10y JGB closes, TONA). Basis in sen per 100 yen face (UDF returns yen; x100 here). CTD = smallest net basis."
+FutBasis!AE2 : "FutHistory (front month; basis in yen)"
+FutBasis!AT2 : "Derived (sen; dX used = manual adjustment if given, else automatic)"
+FutBasis!BA2 : "History charts (from Chart from)"
+FutBasis!BG2 : "FutOverlay (CTD by business days to the last trading day)"
+FutBasis!BO2 : "Overlay chart (sen, IRR in %)"
+FutBasis!A3 : "Settings"
+FutBasis!AE3 = FutHistory(FUT_Steps)
+FutBasis!AT3 : "Date"
+FutBasis!AU3 : "dSettle used"
+FutBasis!AV3 : "Settle adj"
+FutBasis!AW3 : "Net (sen)"
+FutBasis!AX3 : "dNet used (sen)"
+FutBasis!AY3 : "Net adj (sen)"
+FutBasis!BA3 : "Date"
+FutBasis!BB3 : "Settle"
+FutBasis!BC3 : "Settle adj"
+FutBasis!BD3 : "Net (sen)"
+FutBasis!BE3 : "Net adj (sen)"
+FutBasis!BG3 = FutOverlay(FUT_Overlay,FUT_Field,FUT_Steps)
+FutBasis!BO3 : "BD"
+FutBasis!BP3 = INDEX(ANCHORARRAY($BG$3),1,2)
+FutBasis!BQ3 = INDEX(ANCHORARRAY($BG$3),1,3)
+FutBasis!BR3 = INDEX(ANCHORARRAY($BG$3),1,4)
+FutBasis!BS3 = INDEX(ANCHORARRAY($BG$3),1,5)
+FutBasis!BT3 = INDEX(ANCHORARRAY($BG$3),1,6)
+FutBasis!BU3 = INDEX(ANCHORARRAY($BG$3),1,7)
+FutBasis!A4 : "Contract"
+FutBasis!B4 : "2026-12"
+FutBasis!D4 : "Contract for the basis table (e.g. 2026-12 or JGBZ6)"
+FutBasis!AT4 = FUT_HD
+FutBasis!AU4 = LET(d,DROP(INDEX(FUT_H,,4),1),m,XLOOKUP(FUT_HD,FUT_AdjDate,IF(FUT_AdjSettle="","",FUT_AdjSettle),""),IF(m<>"",m,IF(ISNUMBER(d),d,0)))
+FutBasis!AV4 = LET(s,DROP(INDEX(FUT_H,,3),1),u,ANCHORARRAY($AU$4),INDEX(s,ROWS(s))-(SUM(u)-SCAN(0,u,LAMBDA(acc,x,acc+x))))
+FutBasis!AW4 = LET(n,DROP(INDEX(FUT_H,,13),1),IF(ISNUMBER(n),n*100,NA()))
+FutBasis!AX4 = LET(n,ANCHORARRAY($AW$4),c,DROP(INDEX(FUT_H,,2),1),r,DROP(INDEX(FUT_H,,6),1),pn,VSTACK("",DROP(n,-1)),pc,VSTACK("",DROP(c,-1)),pr,VSTACK("",DROP(r,-1)),auto,IF(ISNUMBER(n)*ISNUMBER(pn)*(c=pc)*(r=pr),n-pn,0),m,XLOOKUP(FUT_HD,FUT_AdjDate,IF(FUT_AdjNet="","",FUT_AdjNet),""),IF(m<>"",m,auto))
+FutBasis!AY4 = LET(n,ANCHORARRAY($AW$4),u,ANCHORARRAY($AX$4),last,INDEX(n,ROWS(n)),IF(ISNUMBER(n),last-(SUM(u)-SCAN(0,u,LAMBDA(acc,x,acc+x))),NA()))
+FutBasis!BA4 = FILTER(FUT_HD,FUT_HD>=N(FUT_From))
+FutBasis!BB4 = FILTER(DROP(INDEX(FUT_H,,3),1),FUT_HD>=N(FUT_From))
+FutBasis!BC4 = FILTER(ANCHORARRAY($AV$4),FUT_HD>=N(FUT_From))
+FutBasis!BD4 = FILTER(ANCHORARRAY($AW$4),FUT_HD>=N(FUT_From))
+FutBasis!BE4 = FILTER(ANCHORARRAY($AY$4),FUT_HD>=N(FUT_From))
+FutBasis!BO4 = DROP(INDEX(ANCHORARRAY($BG$3),,1),1)
+FutBasis!BP4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,2),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!BQ4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,3),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!BR4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,4),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!BS4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,5),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!BT4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,6),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!BU4 = LET(x,DROP(INDEX(ANCHORARRAY($BG$3),,7),1),IF(x="",NA(),x*IF(FUT_Field="IRR",1,100)))
+FutBasis!A5 : "Date"
+FutBasis!C5 = "Using "&TEXT(FUT_Date,"yyyy-mm-dd")
+FutBasis!D5 : "Basis table date (blank = last DB date)"
+FutBasis!A6 : "Futures price"
+FutBasis!D6 : "Blank = DB settle of that date (live: e.g. =RtGet("IDN","JGBZ6","CF_LAST"))"
+FutBasis!A7 : "Repo (%)"
+FutBasis!D7 : "Blank = TONA on or before the date"
+FutBasis!A8 : "Chart from"
+FutBasis!B8 : 45590
+FutBasis!D8 : "Start of the history charts (blank = all)"
+FutBasis!A9 : "Overlay field"
+FutBasis!B9 : "NET"
+FutBasis!D9 : "NET / GROSS / CARRY (sen) / IRR (%)"
+FutBasis!A10 : "Overlay contracts"
+FutBasis!B10 : "2025-09"
+FutBasis!C10 : "2025-12"
+FutBasis!D10 : "2026-03"
+FutBasis!E10 : "2026-06"
+FutBasis!F10 : "2026-09"
+FutBasis!G10 : "2026-12"
+FutBasis!A12 : "Basis table (yen; sen columns on the right). CTD row is highlighted."
+FutBasis!Q12 : "Repo steps (auto, from TONA)"
+FutBasis!T12 : "Repo steps (manual)"
+FutBasis!W12 : "Yield overrides"
+FutBasis!Z12 : "Step adjustments (history)"
+FutBasis!A13 = FUT_Contract&" contract, "&TEXT(FUT_Date,"yyyy-mm-dd")
+FutBasis!T13 : "If any row is filled, only this table is used"
+FutBasis!W13 : "For the basis table only"
+FutBasis!Z13 : "Replaces the automatic daily change on that date"
+FutBasis!A14 = FutBasis(FUT_Contract,FUT_Date,FUT_Price,FUT_Repo,FUT_Yields)
+FutBasis!M14 : "Gross (sen)"
+FutBasis!N14 : "Carry (sen)"
+FutBasis!O14 : "Net (sen)"
+FutBasis!Q14 = FutRepoSteps()
+FutBasis!T14 : "Start"
+FutBasis!U14 : "Rate (%)"
+FutBasis!W14 : "Code"
+FutBasis!X14 : "Yield (%)"
+FutBasis!Z14 : "Date"
+FutBasis!AA14 : "dSettle"
+FutBasis!AB14 : "dNet (sen)"
+FutBasis!M15 = DROP(DROP(CHOOSECOLS(ANCHORARRAY($A$14),8,9,10),1),-1)*100
+FutBasis!B9 validation list: "NET,GROSS,CARRY,IRR"
+FutBasis!A15:O40 format expression: $L15=1
+FutBasis chart "Front-month futures (settle / roll-adjusted)": [0]!FUT_ChDate | [0]!FUT_ChSettle | [0]!FUT_ChDate | [0]!FUT_ChSettleAdj
+FutBasis chart "CTD net basis (sen / step-adjusted)": [0]!FUT_ChDate | [0]!FUT_ChNet | [0]!FUT_ChDate | [0]!FUT_ChNetAdj
+FutBasis chart "Overlay by business days to the last trading day": FutBasis!$BP$3 | [0]!FUT_OvBD | [0]!FUT_Ov1 | FutBasis!$BQ$3 | [0]!FUT_OvBD | [0]!FUT_Ov2 | FutBasis!$BR$3 | [0]!FUT_OvBD | [0]!FUT_Ov3 | FutBasis!$BS$3 | [0]!FUT_OvBD | [0]!FUT_Ov4 | FutBasis!$BT$3 | [0]!FUT_OvBD | [0]!FUT_Ov5 | FutBasis!$BU$3 | [0]!FUT_OvBD | [0]!FUT_Ov6

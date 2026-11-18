@@ -1,2 +1,4 @@
 # フックはLFでないとシェルが改行コード(CR)を引数の一部として読む
 .githooks/* text eol=lf
+# 雛形の構造のテキストは改行をLFに揃える(検査はバイト列で比べる)
+templates/*.txt text eol=lf

@@ -129,7 +129,9 @@ Excelで保存して閉じてから、雛形を作り直してコミットする
 計算結果・LSEGの受信データ・キャッシュ・ローカルのパスは消える:
 
 ```
+python -m tools.template --compare   # 元にするブックが origin/main の雛形から遅れていないか
 python -m tools.template
+python -m tools.template --diff      # 意図した変更だけか(templates/*.txt の差分でも見られる)
 git add templates
 ```
 

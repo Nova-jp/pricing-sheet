@@ -270,9 +270,36 @@ Excel標準の関数だけで構成する。
 - 配列を返すUDF(`udf.py`の戻り値の型が`List[...]`のもの)のセルが動的配列(`cm`属性)であること
 - `templates/`以外にブックがgitに入っていないこと(`git ls-files`で次にコミットされる中身を見る)
 - ノートブック(`.ipynb`)に出力・実行番号が残っていないこと(出力にはDBの値が入る)
+- 雛形の構造のテキスト(`templates/<ブック>.txt`)が、雛形から作り直したものと一致すること
 
 pre-commitフック(`.githooks/pre-commit`、`git config core.hooksPath .githooks`で有効化)と
-GitHub Actions(`.github/workflows/templates.yml`)で走る。テストは`tests/test_template.py`。
+GitHub Actions(`.github/workflows/templates.yml`)で走る。テストは`tests/test_template.py`・`tests/test_book_text.py`。
+
+### 構造のテキストと比較(`tools/book_text.py`)
+
+雛形を作るときに、その構造を`templates/<ブック>.txt`にも書き出す。PRの差分で数式の変化を行単位で読み、
+意図しない巻き戻りを見つけるため(バイナリの差分は読めない)。1行に1つ、場所から書く:
+
+```
+name Broker = pricing!$F$1
+pricing!F1 : "Tradition"
+pricing!AF4 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
+pricing!A4:A103 = …        ← 同じ数式をコピーしたセル(参照をR1C1で比べて同じもの)は1行にまとめる
+ASW!D6 {= …}               ← 旧式の配列数式(動的配列は普通の = で書く)
+pricing!F1 validation list: "Tradition,Totan"
+HistChart chart "…": HistChart!$Q$29 | …
+```
+
+書き出すのはシートの並び・定義名・セルの数式と手入力の値・入力規則・条件付き書式・グラフの参照範囲。
+書式(色・罫線・列幅)とVBAは書き出さない。
+
+- `python -m tools.template --diff [--base REF]` — `templates/`の雛形と`origin/main`(既定)の雛形の違い。
+  雛形を作ったあと、コミットの前に見て、意図した変更以外の行(特に`-`)が無いことを確かめる
+- `python -m tools.template --compare [ブック ...]` — 作業用のブック(省略時は直下のブック全部)を雛形にした構造と
+  `origin/main`の雛形の違い。直下のブックはgitの外なので、マージした変更を当て忘れると古いまま残り、そこから
+  雛形を作ると`main`の変更を黙って巻き戻す。worktreeにブックをコピーする前と、雛形を作る前に流す。
+  手で入れた値の違いも出るので、出た行は目で見て判断する
+- どちらも`origin/…`と比べるときは先に`git fetch`し、ブランチに`origin/main`の最新が入っていなければ警告する
 
 ## 分析ノートブック(`notebooks/`)
 

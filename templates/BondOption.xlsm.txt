@@ -1,0 +1,225 @@
+# シートの並び
+sheet Option
+sheet Bonds
+sheet Holidays
+# 定義名
+name BondList = ANCHORARRAY(Bonds!$A$3)
+name Holidays = ANCHORARRAY(Holidays!$A$3)
+name HvWindow = Option!$F$5
+name JGB_AI = LAMBDA(c,d,m,c*(d-JGB_PREV_COUPON(d,m))/365)
+name JGB_CARRY_COUPONS = LAMBDA(c,m,s0,se,r,LET(pd,EDATE(m,-6*SEQUENCE(INT((m-s0)/181)+2,1,0)),SUM((s0<pd)*(pd<=se)*c/2*(1+r/100*(se-pd)/365))))
+name JGB_PREV_COUPON = LAMBDA(d,m,LET(pd,EDATE(m,-6*SEQUENCE(INT((m-d)/181)+2,1,0)),MAX(FILTER(pd,pd<=d))))
+name JGB_PRICE = LAMBDA(c,y,a,m,LET(n,JGB_YEARS(a,m),ROUNDDOWN(ROUND(100*(c+100/n)/(y+100/n),9),3)))
+name JGB_YEARS = LAMBDA(a,m,LET(y,SEQUENCE(YEAR(m)-YEAR(a)+1,1,YEAR(a)),d,DATE(y,2,29),(m-a-SUM((MONTH(d)=2)*(d>a)*(d<=m)))/365))
+name JGB_YIELD = LAMBDA(c,p,a,m,LET(n,JGB_YEARS(a,m),ROUNDDOWN(ROUND((c+(100-p)/n)/p*100,9),3)))
+name RepoBid = Option!$F$3
+name RepoOffer = Option!$F$4
+name SchemeTable = Option!$H$2:$J$5
+name TradeDate = Option!$C$4
+name VolDays = Option!$C$5
+# Option
+Option!B1 : "Vol"
+Option!C1 : "Live"
+Option!D1 : "Updated"
+Option!E1 = LiveInfo("vol",ANCHORARRAY($CJ$3))
+Option!H1 : "Scheme"
+Option!I1 : "Type"
+Option!J1 : "Repo side"
+Option!L1 : "Inputs: yellow cells. Strike: fill exactly one of Spot +sen / Fwd +sen / Fwd price / ATM +bp / Yield (ITMBW: none). Repo: from the scheme table (Bid/Offer) unless overridden."
+Option!B2 : "BondOption (JGB OTC options, European, physical delivery)"
+Option!H2 : "BW"
+Option!I2:I3 : "Call"
+Option!J2:J3 : "Offer"
+Option!L2 : "Vol: swaption vol (interpolated) x Vol ratio (bond HV / swap HV of the same maturity over HV window, DB closes until yesterday). Override priority: Price vol > bp vol > Normal vol > interpolated x ratio. Any computed cell can be overwritten by hand."
+Option!CJ2 : "Live vol (Name / RIC / Value)"
+Option!B3 : "Trade date (blank = today)"
+Option!E3 : "Repo bid (%)"
+Option!F3 : 1.3
+Option!H3 : "CC"
+Option!L3 : "Data: python -m engine.common.morning_batch (Bonds sheet). Vols: live feed. Premium is not discounted."
+Option!CJ3 = IF($C$1="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
+Option!B4 : "Trade date used"
+Option!C4 = ValuationDate(C3)
+Option!E4 : "Repo offer (%)"
+Option!F4 : 1.2
+Option!H4 : "TB"
+Option!I4 : "Put"
+Option!J4 : "Bid"
+Option!B5 : "Normal vol -> bp/day: divide by SQRT of"
+Option!C5 : 252
+Option!E5 : "HV window (bd)"
+Option!F5 : 20
+Option!H5 : "ITMBW"
+Option!I5 : "Call"
+Option!J5 : "Offer"
+Option!A6 : "Trade"
+Option!G6 : "Market"
+Option!L6 : "Strike input (fill one)"
+Option!R6 : "Forward"
+Option!T6 : "Strike"
+Option!W6 : "Vol (override -> used)"
+Option!AF6 : "Premium"
+Option!AK6 : "Greeks (Delta %: per option; others: x notional, mn JPY)"
+Option!AP6 : "Details"
+Option!BL6 : "Calc (table UDFs)"
+Option!A7 : "Client"
+Option!B7 : "Bond"
+Option!C7 : "Scheme"
+Option!D7 : "Expiry"
+Option!E7 : "Settle lag (bd)"
+Option!F7 : "Notional (100mn JPY)"
+Option!G7 : "ATM slide (bp)"
+Option!H7 : "ATM yield (%)"
+Option!I7 : "Spot price"
+Option!J7 : "Repo override (%)"
+Option!K7 : "Repo (%)"
+Option!L7 : "Spot +sen"
+Option!M7 : "Fwd +sen"
+Option!N7 : "Fwd +bp"
+Option!O7 : "Fwd price"
+Option!P7 : "ATM +bp"
+Option!Q7 : "Yield (%)"
+Option!R7 : "Fwd clean"
+Option!S7 : "Fwd yield simple (%)"
+Option!T7 : "Strike basis"
+Option!U7 : "Strike price"
+Option!V7 : "Strike yield (%)"
+Option!W7 : "Swaption vol (bp/yr)"
+Option!X7 : "Vol ratio override"
+Option!Y7 : "Vol ratio (bond/swap HV)"
+Option!Z7 : "Normal vol override (bp/yr)"
+Option!AA7 : "Normal vol (bp/yr)"
+Option!AB7 : "bp vol override (bp/day)"
+Option!AC7 : "bp vol (bp/day)"
+Option!AD7 : "Price vol override (%)"
+Option!AE7 : "Price vol (%)"
+Option!AF7 : "Premium (sen)"
+Option!AG7 : "Premium (JPY)"
+Option!AH7 : "Strike + premium"
+Option!AI7 : "Quote text"
+Option!AJ7 : "Message"
+Option!AK7 : "Delta (%)"
+Option!AL7 : "Delta (mn JPY/bp)"
+Option!AM7 : "Gamma (mn JPY/bp^2)"
+Option!AN7 : "Vega (mn JPY/normal vol bp)"
+Option!AO7 : "Theta (mn JPY/bd)"
+Option!AP7 : "Coupon (%)"
+Option!AQ7 : "Maturity"
+Option!AR7 : "Close yield (%)"
+Option!AS7 : "Close date"
+Option!AT7 : "Type"
+Option!AU7 : "Spot settle"
+Option!AV7 : "Exercise settle"
+Option!AW7 : "Term (bd/252)"
+Option!AX7 : "Accrued (spot)"
+Option!AY7 : "Accrued (exercise)"
+Option!AZ7 : "Interim coupons (fwd value)"
+Option!BA7 : "Fwd dirty"
+Option!BB7 : "Fwd yield comp (%)"
+Option!BC7 : "Fwd DD"
+Option!BD7 : "Fwd MD"
+Option!BE7 : "Fwd convexity (per 1%^2)"
+Option!BF7 : "Normal vol interpolated (bp/yr)"
+Option!BG7 : "Bond HV (bp/day)"
+Option!BH7 : "Swap HV (bp/day)"
+Option!BI7 : "HV from"
+Option!BJ7 : "HV to"
+Option!BL7 : "Fwd yield comp"
+Option!BM7 : "Fwd DD"
+Option!BN7 : "Fwd MD"
+Option!BO7 : "Fwd convexity"
+Option!BP7 : "Normal vol"
+Option!BQ7 : "Message"
+Option!BR7 : "ITMBW strike"
+Option!BS7 : "Message"
+Option!BT7 : "Premium (JPY/100)"
+Option!BU7 : "Message"
+Option!BV7 : "Delta"
+Option!BW7 : "Gamma"
+Option!BX7 : "Vega (price vol 1%)"
+Option!BY7 : "Theta (1bd)"
+Option!BZ7 : "Message"
+Option!CA7 : "Bond HV"
+Option!CB7 : "Swap HV"
+Option!CC7 : "Vol ratio"
+Option!CD7 : "Changes"
+Option!CE7 : "HV from"
+Option!CF7 : "HV to"
+Option!CG7 : "Message"
+Option!B8 : "JS182"
+Option!C8 : "TB"
+Option!D8 : 46371.625
+Option!E8 : 1
+Option!F8 : 10
+Option!G8 : 0
+Option!H8:H107 = IF($B8="","",$AR8+N($G8)/100)
+Option!I8:I107 = IF($B8="","",JGB_PRICE($AP8,$H8,$AU8,$AQ8))
+Option!J8 : 0.5
+Option!K8:K107 = IF($B8="","",IF($J8<>"",$J8,LET(s,XLOOKUP($C8,INDEX(SchemeTable,0,1),INDEX(SchemeTable,0,3),""),r,SWITCH(s,"Bid",IF(ISBLANK(RepoBid),"",RepoBid),"Offer",IF(ISBLANK(RepoOffer),"",RepoOffer),""),IF(s="","Error: set repo side for "&$C8,IF(r="","Error: enter repo "&LOWER(s),r)))))
+Option!P8 : 0
+Option!R8:R107 = IF($B8="","",$BA8-$AY8)
+Option!S8:S107 = IF($B8="","",JGB_YIELD($AP8,$R8,$AV8,$AQ8))
+Option!T8:T107 = IF($B8="","",LET(n,COUNTA($L8:$Q8),IF($C8="ITMBW",IF(n=0,"ITMBW","Error: ITMBW takes no strike input"),IF(n=1,XLOOKUP(TRUE,$L8:$Q8<>"",{"Spot +sen","Fwd +sen","Fwd +bp","Fwd price","ATM +bp","Yield"}),IF(n=0,"Error: enter one strike input","Error: enter only one strike input")))))
+Option!U8:U107 = IF($B8="","",SWITCH($T8,"Spot +sen",ROUNDDOWN(ROUND($I8+$L8/100,9),3),"Fwd +sen",ROUNDDOWN(ROUND($R8+$M8/100,9),3),"Fwd +bp",JGB_PRICE($AP8,$S8+$N8/100,$AV8,$AQ8),"Fwd price",$O8,"ATM +bp",JGB_PRICE($AP8,$H8+$P8/100,$AV8,$AQ8),"Yield",JGB_PRICE($AP8,$Q8,$AV8,$AQ8),"ITMBW",IF($BR8="",NA(),$BR8),NA()))
+Option!V8:V107 = IF($B8="","",JGB_YIELD($AP8,$U8,$AV8,$AQ8))
+Option!W8:W107 = IF($B8="","",$BF8)
+Option!Y8:Y107 = IF($B8="","",IF($X8<>"",$X8,IF($CC8="",NA(),$CC8)))
+Option!AA8:AA107 = IF($B8="","",IF(OR($AD8<>"",$AB8<>""),$AC8*SQRT(VolDays),IF($Z8<>"",$Z8,$W8*$Y8)))
+Option!AC8:AC107 = IF($B8="","",IF($AD8<>"",$AD8*100/(SQRT(252)*$BD8),IF($AB8<>"",$AB8,IF($Z8<>"",$Z8,$W8*$Y8)/SQRT(VolDays))))
+Option!AD8 : 3
+Option!AE8:AE107 = IF($B8="","",IF($AD8<>"",$AD8,$AC8*SQRT(252)*$BD8/100))
+Option!AF8:AF107 = IF($B8="","",IF($BT8="",NA(),$BT8*100))
+Option!AG8:AG107 = IF(OR($B8="",$F8=""),"",$AF8*$F8*10000)
+Option!AH8:AH107 = IF($B8="","",$U8+$AF8/100)
+Option!AI8:AI107 = IF($B8="","",IFERROR(TEXTJOIN(" ",TRUE,$C8,$B8,TEXT($D8,"yyyy-mm-dd"),TEXT(N($G8),"+0.0##;-0.0##;0"),TEXT($AE8,"0.00")&"%",TEXT($AF8,"0.0")&"c"),""))
+Option!AJ8:AJ107 = IF($B8="","",TEXTJOIN(" / ",TRUE,IF(ISTEXT($K8),$K8,""),IF(LEFT($T8,5)="Error",$T8,""),$BQ8,$BS8,$BU8,$CG8,$BZ8))
+Option!AK8:AK107 = IF($B8="","",IF($BV8="",NA(),$BV8*100))
+Option!AL8:AL107 = IF(OR($B8="",$F8=""),"",IF($BV8="",NA(),-$BV8*$BC8*$F8/100))
+Option!AM8:AM107 = IF(OR($B8="",$F8=""),"",IF($BW8="",NA(),($BW8*($BC8/100)^2+$BV8*$BE8/10000)*$F8))
+Option!AN8:AN107 = IF(OR($B8="",$F8=""),"",IF($BX8="",NA(),$BX8*SQRT(252/VolDays)*$BD8*$F8/100))
+Option!AO8:AO107 = IF(OR($B8="",$F8=""),"",IF($BY8="",NA(),$BY8*$F8))
+Option!AP8:AP107 = IF($B8="","",XLOOKUP($B8,INDEX(BondList,0,1),INDEX(BondList,0,2)))
+Option!AQ8:AQ107 = IF($B8="","",XLOOKUP($B8,INDEX(BondList,0,1),INDEX(BondList,0,3)))
+Option!AR8:AR107 = IF($B8="","",XLOOKUP($B8,INDEX(BondList,0,1),INDEX(BondList,0,4)))
+Option!AS8:AS107 = IF($B8="","",XLOOKUP($B8,INDEX(BondList,0,1),INDEX(BondList,0,5)))
+Option!AT8:AT107 = IF($B8="","",XLOOKUP($C8,INDEX(SchemeTable,0,1),INDEX(SchemeTable,0,2),NA()))
+Option!AU8:AU107 = IF($B8="","",WORKDAY(TradeDate,1,Holidays))
+Option!AV8:AV107 = IF($B8="","",WORKDAY($D8,$E8,Holidays))
+Option!AW8 = OptionTermTable($B$8:$B$107,$D$8:$D$107,TradeDate)
+Option!AX8:AX107 = IF($B8="","",JGB_AI($AP8,$AU8,$AQ8))
+Option!AY8:AY107 = IF($B8="","",JGB_AI($AP8,$AV8,$AQ8))
+Option!AZ8:AZ107 = IF($B8="","",JGB_CARRY_COUPONS($AP8,$AQ8,$AU8,$AV8,$K8))
+Option!BA8:BA107 = IF($B8="","",($I8+$AX8)*(1+$K8/100*($AV8-$AU8)/365)-$AZ8)
+Option!BB8:BB107 = IF($B8="","",IF($BL8="",NA(),$BL8))
+Option!BC8:BC107 = IF($B8="","",IF($BM8="",NA(),$BM8))
+Option!BD8:BD107 = IF($B8="","",IF($BN8="",NA(),$BN8))
+Option!BE8:BE107 = IF($B8="","",IF($BO8="",NA(),$BO8))
+Option!BF8:BF107 = IF($B8="","",IF($BP8="",NA(),$BP8))
+Option!BG8:BG107 = IF($B8="","",IF($CA8="",NA(),$CA8))
+Option!BH8:BH107 = IF($B8="","",IF($CB8="",NA(),$CB8))
+Option!BI8:BI107 = IF($B8="","",IF($CE8="",NA(),$CE8))
+Option!BJ8:BJ107 = IF($B8="","",IF($CF8="",NA(),$CF8))
+Option!BL8 = OptionMarketTable($B$8:$B$107,$AP$8:$AP$107,$AQ$8:$AQ$107,$BA$8:$BA$107,$AV$8:$AV$107,$D$8:$D$107,ANCHORARRAY($CJ$3),TradeDate)
+Option!BR8 = ItmBuyWriteTable($T$8:$T$107,$R$8:$R$107,$I$8:$I$107,$AE$8:$AE$107,$AW$8:$AW$107)
+Option!BT8 = PremiumTable($AT$8:$AT$107,$R$8:$R$107,$U$8:$U$107,$AE$8:$AE$107,$AW$8:$AW$107)
+Option!BV8 = GreeksTable($AT$8:$AT$107,$R$8:$R$107,$U$8:$U$107,$AE$8:$AE$107,$AW$8:$AW$107)
+Option!CA8 = VolRatioTable($B$8:$B$107,$AP$8:$AP$107,$AQ$8:$AQ$107,TradeDate,HvWindow)
+Option!B9:C27 : ""
+Option!C1 validation list: "Live,Fixed"
+Option!C8:C107 validation list: $H$2:$H$5
+Option!E8:E107 validation list: "1,2"
+Option!J2:J5 validation list: "Bid,Offer"
+# Bonds
+Bonds!A1 : "JGB master and JCL close on or before the trade date (python -m engine.common.morning_batch)"
+Bonds!A2 : "Code"
+Bonds!B2 : "Coupon (%)"
+Bonds!C2 : "Maturity"
+Bonds!D2 : "Close yield (%)"
+Bonds!E2 : "Close date"
+Bonds!F2 : "RIC"
+Bonds!G2 : "ISIN"
+Bonds!A3 = JgbMaster(TradeDate)
+# Holidays
+Holidays!A1 : "Japan holidays excluding weekends (QuantLib ql.Japan())"
+Holidays!A2 : "Date"
+Holidays!A3 = JapanHolidays(DATE(YEAR(TradeDate)-1,1,1),DATE(YEAR(TradeDate)+21,12,31))
