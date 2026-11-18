@@ -220,9 +220,10 @@ class CloseRatesTest(unittest.TestCase):
         store = _Store([date(2026, 9, 24), FRIDAY, monday])
         with mock.patch.object(udf_common, "_historical_store", lambda: store), \
                 mock.patch.object(udf_common, "_today", lambda: monday):
-            self.assertEqual(udf.PosBaseDate(None), FRIDAY)  # 今日(月曜)のカーブがあっても昨日までの直近
+            self.assertEqual(udf.PosBaseDate(monday), FRIDAY)  # 取引日(月曜)のカーブがあっても、その前の直近
+            self.assertEqual(udf.PosBaseDate(None), FRIDAY)  # 空欄は今日
             self.assertEqual(udf.PosBaseDate(""), FRIDAY)
-            self.assertEqual(udf.PosBaseDate(date(2026, 9, 24)), date(2026, 9, 24))  # 上書き
+            self.assertEqual(udf.PosBaseDate(FRIDAY), date(2026, 9, 24))  # 過去の取引日は、その前の直近
         with mock.patch.object(udf_common, "_historical_store", lambda: _Store([monday])), \
                 mock.patch.object(udf_common, "_today", lambda: monday):
             with self.assertRaises(ValueError):

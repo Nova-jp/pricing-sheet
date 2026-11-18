@@ -15,11 +15,14 @@ UDFを消した)。
   名前付きの数式(LAMBDA)は使わない。値を手で上書きしても他のセルが壊れないように、Nowの列はスピルにしない。
 - **会社のデータは生シートに丸ごと貼る**: 会社のファイル(デルタ・ガンマのシートと、ベガのシート)を
   `Raw_IR`・`Raw_IRVOL`のA1にそのまま貼る。現物オプションの全約定は`Raw_BondOption`、現物の保有銘柄は`Raw_JGB`(下の「現物」。ブックへの組み込みは[roadmap.md](roadmap.md)の20)、
-  `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと基準日の上書き(SetupのB3)は雛形では消す
+  `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと取引日(SetupのB3)は雛形では消す
   (`tools/template.py`の`RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
-- **基準日(SetupのB4)は既定でDBの直近の引け**(`PosBaseDate`。今日より前でカーブがある直近の日 = 朝バッチが置いた昨日の
-  引け)。B3に日付を入れればそれを使う(2026-11-10、ユーザー指示)。非volatileなので、ブックを開いたまま日をまたいだら
-  Ctrl+Alt+F9で計算し直す。
+- **取引日(SetupのB3)に日付を入れ(毎朝Ctrl+;)、基準日(B4)はその前の直近の引け**(`PosBaseDate(B3)`。取引日より前で
+  DBにカーブがある直近の日 = 取引日が今日なら朝バッチが置いた昨日の引け。2026-11-18、ユーザー了承)。今日やDBで結果が
+  変わるUDFは、すべてB3かB4を引数で受け取る(今日の取引の`PosIntradayRisk`・`PosIntradayGrid`・ライブのvolの掛け目
+  `PosVolCalendarFactor`・セータの日数`PosBusinessDays`もB3)。C4の`DataStatus(B3,B4,"curve")`が、B3が空欄・今日でない・未来、
+  またはB4より新しいカーブがDBにある(B3を入れた後に朝バッチを流した)ときに赤く出す。過去の基準日で見たいときは、
+  B3にその翌営業日を入れる。理由は[decisions.md](decisions.md)の「評価日」。
 - **会社のファイルの形が変わっても直すのはSetupだけ**: 列は見出しの名前で探す(Setupの列名 → 列番号)。
 - **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。
 - **グリッドのピラーはマーケットの基準(ライブのカーブの34本)**。会社のファイルに無いテナー(4M・5M・15M等)の
@@ -198,10 +201,11 @@ Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの
 | `PosIntradayGrid` | ピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond]。statusでDone / What-if / Allを選ぶ |
 | `PosCloseRates` | DBのその日の引け値(ピラーの並びの縦1列) |
 | `PosCloseVols` | DBのその日のスワップションのvol(行=満期、列=原資産。無い点は空欄) |
-| `PosVolCalendarFactor` | 満期ごとの暦日ベースへの掛け目(取引日の空欄 = 今日) |
+| `PosVolCalendarFactor` | 満期ごとの暦日ベースへの掛け目(ライブは取引日、引けは基準日。取引日が今日なら今の時刻で数えるのでvolatile) |
 | `PosVegaGrid` | 会社のベガ(Raw_IRVOLの列)を格子に振り分けた合計(円) |
-| `PosBusinessDays` | 基準日から今日までの営業日数(セータのPL) |
-| `PosBaseDate` | 基準日(上書きの日付、空欄ならDBの今日より前の直近のカーブの日付) |
+| `PosBusinessDays` | 基準日から取引日までの営業日数(セータのPL) |
+| `PosBaseDate` | 基準日(取引日より前でDBにカーブがある直近の日付) |
+| `DataStatus` | 取引日・DBの状態(SetupのC4。`OK`以外は赤。全ブック共通、volatile) |
 | `PosBondOptMarket` / `PosBondOptGreeks` | 現物オプションの行ごとの市場の値・グリークス(上の「現物オプション」) |
 | `PosBondRiskGrid` | 現物オプションのピラーごとのデルタ・ガンマ・セータ |
 | `PosJgbRisk` / `PosJgbGrid` | Raw_JGBの行ごとの [Code, Coupon, Maturity, Yield, Compound, MD, Convexity, Pillar, Delta, Gamma, Message] / ピラーごとの [Delta, Gamma] |

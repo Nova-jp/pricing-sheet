@@ -59,7 +59,7 @@ Position!AD3 : "Delta"
 Position!AE3 : "Gamma"
 Position!AF3 : "Theta"
 Position!AG3 : "Total"
-Position!AJ3 = PosIntradayGrid($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,"","Done")
+Position!AJ3 = PosIntradayGrid($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,Setup!$B$3,"Done")
 Position!AO3 : "Expiry"
 Position!AP3 : "6M"
 Position!AQ3 : "1Y"
@@ -130,7 +130,7 @@ Position!BI4:BI37 = Setup!B27
 Position!BJ4:BK37 = B4
 Position!BM4 = IF($B$2="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
 Position!BQ4 = PosCloseVols($AO$4:$AO$20,$AQ$3:$AZ$3,Setup!$B$4)
-Position!CB4 = PosVolCalendarFactor($AO$4:$AO$20,"")
+Position!CB4 = PosVolCalendarFactor($AO$4:$AO$20,Setup!$B$3)
 Position!CC4 = PosVolCalendarFactor($AO$4:$AO$20,Setup!$B$4)
 Position!CE4 = PosVegaGrid(INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$19),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$20),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$21),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$22),Setup!$B$18,$AO$4:$AO$20,$AP$3:$AZ$3)
 Position!AO5 : "2W"
@@ -502,7 +502,7 @@ Position!G41 : "Notional (mn)"
 Position!H41 : "Side"
 Position!I41 : "Rate (%)"
 Position!J41 : "Note"
-Position!K41 = PosIntradayRisk($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,"")
+Position!K41 = PosIntradayRisk($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,Setup!$B$3)
 Position!R41 : "PL (mn)"
 Position!AB41 : "Swap delta"
 Position!AC41 = AB38
@@ -531,7 +531,7 @@ Position!AC48 = SUMIFS($R$42:$R$91,$B$42:$B$91,"Done",$C$42:$C$91,"Bond")
 Position!AB49 : "Total"
 Position!AC49 = SUM(AC41:AC48)
 Position!AB52 : "Business days since base date"
-Position!AC52 = PosBusinessDays(Setup!$B$4)
+Position!AC52 = PosBusinessDays(Setup!$B$4,Setup!$B$3)
 Position!AO62 : "Bucketed vega (mn JPY / bp vol, total at the bottom-right of each bucket)"
 Position!AY62 : "Total"
 Position!AZ62 = SUM(AQ64:AZ80)
@@ -935,11 +935,11 @@ Position!Z4:Z37 format dataBar
 # Setup
 Setup!A1 : "Setup"
 Setup!A2 : "Paste the company sheets as they are into Raw_IR / Raw_IRVOL (cell A1). If the company renames or reorders columns, only change the yellow cells."
-Setup!A3 : "Base date override"
-Setup!C3 : "Blank = the latest close in the DB (yesterday's batch). Enter a date to override."
+Setup!A3 : "Trade date"
+Setup!C3 : "Enter today (Ctrl+;). Base date = the latest close in the DB before the trade date."
 Setup!A4 : "Base date"
 Setup!B4 = PosBaseDate(B3)
-Setup!C4 = IF(ISERROR(B4),"No close in the DB (run the morning batch)",IF(B3<>"","Overridden by B3","Latest close in the DB"))
+Setup!C4 = DataStatus(B3,B4,"curve")
 Setup!A6 : "IR (Raw_IR)"
 Setup!H6 : "Bond options (Raw_BondOption)"
 Setup!L6 : "JGB holdings (Raw_JGB)"
@@ -1136,6 +1136,7 @@ Setup!A59 : "35Y"
 Setup!C59 : 25
 Setup!A60 : "40Y"
 Setup!C60 : 26
+Setup!C4 format cellIs notEqual: "OK"
 # BondOpt
 BondOpt!A1 : "Bond options (Raw_BondOption, valued at the close of the base date)"
 BondOpt!A2 = "Base date: "&IF(ISERROR(Setup!$B$4),"?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   HV window: "&Setup!$I$8

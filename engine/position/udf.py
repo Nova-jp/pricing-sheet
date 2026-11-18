@@ -73,18 +73,15 @@ def _db_key() -> Optional[int]:
 
 
 @xw.func
-def PosBaseDate(override=None):
-    """会社のリスクの基準日(引け値を読む日付)。overrideに日付があればそれ、空欄ならDBのカーブがある
-    今日より前の直近の日付(朝バッチが置いた昨日までの引け)。TODAY()を使わないため(volatileになる)、
-    空欄の解決をUDFで行う(BondOptionのValuationDateと同じ)。"""
-    d = _to_date(override)
-    if d is not None:
-        return d
-    today = udf_common._today()
+def PosBaseDate(trade_date=None):
+    """会社のリスクの基準日(引け値を読む日付)。取引日(SetupのB3、毎朝Ctrl+;)より前で、DBにカーブがある直近の日付
+    (取引日が今日なら、朝バッチが置いた昨日の引け)。取引日の空欄は今日として扱うが、非volatileなので日をまたいでも
+    計算し直されない(SetupのC4のDataStatusが赤で知らせる。docs/decisions.md の「評価日」)。"""
+    trade = udf_common._resolve_valuation_date(trade_date)
     with udf_common._historical_store() as store:
-        dates = [x for x in store.dates() if x < today]
+        dates = [x for x in store.dates() if x < trade]
     if not dates:
-        raise ValueError("DBに今日より前のカーブがありません(朝バッチを流してください)")
+        raise ValueError(f"DBに取引日 {trade} より前のカーブがありません(朝バッチを流してください)")
     return dates[-1]
 
 
