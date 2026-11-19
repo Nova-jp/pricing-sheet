@@ -5,8 +5,7 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
 ストライク・ボラの選択・価格ボラ・銭への換算)はExcelの式で計算する。不具合のときもセルに値を
 手で入れれば残りが計算されるように、UDFは銘柄コードではなく利率・償還日のセルの値を受け取る。
 
-  ValuationDate    : 評価日(取引日)。空欄=今日。シートの他の式はこの結果を参照する
-  DataStatus       : 評価日・DBの状態の表示(engine/common/status_udf.py。全ブック共通)
+  (ValuationDate・DbStamp・DataStatus は全ブック共通の engine/common/status_udf.py。BondOption.py が再エクスポートする)
   JgbMaster        : 全銘柄の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN](Bondsシート)
   JapanHolidays    : 日本の祝日(土日を除く)の一覧(Holidaysシート。WORKDAY・NETWORKDAYSに渡す)
   JgbForwardRisk   : [先渡複利, 先渡DD, 先渡MD, 先渡のd²P/dy²](F7・F8・F12。利回りの解の探索とQuantLibの
@@ -48,13 +47,6 @@ def _jgb(coupon, maturity) -> bond.Jgb:
 
 def _blank_if_none(value):
     return "" if value is None else value
-
-
-@xw.func
-def ValuationDate(valuation_date=None):
-    """評価日(取引日)。空欄=今日(非volatile。空欄のまま日をまたいでも計算し直されないので、評価日のセルには
-    日付を入れる。空欄・今日でない等は DataStatus が赤で知らせる。docs/decisions.md の「評価日」)。"""
-    return udf_common._resolve_valuation_date(valuation_date)
 
 
 @xw.func

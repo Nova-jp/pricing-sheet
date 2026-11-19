@@ -387,6 +387,41 @@ class CurveBatchTest(unittest.TestCase):
         self.assertEqual(summary.built, DAYS)
         self.assertIsNone(HistoricalStore(self.db).jgb_bond("JB380"))
 
+    # --- 実行の記録(batch_runs。ControlシートのDataStatusが判定に使う) ---
+
+    def _last_run(self):
+        return HistoricalStore(self.db).last_batch_run()
+
+    def test_records_successful_run(self):
+        """全部をやり遂げた実行だけを成功として、終わった時刻(秒まで)を記録する。"""
+        with mock.patch.object(morning_batch, "sync_jgbs", return_value=None),                 mock.patch.object(morning_batch, "sync_futures", return_value=None),                 mock.patch.object(morning_batch, "sync_swaption_premiums", return_value=None):
+            self._run(skip_jgb=False, skip_vol=False, clock=lambda: datetime(2026, 11, 19, 7, 30, 5, 123456))
+        run = self._last_run()
+        self.assertEqual(run.finished_at, "2026-11-19 07:30:05")
+        self.assertTrue(run.ok)
+        self.assertEqual(run.message, "")
+
+    def test_skipped_or_failed_fetch_is_recorded_as_failure(self):
+        """LSEGの取得を省略した・失敗してスキップした実行は、データが最新でないので失敗として記録する。"""
+        self._run()  # 省略(skip_jgb・skip_vol)
+        run = self._last_run()
+        self.assertFalse(run.ok)
+        self.assertIn("省略", run.message)
+        self._run(skip_jgb=False, skip_vol=False)  # setUpのモックでLSEGの取得はすべて失敗する
+        run = self._last_run()
+        self.assertFalse(run.ok)
+        self.assertIn("JGB取得", run.message)
+        self.assertIn("スワップション", run.message)
+
+    def test_exception_is_recorded_and_raised(self):
+        with mock.patch.object(morning_batch, "read_historical_workbook", side_effect=OSError("locked")):
+            with self.assertRaises(OSError):
+                self._run(clock=lambda: datetime(2026, 11, 19, 8, 0, 0))
+        run = self._last_run()
+        self.assertEqual(run.finished_at, "2026-11-19 08:00:00")
+        self.assertFalse(run.ok)
+        self.assertIn("locked", run.message)
+
 
 if __name__ == "__main__":
     unittest.main()

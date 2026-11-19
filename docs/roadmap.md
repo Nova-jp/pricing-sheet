@@ -154,18 +154,16 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 volatileは状態の表示`DataStatus`だけ)。済んだもの: #95 BondOption(Option!C3、D4に`DataStatus`)、#96 PositionSheet
 (Setup!B3を取引日、B4=`PosBaseDate(B3)`は取引日より前の直近、C4に`DataStatus`)。
 
-- **相談中: 全ブックに同じ形の`Control`シートを置く**(ユーザーの提案。ブックごとに入力の場所がばらばらで分かりにくいため)。
-  案: 先頭のシートに A3 `Trade date`(入力、黄色、Ctrl+;)・B4 `=ValuationDate(B3)`(名前`TradeDate`、全ブック同じ)・
-  B5 `DataStatus`(比べるDBの日付だけブックごと)・B6 `BaseDate`(DBの引けを使うブックだけ)。`ValuationDate`を
-  `engine/common/`の共通の部品に移す。分析の設定の日付(PCAの推定の最終日・FwdMonitorのBase等)は各シートに残し、
-  空欄は式で`TradeDate`に寄せる(UDFの中で空欄=今日を決めない)。PricingSheetの名前`評価日`は`TradeDate`に改名する
-  (定義名を改名すれば参照する式も書き換わる)。BondOption(#95)・PositionSheet(#96)もControlへ移す。
-  **ユーザーの返事待ち**: ①シート名`Control`・名前`TradeDate`/`BaseDate`でよいか ②マージ済みの#95・#96の置き場所をControlへ
-  移してよいか ③LiveScreen(自動計算)も同じ形にするか(毎朝のCtrl+;が増える)。
-- **PricingSheet**: 古いまま残りうるのは`AswCloseTable`だけ(他はライブのレートを受けてShift+F9で計算される)。
-  案(コードは書いたがコミットしていない): `AswCloseTable`の最後の列に`close date`(使った引け値の日付、BX)を足し、
-  `DataStatus(評価日, ASWPricerのclose dateの最大, "jgb")`をMainに置く(ASWPricer!BX7:BX56が空なら比べない
-  `LET(d,…,IF(COUNT(d)=0,"",MAX(d)))`)。ASWシートの`AswHistoricalRates`は`asw_quotes`の取得を廃止したので変えない。
+- **全ブックの先頭に同じ形の`Control`シートを置く**(決定、[decisions.md](decisions.md)の「評価日」)。共通のUDF
+  (`ValuationDate`・`DbStamp`・`DataStatus`)と朝バッチの実行の記録(DBの`batch_runs`)は済み。残りはブックごとに、
+  Controlシート(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、DBの引けを使うブックはB7 `BaseDate`)を作り、
+  評価日のセルを参照する式を`TradeDate`へ付け替える(Import Functionsが要る)。分析の設定の日付(PCAの推定の最終日・
+  FwdMonitorのBase等)は各シートに残し、空欄は式で`TradeDate`に寄せる(UDFの中で空欄=今日を決めない)。
+  BondOption(#95)・PositionSheet(#96)もControlへ移し、全ブックが移ったら旧形式の`DataStatus(…, "curve"/"jgb")`を消す。
+  LiveScreen(自動計算)も同じ形にするかは、LiveScreenの番で相談する。
+- **PricingSheet**: 名前`評価日`を`TradeDate`(Control!B4)に改名する(定義名を改名すれば参照する式も書き換わる)。
+  Main!A4:C4は消し、HistChart!B4は`=TradeDate`。`AswCloseTable`(ライブのレートを受けないので朝バッチの後も古いまま残る)も
+  DbStampで見分けられるので、列は足さない。
   **直下のPricingSheet.xlsmは#90(Broker)・#94(flag列の廃止)が当たっていない**(`tools.template --compare`で確認)。
   先に当てる(`backups/restore_broker.py`→pricing!AQ3・Y3とASWPricer!AZ6・BQ6・BU6の`$A$`→`$B$`、BQ6のHSTACKの先頭の
   `$A$6:$A$56`を消す→A列のflagと黄色の塗りを消す)。
