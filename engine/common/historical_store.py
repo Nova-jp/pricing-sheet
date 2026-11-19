@@ -35,6 +35,9 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
   - fetch_coverage : データ(jgb_closes 等)ごとに、LSEGから何日以降を取得済みか(first_date)。朝バッチが
               設定ファイル(settings.toml)の開始日と比べ、足りない過去分だけを取る。銘柄ごとに発行日が違う
               引け値は「DBの最初の日付」では取得済みの範囲が分からないため、取った範囲を記録する
+  - batch_runs : 朝バッチの実行の記録(終わった時刻・成否・メッセージ)。各ブックのControlシートの DataStatus が、
+              今日の実行があるか・評価日を入れた後に実行したかを、データの日付ではなくこの時刻で判定する
+              (engine/common/status_udf.py)
 
 ■ なぜ暦日ごとのDFを保存するか(カーブの引き方に依存しないため)
   どんな引き方(Convex Monotone、将来のステップアップ等)で作ったカーブも、
@@ -154,7 +157,26 @@ CREATE TABLE IF NOT EXISTS fetch_coverage (
     dataset TEXT PRIMARY KEY,
     first_date TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS batch_runs (
+    finished_at TEXT PRIMARY KEY,
+    ok INTEGER NOT NULL,
+    message TEXT NOT NULL
+);
 """
+
+
+class BatchRun(NamedTuple):
+    """batch_runs の1行。finished_at は秒までの文字列(YYYY-MM-DD HH:MM:SS。Excelへはこの文字列のまま渡し、
+    日時の浮動小数の丸めで一致の判定がずれないようにする)。"""
+
+    finished_at: str
+    ok: bool
+    message: str
+
+
+def batch_stamp(moment: datetime) -> str:
+    """batch_runs.finished_at の書式(秒まで)。"""
+    return moment.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class StoredCurve(NamedTuple):
@@ -594,6 +616,25 @@ class HistoricalStore:
                 "ON CONFLICT(dataset) DO UPDATE SET first_date=excluded.first_date",
                 (dataset, _iso(first_date)),
             )
+
+    def record_batch_run(self, finished_at: datetime, ok: bool, message: str = "") -> BatchRun:
+        """朝バッチの実行を記録する(終わったときに1回。失敗も記録する)。"""
+        run = BatchRun(batch_stamp(finished_at), bool(ok), message)
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO batch_runs (finished_at, ok, message) VALUES (?, ?, ?) "
+                "ON CONFLICT(finished_at) DO UPDATE SET ok=excluded.ok, message=excluded.message",
+                (run.finished_at, int(run.ok), run.message),
+            )
+        return run
+
+    def last_batch_run(self) -> Optional[BatchRun]:
+        """最後の朝バッチの実行(記録が無ければ None)。"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT finished_at, ok, message FROM batch_runs ORDER BY finished_at DESC LIMIT 1"
+            ).fetchone()
+        return BatchRun(row[0], bool(row[1]), row[2]) if row else None
 
     def swaption_premiums_first_date(self) -> Optional[date]:
         with self._connect() as conn:

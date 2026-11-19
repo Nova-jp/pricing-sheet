@@ -9,4 +9,4 @@ UDF専用設計のため、VBA/RunPython経由のエントリポイントは持�
 
 from engine.bond_option.udf import *  # noqa: F401,F403
 from engine.common.live_udf import LiveInfo, LiveQuotes, LiveSnapshot  # noqa: F401
-from engine.common.status_udf import DataStatus  # noqa: F401
+from engine.common.status_udf import DataStatus, DbStamp, ValuationDate  # noqa: F401

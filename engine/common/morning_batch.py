@@ -104,6 +104,7 @@ class BatchSummary(NamedTuple):
     holidays: List[date]  # 日本の非営業日のため作らなかった日
     with_missing: Dict[date, List[str]]  # テナーが欠けたまま構築した日
     failed: Dict[date, str]
+    fetch_failures: Tuple[str, ...] = ()  # LSEGからの取得の失敗(スキップした取得)。実行の記録を失敗にする
 
 
 def load_config(path: Path) -> CurveConfig:
@@ -212,9 +213,9 @@ def input_hash(builder: str, selected: Dict[str, float]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def sync_jgbs(store: HistoricalStore, start: date, log=print, until: Optional[date] = None) -> None:
+def sync_jgbs(store: HistoricalStore, start: date, log=print, until: Optional[date] = None) -> Optional[str]:
     """LSEGからJGBの銘柄情報と、start(設定の開始日)〜until(省略時は昨日)の引け値を、DBに足りない分だけ取得して
-    保存する。失敗してもバッチ全体は止めない。
+    保存する。失敗してもバッチ全体は止めず、失敗の内容を返す(成功なら None。実行の記録を失敗にする)。
 
     - 毎朝: 直近 CLOSE_LOOKBACK_DAYS 日分を取り直す(配信元の訂正を拾う)。DBの最終日がそれより古ければ
       (朝バッチを流さなかった期間)、その日から取り直す。DBが空なら start から全期間を1回で取る。
@@ -235,7 +236,7 @@ def sync_jgbs(store: HistoricalStore, start: date, log=print, until: Optional[da
         bonds, closes = jgb_source.fetch_jgbs(recent, until)
     except Exception as e:
         log(f"JGB取得: 失敗のためスキップ ({e})")
-        return
+        return f"JGB取得: {e}"
     store.save_jgb_bonds(bonds)
     store.save_jgb_closes(closes)
     latest = max((c.as_of_date for c in closes), default=None)
@@ -243,9 +244,9 @@ def sync_jgbs(store: HistoricalStore, start: date, log=print, until: Optional[da
     log(f"JGB取得: 銘柄 {len(bonds)} / 引け値 {len(closes)}件({recent}〜、直近 {latest} は{count}銘柄)")
     if recent <= start:
         store.set_fetch_coverage(JGB_COVERAGE, start)
-        return
+        return None
     if covered is not None and covered <= start:
-        return
+        return None
     end = min(covered, recent) - timedelta(days=1) if covered is not None else recent - timedelta(days=1)
     bonds = [
         jgb_source.JgbRecord(r.code, r.ric, r.isin, r.coupon, r.maturity)
@@ -255,16 +256,17 @@ def sync_jgbs(store: HistoricalStore, start: date, log=print, until: Optional[da
         history = jgb_source.fetch_close_history(bonds, start, end)
     except Exception as e:
         log(f"引け値の過去分: 失敗のためスキップ、次の朝バッチで取り直す ({e})")
-        return
+        return f"引け値の過去分: {e}"
     store.save_jgb_closes(history)
     store.set_fetch_coverage(JGB_COVERAGE, start)
     missing = len({b.code for b in bonds} - {c.code for c in history})
     log(f"引け値の過去分: {len(bonds)}銘柄 / {len(history)}件({start}〜{end}、期間内に値の無い銘柄 {missing})")
+    return None
 
 
-def sync_futures(store: HistoricalStore, start: date, log=print, today: Optional[date] = None) -> None:
+def sync_futures(store: HistoricalStore, start: date, log=print, today: Optional[date] = None) -> Optional[str]:
     """長期国債先物の限月ごとの清算値を、start(設定の開始日)の期近から昨日まで差分で保存する。
-    失敗してもバッチ全体は止めない。"""
+    失敗してもバッチ全体は止めず、失敗の内容を返す(成功なら None)。"""
     today = today or date.today()
     until = last_close_date(today)
     saved = store.fut_last_dates()
@@ -280,18 +282,22 @@ def sync_futures(store: HistoricalStore, start: date, log=print, today: Optional
         result = futures_source.fetch_settles(plan, until)
     except Exception as e:
         log(f"先物取得: 失敗のためスキップ ({e})")
-        return
+        return f"先物取得: {e}"
     settles = [s for s in result.settles if s[0] <= until]
     store.save_fut_settles(settles)
     contracts = sorted({label for _, label, _ in settles})
     log(f"先物取得: 清算値 {len(settles)}件({', '.join(contracts)})")
     for w in result.warnings:
         log(f"  警告: {w}")
+    return None
 
 
-def sync_swaption_premiums(store: HistoricalStore, start: date, log=print, today: Optional[date] = None) -> None:
+def sync_swaption_premiums(
+    store: HistoricalStore, start: date, log=print, today: Optional[date] = None,
+) -> Optional[str]:
     """LSEGからTraditionのスワップションATMプレミアムを、start(設定の開始日。Traditionの系列の最初の日
-    swaption_source.FIRST_DATE より前は無い)から昨日まで差分で取得して保存する。失敗してもバッチ全体は止めない。
+    swaption_source.FIRST_DATE より前は無い)から昨日まで差分で取得して保存する。失敗してもバッチ全体は止めず、
+    失敗の内容を返す(成功なら None)。
     - 毎朝: 前回の最終日の PREMIUM_OVERLAP_DAYS 日前から取り直す
     - 格子に足した銘柄(DBに1行も無い銘柄)は、差分の前の分も start から取る(2026-11-09 原資産30Yの追加)
     - 取得済みの範囲(fetch_coverage。記録が無ければDBの最初の日付)が start より後なら、足りない過去分を全銘柄で取る
@@ -315,7 +321,7 @@ def sync_swaption_premiums(store: HistoricalStore, start: date, log=print, today
             log(f"スワップションのプレミアム取得: 過去分を{start}〜{end}で取得")
     except Exception as e:
         log(f"スワップションのプレミアム取得: 失敗のためスキップ ({e})")
-        return
+        return f"スワップションのプレミアム取得: {e}"
     rows = [r for r in rows if r.as_of_date <= until]
     store.save_swaption_premiums(rows)
     if last is None or backfill:
@@ -323,6 +329,7 @@ def sync_swaption_premiums(store: HistoricalStore, start: date, log=print, today
     dates = sorted({r.as_of_date for r in rows})
     span = f"{dates[0]}〜{dates[-1]}" if dates else "なし"
     log(f"スワップションのプレミアム取得: {len(rows)}件 / {len(dates)}日分({span})")
+    return None
 
 
 def vol_input_hash(curve_hash: str, premiums: Dict[str, float]) -> str:
@@ -380,11 +387,46 @@ def run(
     skip_vol: bool = False,
     today: Optional[date] = None,
     settings_path: Path = DEFAULT_SETTINGS,
+    clock=datetime.now,
+) -> BatchSummary:
+    """朝バッチの本体。終わったら(例外で止まったときも)DBの batch_runs に実行を記録する。各ブックのControlシートの
+    DataStatus は、データの日付ではなくこの記録の時刻で「今日の実行があるか・評価日を入れた後に実行したか」を判定する
+    (営業日のカレンダーで最新の日付を推し量らず、途中で失敗した実行も見分けるため。docs/decisions.md の「評価日」)。
+    全部をやり遂げた実行だけを成功とする(カーブの失敗の日がある・LSEGの取得を省略した実行は失敗として記録する)。"""
+    store = HistoricalStore(db_path)
+    try:
+        summary = _run(
+            store, xlsx_path, config_path, rebuild, log, skip_jgb, skip_vol, today, settings_path,
+        )
+    except BaseException as e:
+        store.record_batch_run(clock(), False, f"{type(e).__name__}: {e}")
+        raise
+    problems = list(summary.fetch_failures)
+    if summary.failed:
+        problems.append(f"カーブの失敗 {len(summary.failed)}日")
+    if skip_jgb:
+        problems.append("JGB・先物の取得を省略")
+    if skip_vol:
+        problems.append("スワップションの取得を省略")
+    run_record = store.record_batch_run(clock(), not problems, " / ".join(problems))
+    log(f"実行の記録: {run_record.finished_at} {'成功' if run_record.ok else '失敗(' + run_record.message + ')'}")
+    return summary
+
+
+def _run(
+    store: HistoricalStore,
+    xlsx_path: Path,
+    config_path: Path,
+    rebuild: bool,
+    log,
+    skip_jgb: bool,
+    skip_vol: bool,
+    today: Optional[date],
+    settings_path: Path,
 ) -> BatchSummary:
     config = load_config(config_path)
     history = load_settings(settings_path).history
     builder = get_curve_builder(config.builder)
-    store = HistoricalStore(db_path)
     today = today or date.today()
     until = last_close_date(today)
 
@@ -394,11 +436,12 @@ def run(
     store.save_quotes(mid)
     store.save_fixings(fixings)
     log(f"取り込み: Mid {len(mid)}日分 / TONA実績 {len(fixings)}日分({until}まで)")
+    fetches = []
     if not skip_jgb:
-        sync_jgbs(store, history.start_of("jgb"), log, until)
-        sync_futures(store, history.start_of("futures"), log, today)
+        fetches.append(sync_jgbs(store, history.start_of("jgb"), log, until))
+        fetches.append(sync_futures(store, history.start_of("futures"), log, today))
     if not skip_vol:
-        sync_swaption_premiums(store, history.start_of("swaption"), log, today)
+        fetches.append(sync_swaption_premiums(store, history.start_of("swaption"), log, today))
 
     all_quotes = store.quotes()
     all_fixings = store.fixings()
@@ -436,7 +479,7 @@ def run(
         if len(built) % 50 == 0:
             log(f"  構築中... {len(built)}日分")
 
-    summary = BatchSummary(built, unchanged, holidays, with_missing, failed)
+    summary = BatchSummary(built, unchanged, holidays, with_missing, failed, tuple(f for f in fetches if f))
     log(
         f"カーブ構築: 新規/更新 {len(built)}日 / 変更なし {unchanged}日 / "
         f"非営業日のため除外 {len(holidays)}日 / 失敗 {len(failed)}日"

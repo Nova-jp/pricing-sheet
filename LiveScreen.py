@@ -6,4 +6,5 @@ xlwingsのExcelアドインは、UDFの登録先を探す際にワークブッ�
 エントリポイントは持たない。
 """
 
+from engine.common.status_udf import DataStatus, DbStamp, ValuationDate  # noqa: F401
 from engine.live_screen.udf import *  # noqa: F401,F403

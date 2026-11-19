@@ -31,6 +31,8 @@ LSEG Workspaceのデータを、日中はライブのフィードから、過去
   ⑥⑦ LSEGからスワップションのプレミアムを差分取得し、その日のカーブで営業日ベースのvolにする(vol_quotes)
   ⑧ スワップションの原資産(⑦と同じ契約)の格子の全銘柄のFwd・年金・前の日付のカーブでのFwdを計算(swaption_forwards)
      (入力が変わった日だけ。VolHV・VolLevelが読む。engine/common/option/swaption/forward.py)
+  ⑨ 終わったら(例外で止まったときも)実行の時刻と成否をDBのbatch_runsに記録する(取得の失敗・省略、カーブの失敗の日が
+     あれば失敗)。各ブックのControlシートのDbStamp・DataStatusが読む(engine/common/status_udf.py)
         │
         ▼
 [data/historical.db(ローカルのSQLite。LSEG由来なのでコミットしない)]

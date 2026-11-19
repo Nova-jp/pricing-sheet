@@ -8,5 +8,5 @@ xlwingsのExcelアドインは、UDFの登録先を探す際にワークブッ�
 """
 
 from engine.common.live_udf import LiveInfo, LiveQuotes, LiveSnapshot  # noqa: F401
-from engine.common.status_udf import DataStatus  # noqa: F401
+from engine.common.status_udf import DataStatus, DbStamp, ValuationDate  # noqa: F401
 from engine.position.udf import *  # noqa: F401,F403
