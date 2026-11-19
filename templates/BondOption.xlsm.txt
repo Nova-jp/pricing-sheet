@@ -1,4 +1,5 @@
 # シートの並び
+sheet Control
 sheet Option
 sheet Bonds
 sheet Holidays
@@ -15,8 +16,22 @@ name JGB_YIELD = LAMBDA(c,p,a,m,LET(n,JGB_YEARS(a,m),ROUNDDOWN(ROUND((c+(100-p)/
 name RepoBid = Option!$F$3
 name RepoOffer = Option!$F$4
 name SchemeTable = Option!$H$2:$J$5
-name TradeDate = Option!$C$4
+name TradeDate = Control!$B$4
 name VolDays = Option!$C$5
+# Control
+Control!A1 : "Control"
+Control!A3 : "Trade date"
+Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes. A past date uses the DB closes of that day."
+Control!A4 : "TradeDate"
+Control!B4 = ValuationDate(B3)
+Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate)."
+Control!A5 : "DB stamp"
+Control!B5 = DbStamp(B3)
+Control!C5 : "Morning batch run that the DB had when the trade date was entered."
+Control!A6 : "Status"
+Control!B6 = DataStatus(B3,B5)
+Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
+Control!B6 format cellIs notEqual: "OK"
 # Option
 Option!B1 : "Vol"
 Option!C1 : "Live"
@@ -32,15 +47,13 @@ Option!I2:I3 : "Call"
 Option!J2:J3 : "Offer"
 Option!L2 : "Vol: swaption vol (interpolated) x Vol ratio (bond HV / swap HV of the same maturity over HV window, DB closes until yesterday). Override priority: Price vol > bp vol > Normal vol > interpolated x ratio. Any computed cell can be overwritten by hand."
 Option!CJ2 : "Live vol (Name / RIC / Value)"
-Option!B3 : "Trade date (Ctrl+; = today)"
 Option!E3 : "Repo bid (%)"
 Option!F3 : 1.3
 Option!H3 : "CC"
 Option!L3 : "Data: python -m engine.common.morning_batch (Bonds sheet). Vols: live feed. Premium is not discounted."
 Option!CJ3 = IF($C$1="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
 Option!B4 : "Trade date used"
-Option!C4 = ValuationDate(C3)
-Option!D4 = DataStatus(C3,MAX(INDEX(BondList,,5)),"jgb")
+Option!C4 = TradeDate
 Option!E4 : "Repo offer (%)"
 Option!F4 : 1.2
 Option!H4 : "TB"
@@ -210,7 +223,6 @@ Option!C1 validation list: "Live,Fixed"
 Option!C8:C107 validation list: $H$2:$H$5
 Option!E8:E107 validation list: "1,2"
 Option!J2:J5 validation list: "Bid,Offer"
-Option!D4 format cellIs notEqual: "OK"
 # Bonds
 Bonds!A1 : "JGB master and JCL close on or before the trade date (python -m engine.common.morning_batch)"
 Bonds!A2 : "Code"

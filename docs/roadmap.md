@@ -149,7 +149,7 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 ## 24. 評価日(取引日)の扱いを全ブックでそろえる(2026-11-18〜、ユーザーと順に進めている)
 
 方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
-volatileは状態の表示`DataStatus`だけ)。済んだもの: PricingSheetのControlシート、#95 BondOption(Option!C3、D4に`DataStatus`)、#96 PositionSheet
+volatileは状態の表示`DataStatus`だけ)。済んだもの: PricingSheet・BondOptionのControlシート、#96 PositionSheet
 (Setup!B3を取引日、B4=`PosBaseDate(B3)`は取引日より前の直近、C4に`DataStatus`)。
 
 - **全ブックの先頭に同じ形の`Control`シートを置く**(決定、[decisions.md](decisions.md)の「評価日」)。共通のUDF
@@ -157,7 +157,8 @@ volatileは状態の表示`DataStatus`だけ)。済んだもの: PricingSheetの
   Controlシート(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、DBの引けを使うブックはB7 `BaseDate`)を作り、
   評価日のセルを参照する式を`TradeDate`へ付け替える(Import Functionsが要る)。分析の設定の日付(PCAの推定の最終日・
   FwdMonitorのBase等)は各シートに残し、空欄は式で`TradeDate`に寄せる(UDFの中で空欄=今日を決めない)。
-  BondOption(#95)・PositionSheet(#96)もControlへ移し、全ブックが移ったら旧形式の`DataStatus(…, "curve"/"jgb")`を消す。
+  PositionSheet(#96)もControlへ移し(B7 `BaseDate`。`Setup!$B$3`・`$B$4`の参照を名前に付け替え、雛形の
+  `RECEIVE_AREAS`の`Setup!B3`を`Control!B3`へ)、全ブックが移ったら旧形式の`DataStatus(…, "curve"/"jgb")`を消す。
   LiveScreen(自動計算)も同じ形にするかは、LiveScreenの番で相談する。
 - **SwapAnalysis**: 空欄=今日やDBの中身に黙って依存するUDF(どれもPython側でDBの更新時刻をキーにキャッシュ済み):
   `PcaWindow`・`PcaModel`・`PcaEigen`・`PcaResidStd`(推定の最終日が空欄=今日)・`PcaGrid`・`PcaGridResidStd`(中で今日)・
@@ -165,7 +166,7 @@ volatileは状態の表示`DataStatus`だけ)。済んだもの: PricingSheetの
   ライブのレートを受ける`PcaActual`等・BOJは問題ない。日付の引数が無いUDFには引数を足す(式とImport Functionsが要る)。
 - **LiveScreen**: `Dates!A7 =SwapBusinessDays($B$1,…)`(B1が空欄=今日)。自動計算でも入力が変わらないセルは計算されないので、
   前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。
-- **直下のブックへの反映が残っている**: BondOption(#95のImport Functions、Option!D4の式と条件付き書式。その前の#93の分も)、
-  PositionSheet(#82のCompany rowが未適用。その後に#96の式・見出し・条件付き書式、Import Functions)。どれも
-  `tools.template --compare`で`origin/main`の雛形と同じになったことを確かめる。直下のDBは引け値・カーブとも2026-10-27で
+- **直下のブックへの反映が残っている**: PositionSheet(#82のCompany rowが未適用。その後に#96の式・見出し・条件付き書式、
+  Import Functions)、SwapAnalysis(#88のFwdMonitor)。受信領域の無いブックは、`tools.template --compare`で違いがマージ済みの
+  変更だけと確かめて雛形のコピーで置き換え、Ctrl+Alt+F9を1回押す(雛形は計算結果を消してあり、Shift+F9では普通の式が計算されない)。直下のDBは引け値・カーブとも2026-10-27で
   止まっている(朝バッチを流す)。
