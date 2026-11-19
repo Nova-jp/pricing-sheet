@@ -31,13 +31,20 @@
 テスト: `test_market_risk.py`(カーブの共有・デルタ・RiskGrid・評価日・startのテナー・HistChart)、`test_past_start.py`、
 `test_imm.py`、`test_historical.py`、`test_hedge.py`、`test_asw.py`、`test_asw_pricer.py`。
 
-## Mainシート
+## Controlシート(先頭)
 
-- B4: 評価日(名前`評価日`、空欄=今日)。全UDFの評価日とHistChartの基準日はこのセルを参照する。
-  今日ならライブのレート、過去日ならヒストリカルDBのその日のレート(O/Nはその日のTONA実績)でカーブを組む。
+全ブック共通の形([decisions.md](decisions.md)の「評価日」)。
+- B3: Trade date(入力。毎朝Ctrl+;)。B4: `=ValuationDate(B3)`(名前`TradeDate`)。全UDFの評価日とHistChartの基準日は
+  `TradeDate`を参照する。B5: `=DbStamp(B3)`。B6: `=DataStatus(B3,B5)`(`OK`以外は赤)。
+- `AswCloseTable`はライブのレートを受けないので、朝バッチを流した後も評価日を入れ直すまで前の引けのまま残る。
+  B6が`DB has newer data`で知らせる。
+- 評価日が今日ならライブのレート、過去日ならヒストリカルDBのその日のレート(O/Nはその日のTONA実績)でカーブを組む。
   **過去日でもテナーはMainの採否フラグで選ぶ**(ユーザー選択。今日と過去日で同じグリッドになり比べやすい。DBの
   `historical_curve.toml`の選択とは異なることがある)。
-- B5: `=MarketInfo(TAKE($M$3#,,3), 評価日)`(カーブの元データとテナー数)。
+
+## Mainシート
+
+- B5: `=MarketInfo(TAKE($M$3#,,3), TradeDate)`(カーブの元データとテナー数)。
 - A11:B54: カーブのテナー。A=Ticker(`live_feed.toml`の`"swap"`と同じ表記。O/N〜40Y、RD、M1〜M9)、
   B=**採否フラグ**(`1`/空欄=使う、`0`=使わない)。会合スワップ(RD・M1〜M9)は`0`(メインのカーブには使わず
   `curve.EXCLUDED_MEETING_TENORS`で`skipped_tenors`に計上。会合スワップの分析はSwapAnalysisのBOJシート)。

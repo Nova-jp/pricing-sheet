@@ -1,4 +1,5 @@
 # シートの並び
+sheet Control
 sheet Main
 sheet pricing
 sheet HistChart
@@ -18,7 +19,21 @@ name HistChart_S2 = HistChart!$R$30:INDEX(HistChart!$R:$R,ROW(HistChart!$P$29)+R
 name HistChart_S3 = HistChart!$S$30:INDEX(HistChart!$S:$S,ROW(HistChart!$P$29)+ROWS(ANCHORARRAY(HistChart!$P$29))-1)
 name LiveSwap = IF(Broker="Totan","swap_totan","swap")
 name LiveSwapLCH = IF(Broker="Totan","swap_lch_totan","swap_lch")
-name 評価日 = Main!$B$4
+name TradeDate = Control!$B$4
+# Control
+Control!A1 : "Control"
+Control!A3 : "Trade date"
+Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes. A past date prices on the historical DB of that day."
+Control!A4 : "TradeDate"
+Control!B4 = ValuationDate(B3)
+Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate)."
+Control!A5 : "DB stamp"
+Control!B5 = DbStamp(B3)
+Control!C5 : "Morning batch run that the DB had when the trade date was entered."
+Control!A6 : "Status"
+Control!B6 = DataStatus(B3,B5)
+Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
+Control!B6 format cellIs notEqual: "OK"
 # Main
 Main!A1 : "Rates"
 Main!B1 : "Live"
@@ -30,10 +45,8 @@ Main!H2 : "Live rates (Ticker / Value / Start / End)"
 Main!M2 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
 Main!H3 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
 Main!M3 = LET(q,ANCHORARRAY($H$3),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
-Main!A4 : "評価日"
-Main!C4 : "空欄=今日(ライブのレート)。過去日=ヒストリカルDBのその日のレート。全UDFがこのセルを参照する"
 Main!A5 : "マーケット"
-Main!B5 = MarketInfo(TAKE(ANCHORARRAY($M$3),,3),評価日)
+Main!B5 = MarketInfo(TAKE(ANCHORARRAY($M$3),,3),TradeDate)
 Main!A10 : "カーブのテナー(採否: 1か空欄=カーブに使う、0=使わない。会合スワップRD・M1〜M9はカーブに使わないので0)"
 Main!A11 : "O/N"
 Main!A12 : "1W"
@@ -118,12 +131,12 @@ pricing!T3 : "PV"
 pricing!U3 : "delta"
 pricing!V3 : "delta(annuity)"
 pricing!W3 : "message"
-pricing!Y3 = RiskGrid(pricing!$B$3:$S$103,TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!Y3 = RiskGrid(pricing!$B$3:$S$103,TAKE(ANCHORARRAY($AK$4),,3),TradeDate,TAKE(ANCHORARRAY($BC$4),,3))
 pricing!AB3 : "合計(テナー別)"
 pricing!AC3 = SUM(INDEX(ANCHORARRAY(Y3),0,2))
 pricing!AF3 : "Live rates (Ticker / Value / Start / End)"
 pricing!AK3 : "カーブ用(採否/Ticker/値/起算日/満期日。採否・TickerはMainシート)"
-pricing!AQ3 = PricingTable(HSTACK($B$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE(ANCHORARRAY($AK$4),,3),評価日,TAKE(ANCHORARRAY($BC$4),,3))
+pricing!AQ3 = PricingTable(HSTACK($B$3:$E$103,$G$3:$O$103,$S$3:$S$103),TAKE(ANCHORARRAY($AK$4),,3),TradeDate,TAKE(ANCHORARRAY($BC$4),,3))
 pricing!AX3 : "LCH live rates (Ticker / Value / Start / End)"
 pricing!BC3 : "LCH curve (Flag / Ticker / Value / Start / End. Flag and Ticker from Main)"
 pricing!B4:B5 : 1
@@ -185,8 +198,8 @@ HistChart!AD3 : "縦のグリッドにヘッジのデルタ(百万円/bp)を、�
 HistChart!AJ3 = IF($B$1="Fixed",LiveSnapshot(LiveSwap),LiveQuotes(LiveSwap))
 HistChart!AO3 = LET(q,ANCHORARRAY($AJ$3),t,Main!$A$11:$A$54,HSTACK(Main!$B$11:$B$54,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
 HistChart!A4 : "基準日(ROLLING)"
-HistChart!B4 = IF(評価日="","",評価日)
-HistChart!C4 : "Mainシートの評価日に連動(空欄=今日)"
+HistChart!B4 = TradeDate
+HistChart!C4 : "Control!B4 (TradeDate)"
 HistChart!AD4 : "表示"
 HistChart!AE4 : "○"
 HistChart!AF4 : "○/×"
@@ -196,7 +209,7 @@ HistChart!AE5 = IF($F$10="","ROLLING",$F$10)
 HistChart!AF5 : "既定は系列1のモード(上書き可。戻すときはこのセルに数式を入れ直す)"
 HistChart!A6 : "終了日(任意)"
 HistChart!AD6 : "縮尺(百万円/bp)"
-HistChart!AE6 = IFERROR(LET(t,$H$10,leg,IF(t="アウトライト",1,IF(OR(t="カーブ",t="フライ"),2,NA())),r,INDEX($C$16:$C$17,leg),n,INDEX(pricing!$D:$D,r),pr,INDEX(pricing!$S:$S,r),c,INDEX($E$16:$K$17,leg,0),IF(OR(n="",n=0),NA(),SwapAnnuityDelta(INDEX(c,1),INDEX(c,2),INDEX(c,3),INDEX(c,4),INDEX(c,5),INDEX(c,6),INDEX(c,7),n,IF(pr="","PAY",pr),TAKE(ANCHORARRAY($AO$3),,3),評価日)/IF(t="フライ",2,1))),NA())
+HistChart!AE6 = IFERROR(LET(t,$H$10,leg,IF(t="アウトライト",1,IF(OR(t="カーブ",t="フライ"),2,NA())),r,INDEX($C$16:$C$17,leg),n,INDEX(pricing!$D:$D,r),pr,INDEX(pricing!$S:$S,r),c,INDEX($E$16:$K$17,leg,0),IF(OR(n="",n=0),NA(),SwapAnnuityDelta(INDEX(c,1),INDEX(c,2),INDEX(c,3),INDEX(c,4),INDEX(c,5),INDEX(c,6),INDEX(c,7),n,IF(pr="","PAY",pr),TAKE(ANCHORARRAY($AO$3),,3),TradeDate)/IF(t="フライ",2,1))),NA())
 HistChart!AF6 : "既定は系列1の行の取引条件・notional・pay/recから計算したアニュイティデルタ(アウトライト=行A、カーブ=行B、フライ=行Bの1/2。pay/rec空欄はPAYとみなす)。上書き可"
 HistChart!A7 : "単位"
 HistChart!B7 = IF(SUMPRODUCT(($B$10:$B$12<>"×")*(($H$10:$H$12="カーブ")+($H$10:$H$12="フライ")))>0,"bp","%")
@@ -454,9 +467,9 @@ ASWPricer!AL6 : "unwind PV (JPY)"
 ASWPricer!AM6 : "message"
 ASWPricer!AO6 : "Live rates (Ticker / Value / Start / End)"
 ASWPricer!AT6 : "Curve (flag / Ticker / value / start / end; flags and tickers from Main)"
-ASWPricer!AZ6 = AswPricingTable($B$6:$K$56,TAKE(ANCHORARRAY($AT$7),,3),評価日)
-ASWPricer!BQ6 = AswUnwindTable(HSTACK($M$6:$M$56,$G$6:$K$56,$AH$6:$AK$56),TAKE(ANCHORARRAY($AT$7),,3),評価日)
-ASWPricer!BU6 = AswCloseTable(HSTACK($B$6:$B$56,$G$6:$J$56),評価日)
+ASWPricer!AZ6 = AswPricingTable($B$6:$K$56,TAKE(ANCHORARRAY($AT$7),,3),TradeDate)
+ASWPricer!BQ6 = AswUnwindTable(HSTACK($M$6:$M$56,$G$6:$K$56,$AH$6:$AK$56),TAKE(ANCHORARRAY($AT$7),,3),TradeDate)
+ASWPricer!BU6 = AswCloseTable(HSTACK($B$6:$B$56,$G$6:$J$56),TradeDate)
 ASWPricer!B7:B8 : "JB380"
 ASWPricer!G7 : "SA"
 ASWPricer!H7:H56 : "act/365fixed"
