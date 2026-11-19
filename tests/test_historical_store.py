@@ -22,7 +22,7 @@ import QuantLib as ql  # noqa: E402
 
 from engine.common.curve import bootstrap_curve  # noqa: E402
 from engine.common.historical_store import (  # noqa: E402
-    GRID_DAYS, AswQuoteRow, AswRate, HistoricalStore, _grid_dates, discount_grid,
+    GRID_DAYS, AswRate, HistoricalStore, _grid_dates, discount_grid,
 )
 from engine.common.market_data import Market  # noqa: E402
 from engine.common.swap_pricer import price_swap  # noqa: E402
@@ -125,36 +125,37 @@ class AswQuotesTest(unittest.TestCase):
     def _store(self, tmp):
         return HistoricalStore(Path(tmp) / "historical.db")
 
-    def test_upsert_by_date_and_bond_code(self):
+    def test_save_asw_day_replaces_the_whole_day(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = self._store(tmp)
-            store.save_asw_quotes([
-                AswQuoteRow(AS_OF, "000190054", 0.448, 0.4804, datetime(2026, 10, 9, 12, 30, 6)),
-                AswQuoteRow(AS_OF, "000180054", 0.4488, 0.4813, datetime(2026, 10, 9, 12, 30, 6)),
-            ])
-            # 同じ(日付, 銘柄)を更新 → 上書き(行は増えない)
-            store.save_asw_quotes([
-                AswQuoteRow(AS_OF, "000190054", 0.45, 0.482, datetime(2026, 10, 10, 9, 0, 0)),
-            ])
-            quotes = store.asw_quotes()
-            self.assertEqual(quotes, {
-                AS_OF: {
-                    "000190054": AswRate(0.45, 0.482),
-                    "000180054": AswRate(0.4488, 0.4813),
-                },
+            day2 = AS_OF + timedelta(days=1)
+            store.save_asw_day(AS_OF, {"000190054": AswRate(0.448, 0.4804), "000180054": AswRate(0.4488, 0.4813)}, "h1")
+            store.save_asw_day(day2, {"000190054": AswRate(0.5, 0.6)}, "h2")
+            # 同じ日付を保存し直す → その日は丸ごと置き換え(無くなった銘柄は消え、他の日付は残る)
+            store.save_asw_day(AS_OF, {"000190054": AswRate(0.45, 0.482)}, "h3")
+            self.assertEqual(store.asw_quotes(), {
+                AS_OF: {"000190054": AswRate(0.45, 0.482)}, day2: {"000190054": AswRate(0.5, 0.6)},
             })
+            self.assertEqual(store.asw_input_hashes(), {AS_OF: "h3", day2: "h2"})
+
+    def test_delete_asw_except(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = self._store(tmp)
+            day2 = AS_OF + timedelta(days=1)
+            store.save_asw_day(AS_OF, {"AAA": AswRate(0.1, 0.2)}, "h1")
+            store.save_asw_day(day2, {"AAA": AswRate(0.3, 0.4)}, "h2")
+            self.assertEqual(store.delete_asw_except([day2]), 1)
+            self.assertEqual(store.asw_quotes(), {day2: {"AAA": AswRate(0.3, 0.4)}})
+            self.assertEqual(store.asw_input_hashes(), {day2: "h2"})
 
     def test_asw_quotes_for_filters_by_bond_code_and_date_range(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = self._store(tmp)
             day2 = AS_OF + timedelta(days=1)
             day3 = AS_OF + timedelta(days=2)
-            store.save_asw_quotes([
-                AswQuoteRow(AS_OF, "AAA", 0.1, 0.2, datetime(2026, 10, 9)),
-                AswQuoteRow(day2, "AAA", 0.3, 0.4, datetime(2026, 10, 9)),
-                AswQuoteRow(day3, "AAA", 0.5, 0.6, datetime(2026, 10, 9)),
-                AswQuoteRow(AS_OF, "BBB", 9.9, 9.9, datetime(2026, 10, 9)),  # 別銘柄は含まれない
-            ])
+            store.save_asw_day(AS_OF, {"AAA": AswRate(0.1, 0.2), "BBB": AswRate(9.9, 9.9)}, "h")  # 別銘柄は含まれない
+            store.save_asw_day(day2, {"AAA": AswRate(0.3, 0.4)}, "h")
+            store.save_asw_day(day3, {"AAA": AswRate(0.5, 0.6)}, "h")
             self.assertEqual(store.asw_quotes_for("AAA"), {
                 AS_OF: AswRate(0.1, 0.2), day2: AswRate(0.3, 0.4), day3: AswRate(0.5, 0.6),
             })

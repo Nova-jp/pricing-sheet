@@ -18,13 +18,10 @@ AswPricingTableはライブのレート(volatileのLiveQuotes)に依存するの
 from datetime import date
 from typing import Dict, List, Sequence
 
-from engine.common import bond, udf_common
-from engine.common.curve import spot_date_for
+from engine.common import asw, bond, udf_common
 from engine.common.market import db_fixings
 from engine.common.market_data import Market
-from engine.common.swap_pricer import par_rate
-from engine.common.terms import SwapConvention, SwapTerms
-from engine.swap_pricing.asw import pricer
+from engine.common.terms import SwapConvention
 from engine.swap_pricing.pricing.table import columns
 
 INPUT_COLUMNS = ("bond", "fix freq", "fix dcf", "float freq", "roll conv")
@@ -45,18 +42,14 @@ def price_row(row: Sequence, col, valuation_date: date, store, markets: Dict[dat
         if close is None:
             raise ValueError(f"{code} の引け値がDBにありません")
         jgb = bond.Jgb(info.coupon, info.maturity)
-        result[0] = pricer.spot_bond(jgb, close.simple_yield, close.as_of_date).compound_yield
+        result[0] = asw.spot_bond(jgb, close.simple_yield, close.as_of_date).compound_yield
 
         close_date = close.as_of_date
-        terms = SwapTerms(
-            spot_date_for(close_date),
-            SwapConvention(*(get(c) for c in ("fix freq", "fix dcf", "float freq", "roll conv"))),
-            end=info.maturity,
-        )
+        convention = SwapConvention(*(get(c) for c in ("fix freq", "fix dcf", "float freq", "roll conv")))
         if close_date not in markets:
             stored = store.load(close_date)
             markets[close_date] = Market(close_date, stored.curve, stored.index, db_fixings(store))
-        result[1] = par_rate(markets[close_date], terms).target_fixrate
+        result[1] = asw.mms_rate(markets[close_date], info.maturity, convention)
     except Exception as e:
         result[2] = str(e)
     return result

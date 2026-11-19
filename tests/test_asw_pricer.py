@@ -26,9 +26,9 @@ import QuantLib as ql
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from engine.common import bond, market, udf_common  # noqa: E402
+from engine.common import asw, bond, market, udf_common  # noqa: E402
 from engine.common.conventions import CALENDAR, ROLL_BWD, rule_and_eom  # noqa: E402
-from engine.common.historical_store import HistoricalStore, discount_grid  # noqa: E402
+from engine.common.historical_store import AswRate, HistoricalStore, discount_grid  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 from engine.common.risk import annuity_delta  # noqa: E402
 from engine.common.swap_pricer import _build_swap  # noqa: E402
@@ -371,3 +371,91 @@ class AswCloseTableTest(_AswDbCase):
             blank_is_today = udf.AswCloseTable([_CLOSE_HEADER, _close_row()], None)
         self.assertEqual(out[1], [*self._close([_close_row()])[0].values()])
         self.assertEqual(blank_is_today, out)
+
+
+class AswHistoryBuildTest(_AswDbCase):
+    """朝バッチの日次ASW(engine/common/asw.build)。AswCloseTableTestと同じDB(FRIDAYの引けのカーブ)を使う。"""
+
+    def setUp(self):
+        super().setUp()
+        boot = self.curves.base_curve
+        self.store.save_curve(FRIDAY, "test", "hash", boot.used_tenors, [], discount_grid(boot.curve, FRIDAY))
+
+    _close = AswCloseTableTest._close
+
+    def _build(self, **kw):
+        logs = []
+        failed = asw.build(self.store, log=logs.append, **kw)
+        self.assertEqual(failed, {})
+        return logs
+
+    def _saved(self, day=FRIDAY):
+        with self.store:
+            return {code: self.store.asw_quotes_for(code, day, day).get(day) for code in ("009990067", "009990068")}
+
+    def test_matches_close_compound_minus_mms(self):
+        """AswCloseTable(引けの複利とMMS)と同じ値。銘柄は bond_code(回号5桁+種別4桁)で保存する。"""
+        self._build()
+        saved = self._saved()
+        for code, bond_code in (("JB999", "009990067"), ("JX999", "009990068")):
+            (sa,) = self._close([_close_row(code, SA)])
+            (pa,) = self._close([_close_row(code, PA)])
+            self.assertAlmostEqual(saved[bond_code].sa, sa["close compound yield"] - sa["close swap rate"], places=10)
+            self.assertAlmostEqual(saved[bond_code].pa, pa["close compound yield"] - pa["close swap rate"], places=10)
+        self.assertNotAlmostEqual(saved["009990067"].pa, saved["009990067"].sa, places=4)
+
+    def test_only_dates_with_a_curve_and_closes(self):
+        """9/24は引け値はあるがカーブが無い、9/28はカーブ・引け値とも無い(DBの外の日付)→ 計算しない。"""
+        self._build()
+        with self.store:
+            self.assertEqual(self.store.asw_input_hashes().keys(), {FRIDAY})
+            self.assertEqual(self.store.asw_quotes_for("009990067", date(2026, 9, 24), date(2026, 9, 24)), {})
+
+    def test_unchanged_inputs_are_not_recomputed(self):
+        self._build()
+        with mock.patch.object(asw, "compute_day", side_effect=AssertionError("計算し直した")):
+            logs = self._build()
+        self.assertIn("変更なし 1日", logs[0])
+        # 引け値が変われば計算し直す
+        self.store.save_jgb_closes([JgbClose(FRIDAY, "JB999", 1.710)])
+        before = self._saved()["009990067"]
+        self._build()
+        self.assertGreater(self._saved()["009990067"].pa, before.pa)  # 単利が上がれば複利も上がり、ASWも上がる
+
+    def test_rebuild_recomputes(self):
+        self._build()
+        with mock.patch.object(asw, "compute_day", wraps=asw.compute_day) as spy:
+            self._build(rebuild=True)
+        self.assertEqual(spy.call_count, 1)
+
+    def test_old_rows_are_removed(self):
+        """以前Neonから取得した値(計算していない日・先頭の0が落ちた銘柄)は残さない。"""
+        self.store.save_asw_day(date(2024, 1, 4), {"003800067": AswRate(0.1, 0.2)}, "neon")
+        self.store.save_asw_day(FRIDAY, {"3800067": AswRate(0.1, 0.2), "009990067": AswRate(9.9, 9.9)}, "neon")
+        logs = self._build()
+        self.assertIn("古い行を削除 1日", logs[0])
+        saved = self._saved()
+        self.assertEqual(self.store.asw_quotes(), {FRIDAY: saved})
+        self.assertNotEqual(saved["009990067"], AswRate(9.9, 9.9))
+
+    def test_bonds_near_maturity_and_unknown_bonds(self):
+        """MMSの起算日(T+2)が償還日以降の銘柄は計算しない。銘柄情報の無い銘柄はログに出す。"""
+        self.store.save_jgb_bonds([JgbRecord("JN998", "JP09980042=", "WW", 0.1, date(2026, 9, 29))])
+        self.store.save_jgb_closes([JgbClose(FRIDAY, "JN998", 0.5), JgbClose(FRIDAY, "JZ001", 0.5)])
+        logs = self._build()
+        with self.store:
+            self.assertEqual(self.store.asw_quotes_for("009980042"), {})
+        self.assertTrue(any("JZ001" in line for line in logs))
+        self.assertFalse(any("JN998" in line for line in logs))
+
+
+class AswBondCodeTest(unittest.TestCase):
+    def test_bond_code_from_ric(self):
+        self.assertEqual(asw.bond_code("JP03800067="), "003800067")
+        self.assertEqual(asw.bond_code("JP01900069="), "001900069")
+        with self.assertRaises(ValueError):
+            asw.bond_code("JP0380006=")
+
+
+if __name__ == "__main__":
+    unittest.main()

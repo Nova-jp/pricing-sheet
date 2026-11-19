@@ -23,9 +23,11 @@ LSEG由来のデータを含むためコミットしない(*.db は .gitignore �
               銘柄)のハッシュ。同じなら計算し直さない
   - curves  : 日付ごとの構築済みカーブ。評価日から暦日1日刻みのDF(GRID_DAYS点)を
               float64の配列でそのまま持つ。構築方法名・入力のハッシュ・使用/不使用テナーも記録
-  - asw_quotes : JGBの個別銘柄(bond_code)ごとのASWスプレッド(Act/365、PA/SA)。
-              以前は朝バッチがNeonから取得していた(取得は廃止し、取得済みの値を残している)参照データ。
+  - asw_quotes : JGBの個別銘柄(bond_code。回号5桁+種別4桁、例 003800067)ごとのASWスプレッド(%、Act/365、PA/SA)。
+              朝バッチが curves と jgb_closes から計算する(engine/common/asw.py)。ASWシートが読む。
               カーブのブートストラップには使わない(vol_quotesと同じ位置づけ)
+  - asw_inputs : asw_quotes を計算した入力(計算方法・その日のカーブの入力ハッシュ・引け値・銘柄情報)のハッシュ。
+              同じなら計算し直さない
   - jgb_bonds : JGBの銘柄情報(銘柄コード JB380 等・RIC・ISIN・利率・償還日)。LSEG(Python API、
               engine/common/jgb_source.py)から朝バッチが取得し、現物オプション(engine.bond_option)が読む
   - jgb_closes : JGBの引け値の単利(日付×銘柄コード)。同じく朝バッチが取得する(配信元はみずほ、
@@ -133,6 +135,10 @@ CREATE TABLE IF NOT EXISTS asw_quotes (
     PRIMARY KEY (as_of_date, bond_code)
 );
 CREATE INDEX IF NOT EXISTS idx_asw_quotes_bond_code ON asw_quotes(bond_code);
+CREATE TABLE IF NOT EXISTS asw_inputs (
+    as_of_date TEXT PRIMARY KEY,
+    input_hash TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS jgb_bonds (
     code TEXT PRIMARY KEY,
     ric TEXT NOT NULL,
@@ -182,16 +188,6 @@ def batch_stamp(moment: datetime) -> str:
 class StoredCurve(NamedTuple):
     curve: ql.YieldTermStructureHandle
     index: "ql.OvernightIndex"
-
-
-class AswQuoteRow(NamedTuple):
-    """asw_quotes の1行(取引日・銘柄・ASW・書き込み元での更新時刻)。"""
-
-    trade_date: date
-    bond_code: str
-    asw_pa: float
-    asw_sa: float
-    updated_at: datetime
 
 
 class AswRate(NamedTuple):
@@ -422,18 +418,34 @@ class HistoricalStore:
                 ),
             )
 
-    def save_asw_quotes(self, rows: Iterable["AswQuoteRow"]) -> None:
-        """行をupsertする(同じ(日付,銘柄)は上書き)。"""
+    def save_asw_day(self, as_of_date: date, rates: Dict[str, "AswRate"], input_hash: str) -> None:
+        """その日の asw_quotes を丸ごと置き換え({bond_code: AswRate})、計算した入力のハッシュを記録する。"""
+        d = _iso(as_of_date)
+        stamp = datetime.now().isoformat(timespec="seconds")
         with self._connect() as conn:
+            conn.execute("DELETE FROM asw_quotes WHERE as_of_date = ?", (d,))
             conn.executemany(
-                "INSERT INTO asw_quotes (as_of_date, bond_code, asw_pa, asw_sa, updated_at) "
-                "VALUES (?, ?, ?, ?, ?) ON CONFLICT(as_of_date, bond_code) DO UPDATE SET "
-                "asw_pa=excluded.asw_pa, asw_sa=excluded.asw_sa, updated_at=excluded.updated_at",
-                [
-                    (_iso(r.trade_date), r.bond_code, r.asw_pa, r.asw_sa, r.updated_at.isoformat())
-                    for r in rows
-                ],
+                "INSERT INTO asw_quotes (as_of_date, bond_code, asw_pa, asw_sa, updated_at) VALUES (?, ?, ?, ?, ?)",
+                [(d, code, r.pa, r.sa, stamp) for code, r in rates.items()],
             )
+            conn.execute(
+                "INSERT INTO asw_inputs (as_of_date, input_hash) VALUES (?, ?) "
+                "ON CONFLICT(as_of_date) DO UPDATE SET input_hash=excluded.input_hash",
+                (d, input_hash),
+            )
+
+    def delete_asw_except(self, keep: Iterable[date]) -> int:
+        """keep 以外の日付(計算していない日。以前Neonから取得した値を含む)の asw_quotes・asw_inputs を消す。
+        消した日数を返す。"""
+        keep_iso = {_iso(d) for d in keep}
+        with self._connect() as conn:
+            stale = [d for (d,) in conn.execute(
+                "SELECT DISTINCT as_of_date FROM asw_quotes UNION SELECT as_of_date FROM asw_inputs")
+                if d not in keep_iso]
+            for d in stale:
+                conn.execute("DELETE FROM asw_quotes WHERE as_of_date = ?", (d,))
+                conn.execute("DELETE FROM asw_inputs WHERE as_of_date = ?", (d,))
+        return len(stale)
 
     def save_jgb_bonds(self, rows: Iterable) -> None:
         """銘柄情報をupsertする(償還済みで一覧から消えた銘柄も残す。過去日の計算に使うため)。"""
@@ -645,6 +657,11 @@ class HistoricalStore:
         with self._connect() as conn:
             (d,) = conn.execute("SELECT MAX(as_of_date) FROM swaption_premiums").fetchone()
         return date.fromisoformat(d) if d else None
+
+    def asw_input_hashes(self) -> Dict[date, str]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT as_of_date, input_hash FROM asw_inputs").fetchall()
+        return {date.fromisoformat(d): h for d, h in rows}
 
     def vol_input_hashes(self) -> Dict[date, str]:
         with self._connect() as conn:

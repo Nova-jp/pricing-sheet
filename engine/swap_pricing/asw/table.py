@@ -2,7 +2,7 @@
 ASWPricer表(見出し行+銘柄の行)を1回でまとめて計算する(UDF AswPricingTable の本体)。
 
 pricing表(pricing/table.py)と同じ作り: 列は見出し名で探し、銘柄(bond)が入っている行だけ計算し、行ごとのエラーは
-message列に閉じ込める。計算の定義は asw/pricer.py。
+message列に閉じ込める。計算の定義は engine/common/asw.py・asw/pricer.py。
 
 ■ 1行の流れ
   銘柄(JB380)→ DBの銘柄情報(利率・償還日)と評価日以前で直近の引け値(単利)
@@ -15,7 +15,7 @@ message列に閉じ込める。計算の定義は asw/pricer.py。
 
 from typing import List, Sequence
 
-from engine.common import bond, udf_common
+from engine.common import asw, bond, udf_common
 from engine.common.swap_pricer import swap_dates
 from engine.common.terms import PAY, SwapConvention, SwapTerms
 from engine.swap_pricing.asw import pricer
@@ -68,7 +68,7 @@ def price_row(row: Sequence, col, curves, store) -> list:
         if close is not None:
             put("close", close.simple_yield)
             put("close date", close.as_of_date)
-        spot = pricer.spot_bond(jgb, _simple_yield(get, close), curves.valuation_date)
+        spot = asw.spot_bond(jgb, _simple_yield(get, close), curves.valuation_date)
         for name, value in (
             ("simple yield", spot.simple_yield), ("settle", spot.settle), ("price", spot.price),
             ("compound yield", spot.compound_yield),
