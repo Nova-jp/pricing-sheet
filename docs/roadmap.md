@@ -147,3 +147,35 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
   (46日は債券とスワップがそろっているのに無い、3日はirs_dataが無い)。→ 直近の抜けを埋める処理を足し、抜けた49日を埋める。
   保存の丸め(今は小数4桁、計算し直した過去分は丸めない値)をどちらにそろえるかも決める。
 - **bond_dataの欠け55日**: 2002〜2005年の54日と2011-11-01。JSDAから取る(短時間に続けて取ると429で止まるので、30秒以上の間隔で)。
+
+## 24. 評価日(取引日)の扱いを全ブックでそろえる(2026-11-18〜、ユーザーと順に進めている)
+
+方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
+volatileは状態の表示`DataStatus`だけ)。済んだもの: #95 BondOption(Option!C3、D4に`DataStatus`)、#96 PositionSheet
+(Setup!B3を取引日、B4=`PosBaseDate(B3)`は取引日より前の直近、C4に`DataStatus`)。
+
+- **相談中: 全ブックに同じ形の`Control`シートを置く**(ユーザーの提案。ブックごとに入力の場所がばらばらで分かりにくいため)。
+  案: 先頭のシートに A3 `Trade date`(入力、黄色、Ctrl+;)・B4 `=ValuationDate(B3)`(名前`TradeDate`、全ブック同じ)・
+  B5 `DataStatus`(比べるDBの日付だけブックごと)・B6 `BaseDate`(DBの引けを使うブックだけ)。`ValuationDate`を
+  `engine/common/`の共通の部品に移す。分析の設定の日付(PCAの推定の最終日・FwdMonitorのBase等)は各シートに残し、
+  空欄は式で`TradeDate`に寄せる(UDFの中で空欄=今日を決めない)。PricingSheetの名前`評価日`は`TradeDate`に改名する
+  (定義名を改名すれば参照する式も書き換わる)。BondOption(#95)・PositionSheet(#96)もControlへ移す。
+  **ユーザーの返事待ち**: ①シート名`Control`・名前`TradeDate`/`BaseDate`でよいか ②マージ済みの#95・#96の置き場所をControlへ
+  移してよいか ③LiveScreen(自動計算)も同じ形にするか(毎朝のCtrl+;が増える)。
+- **PricingSheet**: 古いまま残りうるのは`AswCloseTable`だけ(他はライブのレートを受けてShift+F9で計算される)。
+  案(コードは書いたがコミットしていない): `AswCloseTable`の最後の列に`close date`(使った引け値の日付、BX)を足し、
+  `DataStatus(評価日, ASWPricerのclose dateの最大, "jgb")`をMainに置く(ASWPricer!BX7:BX56が空なら比べない
+  `LET(d,…,IF(COUNT(d)=0,"",MAX(d)))`)。ASWシートの`AswHistoricalRates`は`asw_quotes`の取得を廃止したので変えない。
+  **直下のPricingSheet.xlsmは#90(Broker)・#94(flag列の廃止)が当たっていない**(`tools.template --compare`で確認)。
+  先に当てる(`backups/restore_broker.py`→pricing!AQ3・Y3とASWPricer!AZ6・BQ6・BU6の`$A$`→`$B$`、BQ6のHSTACKの先頭の
+  `$A$6:$A$56`を消す→A列のflagと黄色の塗りを消す)。
+- **SwapAnalysis**: 空欄=今日やDBの中身に黙って依存するUDF(どれもPython側でDBの更新時刻をキーにキャッシュ済み):
+  `PcaWindow`・`PcaModel`・`PcaEigen`・`PcaResidStd`(推定の最終日が空欄=今日)・`PcaGrid`・`PcaGridResidStd`(中で今日)・
+  `FwdHistory`(Baseが空欄)・`VolHistory`・`FutHistory`・`FutOverlay`・`FutRepoSteps`・`FutBasis`(日付の引数が無い・DBだけ)。
+  ライブのレートを受ける`PcaActual`等・BOJは問題ない。日付の引数が無いUDFには引数を足す(式とImport Functionsが要る)。
+- **LiveScreen**: `Dates!A7 =SwapBusinessDays($B$1,…)`(B1が空欄=今日)。自動計算でも入力が変わらないセルは計算されないので、
+  前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。
+- **直下のブックへの反映が残っている**: BondOption(#95のImport Functions、Option!D4の式と条件付き書式。その前の#93の分も)、
+  PositionSheet(#82のCompany rowが未適用。その後に#96の式・見出し・条件付き書式、Import Functions)。どれも
+  `tools.template --compare`で`origin/main`の雛形と同じになったことを確かめる。直下のDBは引け値・カーブとも2026-10-27で
+  止まっている(朝バッチを流す)。
