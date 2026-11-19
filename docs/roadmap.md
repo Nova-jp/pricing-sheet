@@ -35,8 +35,6 @@ VolPCAの既定は満期×原資産の格子の全点(ユーザー指示「と�
 - 先物ASW: 先物まわり(データ取得・計算モジュール・SwapAnalysisのFutBasisシート)は済み。残りはASWPricerの先物ASWと
   リファレンス(償還に一番近いテナーのスポットレート)の列。
 - ASWのリアルタイムデータの確認(LSEG等での取得が必要かもしれないが、要件は未確認)。
-- **ASWのヒストリカルの更新**: Neonからの取得は廃止した(DBの`asw_quotes`は取得済みの値のまま)。手元で作ったSQLiteを
-  読み込む形にする(21)。
 
 ## 13. 現物オプション(BondOption)の後回しにした項目
 
@@ -125,8 +123,8 @@ VolPCAの既定は満期×原資産の格子の全点(ユーザー指示「と�
 
 - **スワップのMid・TONA実績もPython APIで取り、`settings.toml`の開始日に従わせる**。今は`historical_data.xlsx`
   (`RDP.HistoricalPricing`)の設定シートの取得営業日数・開始日のまま。移すときは実DBでブックの値と一致することを確かめる。
-- **ボンドに関わるもの(引け値・ASW)は手元で作ったSQLiteを優先して読む**。決まった場所にあれば日付×銘柄ごとにそれを使い、
-  無い分はLSEG(ASWは代わりが無いので更新されないだけ)。DBに配信元の列を足し、LSEGの毎朝の取り直しで上書きしない。
+- **ボンドの引け値は手元で作ったSQLiteを優先して読む**。決まった場所にあれば日付×銘柄ごとにそれを使い、
+  無い分はLSEG。DBに配信元の列を足し、LSEGの毎朝の取り直しで上書きしない(ASWは朝バッチがその引け値から計算する)。
   決めること: BBの値が単利か複利か・銘柄の識別(ISIN・回号)、SQLiteを作る道具をどちらのプロジェクトに置くか。
 
 ## 22. LiveScreenのヒストリカル(開発が済んでから、ユーザー指示 2026-11-15)
@@ -164,6 +162,8 @@ volatileは状態の表示`DataStatus`だけ)。済んだもの: #95 BondOption(
 - **PricingSheet**: 名前`評価日`を`TradeDate`(Control!B4)に改名する(定義名を改名すれば参照する式も書き換わる)。
   Main!A4:C4は消し、HistChart!B4は`=TradeDate`。`AswCloseTable`(ライブのレートを受けないので朝バッチの後も古いまま残る)も
   DbStampで見分けられるので、列は足さない。
+  ASWシートの`AswHistoricalRates`も、朝バッチが`asw_quotes`を毎日足すようになった(2026-11-19)ので`TradeDate`を引数に受け取る
+  (今は朝バッチの後にCtrl+Alt+F9)。
   **直下のPricingSheet.xlsmは#90(Broker)・#94(flag列の廃止)が当たっていない**(`tools.template --compare`で確認)。
   先に当てる(`backups/restore_broker.py`→pricing!AQ3・Y3とASWPricer!AZ6・BQ6・BU6の`$A$`→`$B$`、BQ6のHSTACKの先頭の
   `$A$6:$A$56`を消す→A列のflagと黄色の塗りを消す)。

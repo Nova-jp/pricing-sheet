@@ -30,8 +30,7 @@
        カーブは意味を持たないため
      - 入力(構築方法・使うレート)のハッシュが前回と同じ日は作り直さない。
        テナー選択や構築方法を変えれば、該当する日が自動で作り直される
-  ③ (欠番)ASWスプレッドは取得しない。Neonからの取得は廃止した(会社のPCのプロキシが通さない)。
-     DBの asw_quotes の取得済みの値はそのまま残る。
+  ③ (欠番。以前のNeonからのASWの取得。ASWは⑨で計算する)
   ④ LSEG(Python API、engine/common/jgb_source.py)からJGBの銘柄情報と引け値(みずほ、無い日は大和・JCLで補う)を
      取得し、jgb_bonds / jgb_closes に保存する(現物オプション BondOption.xlsm・国債先物のベーシス用)。引け値は直近の
      CLOSE_LOOKBACK_DAYS 日分を取り直す(配信元の訂正を拾う。DBの最終日がそれより古ければその日から)。
@@ -52,6 +51,10 @@
      Fwd・年金と、同じ契約の前の日付のカーブでのFwdを計算し、swaption_forwards に保存する(分析ブックの
      VolHV・VolLevelが読む)。入力(その日と前の日付のカーブの入力ハッシュ・銘柄・計算方法)が前回と同じ日は
      計算し直さない。カーブの無くなった日の行は消す。
+  ⑨ ②のカーブと④の引け値から、JGBの全銘柄のASW(現物の複利 − MMS、PA/SA。engine/common/asw.py)を計算し、
+     asw_quotes に保存する(ASWシートが読む)。カーブと引け値のそろう日だけで、入力(その日のカーブの入力ハッシュ・
+     引け値・銘柄情報・計算方法)が前回と同じ日は計算し直さない。計算していない日の行は消す(以前Neonから取得した
+     値も残さない)。
 
 カーブの引き方は curve.CURVE_BUILDERS から名前で選ぶだけで、このバッチは引き方に依存しない。
 """
@@ -68,7 +71,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import openpyxl
 import QuantLib as ql
 
-from engine.common import futures_source, jgb_futures, jgb_source, swaption_source
+from engine.common import asw, futures_source, jgb_futures, jgb_source, swaption_source
 from engine.common.conventions import CALENDAR
 from engine.common.curve import get_curve_builder
 from engine.common.historical_store import GRID_DAYS, HistoricalStore, discount_grid
@@ -492,6 +495,7 @@ def _run(
         log(f"  {d}: 失敗 {msg}")
     build_vols(store, rebuild, log)
     swaption_forward.build(store, swaption_source.labels(), rebuild, log)
+    asw.build(store, rebuild, log)
     return summary
 
 

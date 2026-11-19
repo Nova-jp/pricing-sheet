@@ -8,7 +8,7 @@ ASWシート用UDF(AswHistoricalRate / AswHistoricalRates)のリグレッショ�
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from engine.common import udf_common  # noqa: E402
-from engine.common.historical_store import AswQuoteRow, HistoricalStore  # noqa: E402
+from engine.common.historical_store import AswRate, HistoricalStore  # noqa: E402
 from engine.swap_pricing.asw import udf as asw_udf  # noqa: E402
 
 D0 = date(2026, 10, 7)
@@ -26,17 +26,10 @@ D2 = date(2026, 10, 9)
 
 def _store_with_sample(tmp):
     store = HistoricalStore(Path(tmp) / "historical.db")
-    store.save_asw_quotes([
-        AswQuoteRow(D0, "AAA", 0.10, 0.20, datetime(2026, 10, 9)),
-        AswQuoteRow(D1, "AAA", 0.15, 0.25, datetime(2026, 10, 9)),
-        AswQuoteRow(D2, "AAA", 0.20, 0.30, datetime(2026, 10, 9)),
-        AswQuoteRow(D0, "BBB", 0.40, 0.50, datetime(2026, 10, 9)),
-        AswQuoteRow(D1, "BBB", 0.42, 0.52, datetime(2026, 10, 9)),
-        # D2のBBBは欠損(別銘柄の発行日違い等を想定)
-        AswQuoteRow(D0, "CCC", 0.70, 0.80, datetime(2026, 10, 9)),
-        AswQuoteRow(D1, "CCC", 0.72, 0.82, datetime(2026, 10, 9)),
-        AswQuoteRow(D2, "CCC", 0.74, 0.84, datetime(2026, 10, 9)),
-    ])
+    store.save_asw_day(D0, {"AAA": AswRate(0.10, 0.20), "BBB": AswRate(0.40, 0.50), "CCC": AswRate(0.70, 0.80)}, "h")
+    store.save_asw_day(D1, {"AAA": AswRate(0.15, 0.25), "BBB": AswRate(0.42, 0.52), "CCC": AswRate(0.72, 0.82)}, "h")
+    # D2のBBBは欠損(別銘柄の発行日違い等を想定)
+    store.save_asw_day(D2, {"AAA": AswRate(0.20, 0.30), "CCC": AswRate(0.74, 0.84)}, "h")
     return store
 
 

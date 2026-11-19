@@ -6,7 +6,7 @@ AswCloseTable。引け時点の複利とMMS。ライブのレートに依存さ�
 
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
-値は DBの`asw_quotes`(engine/common/historical_store.py。以前に朝バッチがNeonから取得したもの。取得は廃止)を
+値は DBの`asw_quotes`(朝バッチがその日のカーブと引け値から計算したもの。engine/common/asw.py)を
 読むだけ(カーブは組まない)。
 
 Excel境界の型変換は`engine.common.udf_common`を`udf_common.xxx(...)`の形で呼ぶ
@@ -44,7 +44,7 @@ def AswHistoricalRate(bond_code, convention, from_date=None, to_date=None) -> Li
     """
     指定銘柄(bond_code)のASWスプレッド推移(Date/Rateの2列スピル配列、1行目は見出し)。
 
-    convention: "PA"/"SA"(ASW_data.asw_act365_pa / asw_act365_sa)。
+    convention: "PA"/"SA"(MMSの固定側の頻度。Act/365)。
     from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
     """
     conv = _convention(convention)
