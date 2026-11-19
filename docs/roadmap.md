@@ -149,7 +149,7 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 ## 24. 評価日(取引日)の扱いを全ブックでそろえる(2026-11-18〜、ユーザーと順に進めている)
 
 方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
-volatileは状態の表示`DataStatus`だけ)。済んだもの: #95 BondOption(Option!C3、D4に`DataStatus`)、#96 PositionSheet
+volatileは状態の表示`DataStatus`だけ)。済んだもの: PricingSheetのControlシート、#95 BondOption(Option!C3、D4に`DataStatus`)、#96 PositionSheet
 (Setup!B3を取引日、B4=`PosBaseDate(B3)`は取引日より前の直近、C4に`DataStatus`)。
 
 - **全ブックの先頭に同じ形の`Control`シートを置く**(決定、[decisions.md](decisions.md)の「評価日」)。共通のUDF
@@ -159,14 +159,6 @@ volatileは状態の表示`DataStatus`だけ)。済んだもの: #95 BondOption(
   FwdMonitorのBase等)は各シートに残し、空欄は式で`TradeDate`に寄せる(UDFの中で空欄=今日を決めない)。
   BondOption(#95)・PositionSheet(#96)もControlへ移し、全ブックが移ったら旧形式の`DataStatus(…, "curve"/"jgb")`を消す。
   LiveScreen(自動計算)も同じ形にするかは、LiveScreenの番で相談する。
-- **PricingSheet**: 名前`評価日`を`TradeDate`(Control!B4)に改名する(定義名を改名すれば参照する式も書き換わる)。
-  Main!A4:C4は消し、HistChart!B4は`=TradeDate`。`AswCloseTable`(ライブのレートを受けないので朝バッチの後も古いまま残る)も
-  DbStampで見分けられるので、列は足さない。
-  ASWシートの`AswHistoricalRates`も、朝バッチが`asw_quotes`を毎日足すようになった(2026-11-19)ので`TradeDate`を引数に受け取る
-  (今は朝バッチの後にCtrl+Alt+F9)。
-  **直下のPricingSheet.xlsmは#90(Broker)・#94(flag列の廃止)が当たっていない**(`tools.template --compare`で確認)。
-  先に当てる(`backups/restore_broker.py`→pricing!AQ3・Y3とASWPricer!AZ6・BQ6・BU6の`$A$`→`$B$`、BQ6のHSTACKの先頭の
-  `$A$6:$A$56`を消す→A列のflagと黄色の塗りを消す)。
 - **SwapAnalysis**: 空欄=今日やDBの中身に黙って依存するUDF(どれもPython側でDBの更新時刻をキーにキャッシュ済み):
   `PcaWindow`・`PcaModel`・`PcaEigen`・`PcaResidStd`(推定の最終日が空欄=今日)・`PcaGrid`・`PcaGridResidStd`(中で今日)・
   `FwdHistory`(Baseが空欄)・`VolHistory`・`FutHistory`・`FutOverlay`・`FutRepoSteps`・`FutBasis`(日付の引数が無い・DBだけ)。
