@@ -43,9 +43,11 @@ DEFAULT_BASE = "origin/main"
 # (LSEGアドインが値として書き込む受信領域・会社のデータを貼る・入れる場所)
 Area = Union[int, str]
 RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
-    "PricingSheet.xlsm": {},
+    # Control!B3 は評価日(取引日)の入力。日付を入れたまま雛形を作るとその日付が残るので消す(全ブック共通の
+    # Controlシート。docs/decisions.md の「評価日」)
+    "PricingSheet.xlsm": {"Control": "B3"},
     "SwapAnalysis.xlsm": {},
-    "BondOption.xlsm": {},
+    "BondOption.xlsm": {"Control": "B3"},
     # 会社のリスク・約定・保有銘柄のシートをそのまま貼る生シート(全行)、基準日の上書き(SetupのB3。B4はDBの直近の
     # 引けを返す数式なので残る)、日中の取引の入力(PositionシートのB42:J91)。値は消し、数式だけ残す。Setupの列名・
     # dataset名・テナーの対応(黄色のセル)は社内データではないので残す(毎回入れ直さずに済むように。ユーザー指示 2026-11-03)
