@@ -1,4 +1,5 @@
 # シートの並び
+sheet Control
 sheet Position
 sheet Setup
 sheet BondOpt
@@ -9,11 +10,30 @@ sheet Raw_Swaption
 sheet Raw_BondOption
 sheet Raw_JGB
 # 定義名
+name BaseDate = Control!$B$7
+name TradeDate = Control!$B$4
+# Control
+Control!A1 : "Control"
+Control!A3 : "Trade date"
+Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes."
+Control!A4 : "TradeDate"
+Control!B4 = ValuationDate(B3)
+Control!C4 : "Trade date used (name TradeDate). Today's trades and the live curve use this date."
+Control!A5 : "DB stamp"
+Control!B5 = DbStamp(B3)
+Control!C5 : "Morning batch run that the DB had when the trade date was entered."
+Control!A6 : "Status"
+Control!B6 = DataStatus(B3,B5)
+Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
+Control!A7 : "BaseDate"
+Control!B7 = PosBaseDate(B3)
+Control!C7 : "Base date (name BaseDate) = the latest close in the DB before the trade date. The company files and the closes are as of this date."
+Control!B6 format cellIs notEqual: "OK"
 # Position
 Position!B1 = "Now ("&IF(B2="Fixed","fixed","live")&")"
 Position!E1 : "Bond move: compound yield change since close (input, blank = no move). Bonds and bond options."
 Position!H1 : "Close + bond options + gamma x move + today's Done trades. Delta: mn/bp, Gamma: mn/bp2"
-Position!R1 = "Close ("&IF(Setup!$B$4="","base date?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&")"
+Position!R1 = "Close ("&IF(BaseDate="","base date?",TEXT(BaseDate,"yyyy-mm-dd"))&")"
 Position!W1 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet). Delta: mn/bp, Gamma: mn/bp2"
 Position!AB1 : "PL (approx, since base-date close, mn JPY)"
 Position!AO1 : "Bond option theta (mn/day)"
@@ -59,7 +79,7 @@ Position!AD3 : "Delta"
 Position!AE3 : "Gamma"
 Position!AF3 : "Theta"
 Position!AG3 : "Total"
-Position!AJ3 = PosIntradayGrid($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,Setup!$B$3,"Done")
+Position!AJ3 = PosIntradayGrid($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,TradeDate,"Done")
 Position!AO3 : "Expiry"
 Position!AP3 : "6M"
 Position!AQ3 : "1Y"
@@ -86,7 +106,7 @@ Position!CC3 : "Cal. factor (close)"
 Position!CE3 : "Company vega (Raw_IRVOL, JPY, expiry x tail)"
 Position!B4:B37 = Setup!A27
 Position!C4:C37 = XLOOKUP(B4,INDEX(ANCHORARRAY($BD$4),,1),INDEX(ANCHORARRAY($BD$4),,2),"")
-Position!D4 = PosCloseRates(B4:B37,Setup!$B$4)
+Position!D4 = PosCloseRates(B4:B37,BaseDate)
 Position!F4:F37 = IF(E4<>"",E4,IF(OR(C4="",D4=""),"",(C4-D4)*100))
 Position!H4:H37 = N(S4)+N(W4)*N(F4)+AJ4
 Position!I4:I37 = N(T4)+N(BondOpt!$BB4)+(N(X4)+N(BondOpt!$BC4))*N(G4)+AK4
@@ -129,9 +149,9 @@ Position!BD4 = IF($B$2="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
 Position!BI4:BI37 = Setup!B27
 Position!BJ4:BK37 = B4
 Position!BM4 = IF($B$2="Fixed",LiveSnapshot("vol"),LiveQuotes("vol"))
-Position!BQ4 = PosCloseVols($AO$4:$AO$20,$AQ$3:$AZ$3,Setup!$B$4)
-Position!CB4 = PosVolCalendarFactor($AO$4:$AO$20,Setup!$B$3)
-Position!CC4 = PosVolCalendarFactor($AO$4:$AO$20,Setup!$B$4)
+Position!BQ4 = PosCloseVols($AO$4:$AO$20,$AQ$3:$AZ$3,BaseDate)
+Position!CB4 = PosVolCalendarFactor($AO$4:$AO$20,TradeDate)
+Position!CC4 = PosVolCalendarFactor($AO$4:$AO$20,BaseDate)
 Position!CE4 = PosVegaGrid(INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$19),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$20),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$21),INDEX(Raw_IRVOL!$A$1:$CZ$3000,0,Setup!$C$22),Setup!$B$18,$AO$4:$AO$20,$AP$3:$AZ$3)
 Position!AO5 : "2W"
 Position!AP5 = LET(v,INDEX(ANCHORARRAY($CE$4),2,1),IF(v="","",v/10^6))
@@ -502,7 +522,7 @@ Position!G41 : "Notional (mn)"
 Position!H41 : "Side"
 Position!I41 : "Rate (%)"
 Position!J41 : "Note"
-Position!K41 = PosIntradayRisk($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,Setup!$B$3)
+Position!K41 = PosIntradayRisk($B$42:$I$91,$B$4:$B$37,$BI$4:$BK$37,TradeDate)
 Position!R41 : "PL (mn)"
 Position!AB41 : "Swap delta"
 Position!AC41 = AB38
@@ -531,7 +551,7 @@ Position!AC48 = SUMIFS($R$42:$R$91,$B$42:$B$91,"Done",$C$42:$C$91,"Bond")
 Position!AB49 : "Total"
 Position!AC49 = SUM(AC41:AC48)
 Position!AB52 : "Business days since base date"
-Position!AC52 = PosBusinessDays(Setup!$B$4,Setup!$B$3)
+Position!AC52 = PosBusinessDays(BaseDate,TradeDate)
 Position!AO62 : "Bucketed vega (mn JPY / bp vol, total at the bottom-right of each bucket)"
 Position!AY62 : "Total"
 Position!AZ62 = SUM(AQ64:AZ80)
@@ -935,11 +955,6 @@ Position!Z4:Z37 format dataBar
 # Setup
 Setup!A1 : "Setup"
 Setup!A2 : "Paste the company sheets as they are into Raw_IR / Raw_IRVOL (cell A1). If the company renames or reorders columns, only change the yellow cells."
-Setup!A3 : "Trade date"
-Setup!C3 : "Enter today (Ctrl+;). Base date = the latest close in the DB before the trade date."
-Setup!A4 : "Base date"
-Setup!B4 = PosBaseDate(B3)
-Setup!C4 = DataStatus(B3,B4,"curve")
 Setup!A6 : "IR (Raw_IR)"
 Setup!H6 : "Bond options (Raw_BondOption)"
 Setup!L6 : "JGB holdings (Raw_JGB)"
@@ -1136,15 +1151,14 @@ Setup!A59 : "35Y"
 Setup!C59 : 25
 Setup!A60 : "40Y"
 Setup!C60 : 26
-Setup!C4 format cellIs notEqual: "OK"
 # BondOpt
 BondOpt!A1 : "Bond options (Raw_BondOption, valued at the close of the base date)"
-BondOpt!A2 = "Base date: "&IF(ISERROR(Setup!$B$4),"?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   HV window: "&Setup!$I$8
+BondOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   HV window: "&Setup!$I$8
 BondOpt!BA2 : "Pillar risk (rows 4-37 = Position pillars, mn/bp, mn/bp2, theta mn/business day)"
 BondOpt!Z3 : "Total"
 BondOpt!AA3:AE3 = SUM(AA6:AA205)
 BondOpt!BA3 : "Pillar"
-BondOpt!BB3 = PosBondRiskGrid($B$6:$B$205,$AB$6:$AB$205,$AC$6:$AC$205,Position!$B$4:$B$37,Position!$BI$4:$BK$37,Setup!$B$4,$AE$6:$AE$205)
+BondOpt!BB3 = PosBondRiskGrid($B$6:$B$205,$AB$6:$AB$205,$AC$6:$AC$205,Position!$B$4:$B$37,Position!$BI$4:$BK$37,BaseDate,$AE$6:$AE$205)
 BondOpt!A4 : "Trade"
 BondOpt!J4 : "Market (close)"
 BondOpt!V4 : "Per 100 face"
@@ -1223,16 +1237,16 @@ BondOpt!AC6:AC205 = IF(X6="","",I6*X6*H6)
 BondOpt!AD6:AD205 = IF(OR(Y6="",R6=""),"",I6*Y6*P6/100*R6*H6/100)
 BondOpt!AE6:AE205 = IF(Z6="","",I6*Z6/100*H6)
 BondOpt!AF6:AF205 = AS6&IF(AND(AS6<>"",AZ6<>"")," / ","")&AZ6
-BondOpt!AH6 = PosBondOptMarket($B$6:$B$205,$E$6:$E$205,$F$6:$F$205,Setup!$B$4,Setup!$I$7,Setup!$I$8)
+BondOpt!AH6 = PosBondOptMarket($B$6:$B$205,$E$6:$E$205,$F$6:$F$205,BaseDate,Setup!$I$7,Setup!$I$8)
 BondOpt!AU6 = PosBondOptGreeks($C$6:$C$205,$O$6:$O$205,$G$6:$G$205,$T$6:$T$205,$U$6:$U$205)
 # JGB
 JGB!A1 : "JGB holdings (Raw_JGB, duration and convexity at the close of the base date)"
-JGB!A2 = "Base date: "&IF(ISERROR(Setup!$B$4),"?",TEXT(Setup!$B$4,"yyyy-mm-dd"))&"   Nominal: Raw_JGB "&Setup!$M$13&" (mn)   Yield: "&Setup!$M$14&" (blank = DB close)"
+JGB!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Nominal: Raw_JGB "&Setup!$M$13&" (mn)   Yield: "&Setup!$M$14&" (blank = DB close)"
 JGB!R2 : "Pillar risk (rows 4-37 = Position pillars, mn/bp, mn/bp2). Ours goes to Position Close Bond; company = Raw_IR bond"
 JGB!M3 : "Total"
 JGB!N3:O3 = SUM(N6:N505)
 JGB!R3 : "Pillar"
-JGB!S3 = PosJgbGrid($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,Setup!$B$4)
+JGB!S3 = PosJgbGrid($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,BaseDate)
 JGB!U3 : "Company delta"
 JGB!V3 : "Company gamma"
 JGB!W3 : "Diff delta"
@@ -1247,7 +1261,7 @@ JGB!A5 : "ID"
 JGB!B5 : "Maturity"
 JGB!C5 : "Nominal (mn)"
 JGB!D5 : "Yield (%)"
-JGB!F5 = PosJgbRisk($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,Setup!$B$4)
+JGB!F5 = PosJgbRisk($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,BaseDate)
 JGB!A6:A505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$11),IF(v="","",v))
 JGB!B6:B505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$12),IF(v="","",v))
 JGB!C6:C505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$13),IF(v="","",v))

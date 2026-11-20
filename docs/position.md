@@ -15,14 +15,15 @@ UDFを消した)。
   名前付きの数式(LAMBDA)は使わない。値を手で上書きしても他のセルが壊れないように、Nowの列はスピルにしない。
 - **会社のデータは生シートに丸ごと貼る**: 会社のファイル(デルタ・ガンマのシートと、ベガのシート)を
   `Raw_IR`・`Raw_IRVOL`のA1にそのまま貼る。現物オプションの全約定は`Raw_BondOption`、現物の保有銘柄は`Raw_JGB`(下の「現物」。ブックへの組み込みは[roadmap.md](roadmap.md)の20)、
-  `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと取引日(SetupのB3)は雛形では消す
+  `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと取引日(Control!B3)は雛形では消す
   (`tools/template.py`の`RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
-- **取引日(SetupのB3)に日付を入れ(毎朝Ctrl+;)、基準日(B4)はその前の直近の引け**(`PosBaseDate(B3)`。取引日より前で
-  DBにカーブがある直近の日 = 取引日が今日なら朝バッチが置いた昨日の引け。2026-11-18、ユーザー了承)。今日やDBで結果が
-  変わるUDFは、すべてB3かB4を引数で受け取る(今日の取引の`PosIntradayRisk`・`PosIntradayGrid`・ライブのvolの掛け目
-  `PosVolCalendarFactor`・セータの日数`PosBusinessDays`もB3)。C4の`DataStatus(B3,B4,"curve")`が、B3が空欄・今日でない・未来、
-  またはB4より新しいカーブがDBにある(B3を入れた後に朝バッチを流した)ときに赤く出す。過去の基準日で見たいときは、
-  B3にその翌営業日を入れる。理由は[decisions.md](decisions.md)の「評価日」。
+- **先頭のControlシート(全ブック共通の形)のB3に取引日を入れ(毎朝Ctrl+;)、基準日はその前の直近の引け**。B4
+  `=ValuationDate(B3)`が名前`TradeDate`、B7 `=PosBaseDate(B3)`が名前`BaseDate`(取引日より前でDBにカーブがある直近の日 =
+  取引日が今日なら朝バッチが置いた昨日の引け。2026-11-18、ユーザー了承)。今日やDBで結果が変わるUDFは、すべて
+  `TradeDate`か`BaseDate`を引数で受け取る(今日の取引の`PosIntradayRisk`・`PosIntradayGrid`・ライブのvolの掛け目
+  `PosVolCalendarFactor`・セータの日数`PosBusinessDays`は`TradeDate`)。B6の`DataStatus(B3,B5)`が、B3が空欄・今日でない・
+  未来、今日の朝バッチの実行が無い・失敗、B3を入れた後に朝バッチを流した(B5の`DbStamp`がDBの最後の実行と違う)ときに
+  赤く出す。過去の基準日で見たいときは、B3にその翌営業日を入れる。理由は[decisions.md](decisions.md)の「評価日」。
 - **会社のファイルの形が変わっても直すのはSetupだけ**: 列は見出しの名前で探す(Setupの列名 → 列番号)。
 - **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。
 - **グリッドのピラーはマーケットの基準(ライブのカーブの34本)**。会社のファイルに無いテナー(4M・5M・15M等)の
@@ -45,7 +46,8 @@ UDFを消した)。
 | シート | 中身 |
 |---|---|
 | Position | 管理の1枚。上段の左(B:P)にNow、R:ZにClose(スワップは会社の値、現物はRaw_JGBから計算)、AB:AHにPL、AJ:AMに今日のDoneの取引、AO:AZにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、BD:BK・BM:BZ・CB:CNにライブのレート・ボラと引けのボラ・計算用の表(折りたたみ)。下段(41行目〜)に今日の取引の入力、AB40:AC52にPLのまとめ |
-| Setup | 基準日(B3の上書き・B4の使う値)、現物オプションのレポ・HVの窓・`Raw_BondOption`の列名、`Raw_JGB`の列名(L10:N14)、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号)、ベガのバケットの表(G26:K43) |
+| Control | 取引日(B3)・`TradeDate`(B4)・`DbStamp`(B5)・`DataStatus`(B6)・`BaseDate`(B7) |
+| Setup | 現物オプションのレポ・HVの窓・`Raw_BondOption`の列名、`Raw_JGB`の列名(L10:N14)、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号)、ベガのバケットの表(G26:K43) |
 | BondOpt | 現物オプションの約定ごとのグリークスと、ピラーへの分解(下の「現物オプション」) |
 | JGB | 現物の保有銘柄(Raw_JGB)の銘柄ごとのデルタ・ガンマと、ピラーごとの合計・会社のbondとの差(下の「現物」) |
 | Raw_IR / Raw_IRVOL / Raw_Swaption / Raw_BondOption / Raw_JGB | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
@@ -205,7 +207,7 @@ Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの
 | `PosVegaGrid` | 会社のベガ(Raw_IRVOLの列)を格子に振り分けた合計(円) |
 | `PosBusinessDays` | 基準日から取引日までの営業日数(セータのPL) |
 | `PosBaseDate` | 基準日(取引日より前でDBにカーブがある直近の日付) |
-| `DataStatus` | 取引日・DBの状態(SetupのC4。`OK`以外は赤。全ブック共通、volatile) |
+| `ValuationDate` / `DbStamp` / `DataStatus` | Controlシートの取引日・DBの朝バッチの実行時刻・状態(全ブック共通。`DataStatus`は`OK`以外は赤、volatile) |
 | `PosBondOptMarket` / `PosBondOptGreeks` | 現物オプションの行ごとの市場の値・グリークス(上の「現物オプション」) |
 | `PosBondRiskGrid` | 現物オプションのピラーごとのデルタ・ガンマ・セータ |
 | `PosJgbRisk` / `PosJgbGrid` | Raw_JGBの行ごとの [Code, Coupon, Maturity, Yield, Compound, MD, Convexity, Pillar, Delta, Gamma, Message] / ピラーごとの [Delta, Gamma] |

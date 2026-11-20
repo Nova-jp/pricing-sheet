@@ -74,9 +74,9 @@ def _db_key() -> Optional[int]:
 
 @xw.func
 def PosBaseDate(trade_date=None):
-    """会社のリスクの基準日(引け値を読む日付)。取引日(SetupのB3、毎朝Ctrl+;)より前で、DBにカーブがある直近の日付
-    (取引日が今日なら、朝バッチが置いた昨日の引け)。取引日の空欄は今日として扱うが、非volatileなので日をまたいでも
-    計算し直されない(SetupのC4のDataStatusが赤で知らせる。docs/decisions.md の「評価日」)。"""
+    """会社のリスクの基準日(引け値を読む日付。Control!B7、名前BaseDate)。取引日(Control!B3、毎朝Ctrl+;)より前で、
+    DBにカーブがある直近の日付(取引日が今日なら、朝バッチが置いた昨日の引け)。取引日の空欄は今日として扱うが、
+    非volatileなので日をまたいでも計算し直されない(Control!B6のDataStatusが赤で知らせる。docs/decisions.md の「評価日」)。"""
     trade = udf_common._resolve_valuation_date(trade_date)
     with udf_common._historical_store() as store:
         dates = [x for x in store.dates() if x < trade]
@@ -401,7 +401,7 @@ _bond_cache: dict = {}
 def _base_date(value):
     d = _to_date(value)
     if d is None:
-        raise ValueError("基準日を入れてください(SetupのBase date)")
+        raise ValueError("基準日を入れてください(ControlのBaseDate)")
     return d
 
 
