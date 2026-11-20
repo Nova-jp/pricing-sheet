@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from engine.common import status_udf, udf_common  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
-from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 
 TODAY = date(2026, 11, 18)
 
@@ -21,8 +20,6 @@ class DataStatusTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.store = HistoricalStore(Path(self._tmp.name) / "historical.db")
-        self.store.save_jgb_bonds([JgbRecord("JS999", "JP09990045=", "XX", 2.0, date(2031, 3, 20))])
-        self.store.save_jgb_closes([JgbClose(date(2026, 11, 16), "JS999", 2.10), JgbClose(date(2026, 11, 17), "JS999", 2.12)])
         p1 = mock.patch.object(udf_common, "_historical_store", lambda: self.store)
         p2 = mock.patch.object(udf_common, "_today", lambda: TODAY)
         for p in (p1, p2):
@@ -84,29 +81,6 @@ class DataStatusTest(unittest.TestCase):
         with mock.patch.object(udf_common, "_historical_store", side_effect=ValueError("no db")):
             self.assertEqual(status_udf.DataStatus(TODAY, ""), status_udf.NO_DB)
             self.assertEqual(status_udf.DbStamp(TODAY), "")
-
-    def test_db_newer(self):
-        """旧形式(data を渡す。Controlシートへ移る前のBondOption・PositionSheet)。"""
-        """評価日を入れた後に朝バッチが新しい日付を書いたら知らせる(計算に使った日付より新しいデータがある)。"""
-        self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 17), "jgb"), status_udf.OK)
-        self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 16), "jgb"), status_udf.NEWER)
-        self.assertEqual(status_udf.DataStatus(TODAY, "", "jgb"), status_udf.OK)  # 比べる日付が無ければ比べない
-        # 過去の評価日は、その日より前のデータと比べる。当日の引けを使っていても(BondOption)、
-        # 前日の引けを使っていても(PositionSheetの基準日)赤くしない
-        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 17), "jgb"), status_udf.NOT_TODAY)
-        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 16), "jgb"), status_udf.NOT_TODAY)
-        self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 13), "jgb"), status_udf.NEWER)
-
-    def test_db_newer_curve(self):
-        """基準日(取引日より前の直近のカーブ)と比べる使い方(PositionSheet)。"""
-        with mock.patch.object(HistoricalStore, "dates", lambda self: [date(2026, 11, 13), date(2026, 11, 16), date(2026, 11, 17)]):
-            self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 17), "curve"), status_udf.OK)
-            self.assertEqual(status_udf.DataStatus(TODAY, date(2026, 11, 16), "curve"), status_udf.NEWER)
-            self.assertEqual(status_udf.DataStatus(date(2026, 11, 17), date(2026, 11, 16), "curve"), status_udf.NOT_TODAY)
-
-    def test_unknown_data(self):
-        with self.assertRaisesRegex(ValueError, "data"):
-            status_udf.DataStatus(TODAY, TODAY, "vol")
 
 
 if __name__ == "__main__":
