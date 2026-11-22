@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import numpy as np  # noqa: E402
 import QuantLib as ql  # noqa: E402
 
+from engine.common import udf_common  # noqa: E402
 from engine.pca import udf  # noqa: E402
 from engine.common.history import SWAP, VOL, load_history, parse_dataset  # noqa: E402
 from engine.common.pca import (  # noqa: E402
@@ -262,23 +263,23 @@ class PcaGridTest(unittest.TestCase):
     def _grid(self, settings, today=DAYS[-1]):
         history = _history()
         udf._estimate_cached.cache_clear()
-        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1),                 mock.patch.object(udf, "_today", return_value=today):
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf_common, "_db_key", return_value=1),                 mock.patch.object(udf_common, "_today", return_value=today):
             return history, udf.PcaGrid(LABELS, settings)
 
     def test_cases(self):
-        # 列=ケース: [推定の最終日, window, モード, 標準化]。3列目はwindowが空欄なので使わない
+        # 列=ケース: [推定の最終日, window, モード, 標準化]。3・4列目はwindowが空欄なので使わない
         settings = [
-            ["", DAYS[-6], "", ""],
-            [10, 8, "", 100],
+            [DAYS[-1], DAYS[-6], "", ""],
+            [10, 8, "", ""],
             ["Level", "Change", "Level", "Level"],
             ["No", "Yes", "No", "No"],
         ]
         history, rows = self._grid(settings)
         self.assertEqual(rows[0], udf.GRID_HEADER + [f"PC{j + 1}" for j in range(len(LABELS))])
         cases = [r[0] for r in rows[1:]]
-        self.assertEqual(cases, [1] * 5 + [2] * 5 + [4])
+        self.assertEqual(cases, [1] * 5 + [2] * 5)
 
-        # ケース1: 推定の最終日が空欄=今日(PcaModelと同じ推定)
+        # ケース1: PcaModelと同じ推定
         model = _est(history, LEVEL, 10, DAYS[-1])
         case1 = rows[1:6]
         self.assertEqual(case1[0][1:6], [model.start, model.end, 10, model.excluded_days, ""])
@@ -294,16 +295,20 @@ class PcaGridTest(unittest.TestCase):
         np.testing.assert_allclose([r[8] for r in case2], model.scale)
         np.testing.assert_allclose([r[10:] for r in case2], model.vectors)
 
-        # ケース4: 推定できない(サンプル不足)→ 1行だけで警告に理由、他のケースは計算される
-        self.assertEqual(len(rows[-1]), len(rows[0]))
-        self.assertIn("window", rows[-1][5])
-        self.assertEqual(rows[-1][6:], [""] * (len(LABELS) + 4))
+    def test_case_error_is_raised(self):
+        # 推定できないケース(サンプル不足)・推定の最終日の空欄は、ケース番号を付けたエラー(行に埋めて隠さない)
+        base = [[DAYS[-1], DAYS[-1]], [10, 100], ["Level", "Level"], ["No", "No"]]
+        with self.assertRaisesRegex(ValueError, "^Case 2: .*window"):
+            self._grid(base)
+        blank = [[DAYS[-1], ""], [10, 10], ["Level", "Level"], ["No", "No"]]
+        with self.assertRaisesRegex(ValueError, "^Case 2: .*空欄"):
+            self._grid(blank)
 
     def test_pca_model_has_same_columns(self):
         # PcaModelの列は PcaGridの「銘柄」以降と同じ [Label, Mean, Scale, Std, PC1, …]
         history = _history()
         udf._estimate_cached.cache_clear()
-        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1):
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf_common, "_db_key", return_value=1):
             table = udf.PcaModel(LABELS, "Level", "No", 10, window_end=DAYS[-6])
         self.assertEqual(table[0], udf.GRID_HEADER[6:] + [f"PC{j + 1}" for j in range(len(LABELS))])
         model = _est(history, LEVEL, 10, DAYS[-6])
@@ -311,53 +316,79 @@ class PcaGridTest(unittest.TestCase):
         np.testing.assert_allclose([r[4:] for r in table[1:]], model.vectors)
 
     def test_residual_std_by_case(self):
-        settings = [["", ""], [10, 8], ["Level", "Change"], ["No", "Yes"]]
+        settings = [[DAYS[-1], DAYS[-1]], [10, 8], ["Level", "Change"], ["No", "Yes"]]
         history = _history()
         udf._estimate_cached.cache_clear()
         udf._resid_std_cached.cache_clear()
-        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf, "_db_key", return_value=1),                 mock.patch.object(udf, "_today", return_value=DAYS[-1]):
-            rows = udf.PcaGridResidStd(LABELS, settings, [1, "", 3, 99], 20)
+        with mock.patch.object(udf, "load_history", return_value=history),                 mock.patch.object(udf_common, "_db_key", return_value=1),                 mock.patch.object(udf_common, "_today", return_value=DAYS[-1]):
+            rows = udf.PcaGridResidStd(LABELS, settings, [1, "", 3], 20)
             grid = udf.PcaGrid(LABELS, settings)
-            single = udf.PcaResidStd(LABELS, "Change", "Yes", 8, 3, sigma_days=20)
-        self.assertEqual(rows[0], ["Case", "Warning", "ResidStd1", "ResidStd2", "ResidStd3", "ResidStd4"])
+            single = udf.PcaResidStd(LABELS, "Change", "Yes", 8, 3, DAYS[-1], 20)
+            with self.assertRaisesRegex(ValueError, "^Case 1, k=99: "):  # 計算できない段はエラー
+                udf.PcaGridResidStd(LABELS, settings, [1, 99], 20)
+        self.assertEqual(rows[0], ["Case", "ResidStd1", "ResidStd2", "ResidStd3"])
         self.assertEqual([r[0] for r in rows[1:]], [r[0] for r in grid[1:]])  # PcaGridと同じ並び
         case1, case2 = rows[1:6], rows[6:11]
         model = _est(history, LEVEL, 10, DAYS[-1])
-        np.testing.assert_allclose([r[2] for r in case1], residual_std(history, model, 1, 20, 100.0))
-        self.assertEqual({r[3] for r in case1}, {""})  # kが空欄の段
-        self.assertEqual({r[5] for r in case1}, {""})  # k=99は計算できない → 警告
-        self.assertIn("σ(k=99)", case1[0][1])
-        np.testing.assert_allclose([r[4] for r in case2], [r[0] for r in single])
+        np.testing.assert_allclose([r[1] for r in case1], residual_std(history, model, 1, 20, 100.0))
+        self.assertEqual({r[2] for r in case1}, {""})  # kが空欄の段
+        np.testing.assert_allclose([r[3] for r in case2], [r[0] for r in single])
 
     def test_gap_warning(self):
-        # 空欄(今日)でも日付の指定でも、推定に使った最後の日が最終日の前営業日より前なら警告
+        # 推定に使った最後の日が最終日の前営業日より前なら警告
         today = _business_days(DAYS[-1], 4)[-1]  # DBの最終日から3営業日後
-        _, rows = self._grid([["", today], [10, 10], ["Level", "Level"], ["No", "No"]], today=today)
+        _, rows = self._grid([[today, today], [10, 10], ["Level", "Level"], ["No", "No"]], today=today)
         self.assertIn("Window ends", rows[1][5])
         self.assertIn("Window ends", rows[-1][5])
 
 
 class PcaWindowTest(unittest.TestCase):
-    """推定の最終日の空欄は今日。DBに今日の値がなければ直近の営業日までで、警告は出さない。"""
+    """推定の最終日は必須。DBにその日の値がなければ直近の営業日までで、警告は出さない。"""
 
-    def _window(self, today, window_end=None):
+    def _window(self, today, window_end):
         history = _history()
         udf._estimate_cached.cache_clear()
         with mock.patch.object(udf, "load_history", return_value=history), \
-                mock.patch.object(udf, "_db_key", return_value=1), \
-                mock.patch.object(udf, "_today", return_value=today):
+                mock.patch.object(udf_common, "_db_key", return_value=1), \
+                mock.patch.object(udf_common, "_today", return_value=today):
             return dict(udf.PcaWindow(LABELS, "Level", "No", 10, window_end))
 
-    def test_blank_is_today(self):
-        info = self._window(DAYS[-1])  # 今日の引け値がDBにある
+    def test_window_end_today(self):
+        info = self._window(DAYS[-1], DAYS[-1])  # 今日の引け値がDBにある
         self.assertEqual((info["End"], info["Warning"]), (DAYS[-1], ""))
         next_day = _business_days(DAYS[-1], 2)[-1]  # DBにまだ今日の値がない
-        info = self._window(next_day)
+        info = self._window(next_day, next_day)
         self.assertEqual((info["End"], info["Warning"]), (DAYS[-1], ""))
 
     def test_window_end_date(self):
         info = self._window(DAYS[-1], DAYS[-6])
         self.assertEqual((info["Start"], info["End"], info["Warning"]), (DAYS[-15], DAYS[-6], ""))
+
+    def test_blank_or_future_is_error(self):
+        # 空欄を今日で補わない(シートは空欄を式で TradeDate に寄せて渡す)
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            self._window(DAYS[-1], None)
+        with self.assertRaisesRegex(ValueError, "未来日"):
+            self._window(DAYS[-2], DAYS[-1])
+
+
+class PcaActualTest(unittest.TestCase):
+    """復元日は必須。今日ならRealTimeのライブの値、過去の日付ならDBのその日の引け値。"""
+
+    def _info(self, recon_date, today=DAYS[-1], real_time=None):
+        with mock.patch.object(udf, "load_history", return_value=_history()), \
+                mock.patch.object(udf_common, "_today", return_value=today):
+            return dict(udf.PcaActualInfo(LABELS, "Level", recon_date, real_time))
+
+    def test_today_is_live_and_past_is_db(self):
+        live = [[label, 1.0] for label in LABELS]
+        today = _business_days(DAYS[-1], 2)[-1]
+        self.assertEqual(self._info(today, today, live)["Source"], "RealTime")
+        self.assertEqual(self._info(DAYS[-3], today, live)["Source"], f"DB({DAYS[-3]})")
+
+    def test_blank_is_error(self):
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            self._info(None)
 
 
 class LoadHistoryTest(unittest.TestCase):

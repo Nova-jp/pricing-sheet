@@ -7,7 +7,9 @@
     日次の差分・銭への換算(×100)・ロールや利上げの段差の調整・σはExcelの数式で計算する。
   - 単価・ベーシスは額面100円あたりの円、利回り・レポ・IRRは%(jgb_futures と同じ)。
   - 計算方法は「手動」+F9。非volatile。配列はそのまま返してスピルに任せる。値の無いところは空欄("")。
-  - DBの読み出しと計算は、引数とDBの更新時刻ごとにプロセス内で覚えておく。
+  - DBの読み出しと計算は、引数とDBの版ごとにプロセス内で覚えておく。
+  - 日付は引数で受け取り、空欄はエラー(UDFの中で今日やDBの最新日を決めない。docs/decisions.md の「評価日」)。
+    ヒストリカルは評価日(trade_date)以前のDBの値だけを使う(過去の評価日にしたとき、その日に見えていた値になる)。
 ■ レポの段(steps)
   [Start, Rate] の2列の範囲。空欄(または範囲の全部が空欄)ならTONA実績から自動で作った段(FutRepoSteps)を使う。
   シートで段を手で上書きするときは、FutRepoSteps の結果を見ながら手入力の表を作り、その範囲を渡す。
@@ -28,20 +30,21 @@ from engine.fut import history
 Steps = Optional[Tuple[RepoStep, ...]]  # None = TONA実績から自動で
 
 
-def _db_key() -> Tuple[str, int]:
-    store = udf_common._historical_store()
-    return str(store.db_path), store.db_path.stat().st_mtime_ns
-
-
-@lru_cache(maxsize=2)
-def _data_cached(db_path: str, db_key: int) -> history.FutData:
-    store = HistoricalStore(db_path)
+@lru_cache(maxsize=1)
+def _all_data(db_key: tuple) -> history.FutData:
+    store = HistoricalStore(db_key[0])
     with store:
         return history.load(store)
 
 
-def _data() -> history.FutData:
-    return _data_cached(*_db_key())
+@lru_cache(maxsize=2)
+def _data_cached(until, db_key: tuple) -> history.FutData:
+    return _all_data(db_key).until(until)
+
+
+def _data(trade_date, what: str = "評価日(TradeDate)") -> Tuple[object, tuple]:
+    """(評価日, DBの版)。キャッシュの鍵(_data_cached・_front_cached・_overlay_cached)の後半。"""
+    return udf_common._required_date(trade_date, what), udf_common._db_key()
 
 
 def _steps(rows) -> Steps:
@@ -74,25 +77,25 @@ def _blank(x):
 
 
 @lru_cache(maxsize=4)
-def _front_cached(steps: Steps, db_path: str, db_key: int) -> List[history.FrontDay]:
-    data = _data_cached(db_path, db_key)
+def _front_cached(steps: Steps, until, db_key: tuple) -> List[history.FrontDay]:
+    data = _data_cached(until, db_key)
     return history.front_history(data, _resolve_steps(steps, data))
 
 
 @lru_cache(maxsize=8)
-def _overlay_cached(contracts, steps: Steps, field: str, db_path: str, db_key: int):
-    data = _data_cached(db_path, db_key)
+def _overlay_cached(contracts, steps: Steps, field: str, until, db_key: tuple):
+    data = _data_cached(until, db_key)
     return history.overlay(data, contracts, _resolve_steps(steps, data), field)
 
 
 @xw.func
-def FutRepoSteps() -> List[list]:
+def FutRepoSteps(trade_date) -> List[list]:
     """
-    TONA実績(DB)から作ったレポの段。見出し行 [Start, Rate] + 段ごとの行。
+    TONA実績(DBの評価日以前)から作ったレポの段。見出し行 [Start, Rate] + 段ごとの行。
     利上げ・利下げ(水準の変化)のところだけ段が変わる(規則は engine/common/jgb_futures.repo_steps)。
-    Rate はその段の中のTONAの中央値(%)。
+    Rate はその段の中のTONAの中央値(%)。trade_date: 評価日(必須。TradeDate)。
     """
-    return [["Start", "Rate"]] + [[s.start, s.rate] for s in jf.repo_steps(_data().fixings)]
+    return [["Start", "Rate"]] + [[s.start, s.rate] for s in jf.repo_steps(_data_cached(*_data(trade_date)).fixings)]
 
 
 FRONT_HEADER = [
@@ -103,7 +106,7 @@ FRONT_HEADER = [
 
 @xw.func
 @xw.arg("steps", ndim=2)
-def FutHistory(steps=None) -> List[list]:
+def FutHistory(steps, trade_date) -> List[list]:
     """
     期近のつなぎ足(取引最終日の翌日に次の限月へ乗り換え)と、その日のCTDのベーシス。日付の昇順。
       Contract: その日の期近("2026-12")  Settle: 清算値
@@ -111,11 +114,11 @@ def FutHistory(steps=None) -> List[list]:
       Roll    : 限月が変わった日は1、それ以外は0  Repo: その日の段のレポ(%)
       CTD     : ネットベーシス最小の受渡適格銘柄。CF: 交換係数  Yield: 引け値の単利(%)  Price: 単価
       Gross/Carry/Net: グロスベーシス・キャリー・ネットベーシス(円)  IRR: インプライドレポ(%)
-    レポの段より前の日・適格銘柄の引け値が無い日は、CTD以降の列が空欄。
-    steps: レポの段([Start, Rate] の範囲。空欄=TONA実績から自動)。
+    レポの段より前の日・適格銘柄の引け値が無い日は、CTD以降の列が空欄。行は評価日以前。
+    steps: レポの段([Start, Rate] の範囲。空欄=TONA実績から自動)。trade_date: 評価日(必須。TradeDate)。
     """
     rows: List[list] = [list(FRONT_HEADER)]
-    for day in _front_cached(_steps(steps), *_db_key()):
+    for day in _front_cached(_steps(steps), *_data(trade_date)):
         q, c = day.quote, day.ctd
         ctd_cols = (
             ["", "", "", "", "", "", "", ""] if c is None else
@@ -130,18 +133,18 @@ def FutHistory(steps=None) -> List[list]:
 @xw.func
 @xw.arg("contracts", ndim=1)
 @xw.arg("steps", ndim=2)
-def FutOverlay(contracts, field="NET", steps=None) -> List[list]:
+def FutOverlay(contracts, field, steps, trade_date) -> List[list]:
     """
     限月を重ねたCTDのベーシス。見出し行 [BD, 限月1, …, 限月n] + 取引最終日までの営業日数(BD)の降順の行。
     限月ごとに、清算値のある日(期近になる前も含む)のCTDの値を、その日から取引最終日までの営業日数に並べる。
-    field: NET(ネットベーシス、既定)/ GROSS / CARRY(円)/ IRR(%)。値の無いところは空欄。
-    steps: レポの段(FutHistory と同じ)。
+    field: NET(ネットベーシス、空欄も)/ GROSS / CARRY(円)/ IRR(%)。値の無いところは空欄。
+    steps: レポの段(FutHistory と同じ)。trade_date: 評価日(必須。TradeDate。この日以前の清算値だけ)。
     """
     names = _contracts(contracts)
     key = str(field or "NET").strip().upper()
     if key not in history.OVERLAY_FIELDS:
         raise ValueError(f"field は {'/'.join(history.OVERLAY_FIELDS)} のどれかです: {field!r}")
-    series = _overlay_cached(names, _steps(steps), key, *_db_key())
+    series = _overlay_cached(names, _steps(steps), key, *_data(trade_date))
     days = sorted({bd for points in series.values() for bd in points}, reverse=True)
     rows: List[list] = [["BD"] + [c.label for c in names]]
     for bd in days:
@@ -156,24 +159,25 @@ DAY_HEADER = [
 
 @xw.func
 @xw.arg("yields", ndim=2)
-def FutBasis(contract, as_of=None, futures_price=None, repo=None, yields=None) -> List[list]:
+def FutBasis(contract, as_of, futures_price=None, repo=None, yields=None) -> List[list]:
     """
     1日分の受渡適格銘柄ごとのベーシス(償還日の順)。見出し行 + 銘柄ごとの行 + 最後に [Futures, 先物価格, Repo, レポ]。
       CF: 交換係数  Yield: 単利(%)  Close date: 引け値の日付(その日以前で直近)  Price: 単価(T+1)
       Gross/Carry/Net: 円  IRR: %  CTD: ネットベーシス最小の銘柄は1、それ以外は0
-    contract: 限月("2026-12" または "JGBZ6")。as_of: 評価日(空欄=今日)。
+    contract: 限月("2026-12" または "JGBZ6")。as_of: その日(必須。シートは Date の空欄を TradeDate に寄せて渡す。
+      DBにその日の清算値が無ければ、先物価格を指定しないとエラー)。この日以前のDBの値だけを使う。
     futures_price: 先物価格(空欄=その日のDBの清算値。ライブの値を使うときはRtGetのセル等を渡す)。
     repo: レポ(%、空欄=その日以前で直近のTONA実績)。
     yields: 引け値の上書き([Code, Yield] の範囲。空欄の行は無視)。
     """
     c = Contract.parse(contract)
-    d = udf_common._resolve_valuation_date(as_of)
+    d, db_key = _data(as_of, "日付(Date)")
     overrides = {
         str(row[0]).strip().upper(): float(row[1])
         for row in (yields or []) if row and len(row) >= 2 and not _is_blank(row[0]) and not _is_blank(row[1])
     }
     day = history.basis_on(
-        _data(), c, d,
+        _data_cached(d, db_key), c, d,
         None if _is_blank(futures_price) else float(futures_price),
         None if _is_blank(repo) else float(repo),
         overrides,

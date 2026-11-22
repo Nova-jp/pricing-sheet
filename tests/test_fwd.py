@@ -164,7 +164,7 @@ class FwdUdfTest(unittest.TestCase):
         boot = bootstrap_curve(BASE, SPOT_RATES)
         market = Market(BASE, boot.curve, boot.index, {})
         with mock.patch.object(udf_common, "_market", return_value=SimpleNamespace(base=market)):
-            rows = udf.FwdLive([LABELS[0], None, LABELS[1]], [["1", "1Y", 1.0]])
+            rows = udf.FwdLive([LABELS[0], None, LABELS[1]], [["1", "1Y", 1.0]], BASE)
         self.assertEqual(len(rows), 3)
         self.assertEqual(rows[1], [""])  # 区切りの空行は空欄のまま(行がずれない)
         for row, label in ((rows[0], LABELS[0]), (rows[2], LABELS[1])):
@@ -172,7 +172,14 @@ class FwdUdfTest(unittest.TestCase):
 
     def test_no_labels(self):
         with self.assertRaises(ValueError):
-            udf.FwdHistory([None, ""], "CMT")
+            udf.FwdHistory([None, ""], "CMT", BASE)
+
+    def test_blank_date_is_error(self):
+        # 空欄を今日で補わない(シートは空欄を式で TradeDate に寄せて渡す)
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            udf.FwdHistory(LABELS, "CMT", None)
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            udf.FwdLive(LABELS, [["1", "1Y", 1.0]], "")
 
 
 if __name__ == "__main__":

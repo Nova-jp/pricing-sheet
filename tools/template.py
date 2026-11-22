@@ -46,7 +46,7 @@ RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
     # Control!B3 は評価日(取引日)の入力。日付を入れたまま雛形を作るとその日付が残るので消す(全ブック共通の
     # Controlシート。docs/decisions.md の「評価日」)
     "PricingSheet.xlsm": {"Control": "B3"},
-    "SwapAnalysis.xlsm": {},
+    "SwapAnalysis.xlsm": {"Control": "B3"},
     "BondOption.xlsm": {"Control": "B3"},
     # 会社のリスク・約定・保有銘柄のシートをそのまま貼る生シート(全行)、取引日(Control!B3)、
     # 日中の取引の入力(PositionシートのB42:J91)。値は消し、数式だけ残す。Setupの列名・

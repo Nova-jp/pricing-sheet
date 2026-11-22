@@ -4,6 +4,8 @@ BOJシート(SwapAnalysis.xlsm)用のUDF(会合スワップ(RD・M1〜)とスポ
 PricingSheet.xlsm・`engine/swap_pricing/`には依存しない(分析ブックはそれだけで完結させる)。
 メインのカーブは`engine.common`(udf_common._market)で、pricingと同じ引き方のものを使う。
 
+評価日は引数で受け取り、空欄はエラー(UDFの中で今日を決めない。docs/decisions.md の「評価日」)。
+計算できない行はエラーにする(エラーを文字列にして返さない)。
 Excel境界の型変換(`_is_blank`等)と評価日解決は`engine.common.udf_common`を
 `udf_common.xxx(...)`の形で呼ぶ(名前のコピーはしない。理由はudf_common.pyのdocstring)。
 """
@@ -47,7 +49,7 @@ _meeting_cache: Dict[tuple, BootstrapResult] = {}
 
 
 def _meeting_curve(real_time_range, meeting_range, valuation_date) -> BootstrapResult:
-    valuation_date = udf_common._resolve_valuation_date(valuation_date)
+    valuation_date = udf_common._required_date(valuation_date)
     if valuation_date != udf_common._today():
         raise ValueError("会合スワップのカーブはリアルタイム(評価日=今日)だけに対応しています")
     on_rate = next(
@@ -68,16 +70,17 @@ def _meeting_curve(real_time_range, meeting_range, valuation_date) -> BootstrapR
 @xw.func
 @xw.arg("periods", ndim=2)
 @xw.arg("real_time_range", ndim=2)
-def BojSpotForwards(periods, real_time_range, valuation_date=None) -> List[list]:
+def BojSpotForwards(periods, real_time_range, valuation_date) -> List[list]:
     """メインのカーブ(pricingと同じ引き方)での、各期間(起算日→満期日)のパーレート(%)を返す
     (periodsと同じ行数の1列。標準コンベンション PA/act365f/STD = 会合スワップと同じ1期間の複利)。
 
     periods: 起算日・満期日の2列(例: BOJ!B8:C17)。どちらかが日付(シリアル値)でない行は空文字。
     real_time_range: フラグ/Ticker/Value の範囲(BOJシートのカーブ用の範囲の TAKE(…#,,3))。
-    valuation_date: 空欄=今日。PricingSheetの FairRate(起算日,"",満期日,"PA","act/365fixed","PA","STD",…)
-    と同じ値(同じカーブ・同じ評価)。
+    valuation_date: 評価日(必須。TradeDate。今日ならライブ、過去の日付ならDBのその日のカーブ)。
+    PricingSheetの FairRate(起算日,"",満期日,"PA","act/365fixed","PA","STD",…) と同じ値(同じカーブ・同じ評価)。
+    計算できない期間があればエラー(その期間を付ける)。
     """
-    curves = udf_common._market(real_time_range, valuation_date)
+    curves = udf_common._market(real_time_range, udf_common._required_date(valuation_date))
     result = []
     for row in periods or []:
         dates = (list(row or []) + [None, None])[:2]
@@ -89,7 +92,7 @@ def BojSpotForwards(periods, real_time_range, valuation_date=None) -> List[list]
         try:
             result.append([price(curves.base, params).target_fixrate])
         except (RuntimeError, ValueError) as exc:
-            result.append([f"エラー: {exc}"])
+            raise ValueError(f"{start}→{end}: {exc}") from exc
     return result
 
 
@@ -97,15 +100,15 @@ def BojSpotForwards(periods, real_time_range, valuation_date=None) -> List[list]
 @xw.arg("tenors", ndim=2)
 @xw.arg("real_time_range", ndim=2)
 @xw.arg("meeting_range", ndim=2)
-def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None) -> List[list]:
+def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date) -> List[list]:
     """会合スワップ(RD・M1〜)とO/Nで引いた階段状のカーブから、スポット起算のパーレート(%)を返す
     (tenorsと同じ行数の1列。標準コンベンション PA/act365f/STD = ライブのスポットと同じ)。
 
     tenors: テナーの列(例: BOJ!A22:A34)。real_time_range: フラグ/Ticker/Value の範囲(O/Nを読む)。
     meeting_range: 会合スワップの Ticker/Value/起算日/満期日 の4列(上から RD, M1, …)。
-    valuation_date: 空欄=今日(今日以外はエラー)。
-    カーブの引き方は engine/boj/meeting_curve.py。最後の会合期間より先のテナーはその行だけ
-    エラーの文字列になる。
+    valuation_date: 評価日(必須。TradeDate。今日以外はエラー)。
+    カーブの引き方は engine/boj/meeting_curve.py。計算できないテナー(最後の会合期間より先など)があればエラー
+    (そのテナーを付ける。シートのテナーの列は会合スワップのある範囲に収める)。
     """
     boot = _meeting_curve(real_time_range, meeting_range, valuation_date)
     result = []
@@ -121,5 +124,5 @@ def BojImpliedRates(tenors, real_time_range, meeting_range, valuation_date=None)
             market = Market(boot.valuation_date, boot.curve, boot.index)  # スポット起点なので実績は不要
             result.append([price(market, params).target_fixrate])
         except (RuntimeError, ValueError) as exc:
-            result.append([f"エラー: {exc}"])
+            raise ValueError(f"{label}: {exc}") from exc
     return result
