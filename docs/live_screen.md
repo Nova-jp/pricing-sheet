@@ -12,8 +12,10 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
    計算方法は互いに影響しない。
 2. LSEG Workspaceにログインしておく(`RtGet`を使う。新しいインスタンスにもLSEGのアドインが読み込まれているかを確かめる)。
 3. 初回とUDFの変更時は、xlwingsのリボンで「Restart UDF Server」→「Import Functions」。
-4. 値は`RtGet`に値が届くたびに再計算される(F9は要らない)。日付が変わったら、Datesシートを読み直すために
-   Ctrl+Alt+F9を1回押す(日付のUDFは今日の日付を引数に持たないので、それだけでは計算し直さない)。
+4. 毎朝、先頭の`Control`シートのB3(`Trade date`)に今日の日付を入れる(Ctrl+;)。他のブックと同じ形(B4 `TradeDate`・
+   B5 `DbStamp`・B6 `DataStatus`、[decisions.md](decisions.md)の「評価日」)。今日やライブのレートで結果が変わるUDFはすべて
+   `TradeDate`を引数で受け取るので、日付を入れ直せば下流が計算し直される(Ctrl+Alt+F9は要らない)。B6が`OK`でなければ赤。
+5. 値は`RtGet`に値が届くたびに再計算される(F9は要らない)。
 
 フィード(`live_feed`)は使わない。レートはこのブックがLSEGのアドインから直接読む。
 
@@ -31,7 +33,8 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
 ### Dates
 
 前後の営業日(B2・B3、既定5日)の取引日ごとに、テナー(SwapシートのO/N以外のTicker)のスポットのスワップの日付を
-並べる(`SwapBusinessDays`・`SwapDateGrid`)。B1は取引日(空欄=今日)。今日の行は黄色。
+並べる(`SwapBusinessDays`・`SwapDateGrid`)。B1は中心の日付(`Center date`、任意。空欄なら`TradeDate`。名前`DATES_CenterIn`→
+`DATES_Center`)。日付は暦だけで決まるので、過去・将来の日付も入れられる(来週の長さの変化を見る等)。`TradeDate`の行は黄色。
 
 | 表 | 中身 |
 |---|---|
@@ -93,6 +96,10 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
 - **UDFが返すのはσ√Tと日数だけ**で、年率・1日あたりへの直し方はExcelの数式(四則演算はExcel)。
 - **日付はQuantLibで出し、プロセスの中で覚える**(取引日とテナーだけで決まる)。ティックごとの計算はパーレートだけに
   なり、調整幅の再計算は34テナーで約0.07秒(初回だけ約0.7秒)。カーブはレートが同じなら作り直さない(`market.curve_set`)。
+- **ライブのレートを使うUDFは、評価日(`TradeDate`)が今日でないとエラー**(ユーザー了承、2026-11-23)。`SwapLengthAdjust`・
+  `SwaptionStdevGrid`・`SwaptionExpiryDays`は`TradeDate`を末尾の引数で受け取る(`engine/live_screen/udf.py`の`_live_date`)。
+  他のブックのように過去日でDBの引けに切り替えないのは、`RtGet`のレート・プレミアムが今の値で、DBの引けのカーブと混ざるため。
+  日付の表(`SwapBusinessDays`)は暦だけで決まるので、どの日付でもよい。
 - 採らなかった案: 起算日・満期日を前日のものに丸ごと替えた差(期間の前進が混ざる)、満期日を休日調整した差(長くなった日が0になる)。
 
 ## 未確認

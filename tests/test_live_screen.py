@@ -160,10 +160,14 @@ class UdfTest(unittest.TestCase):
             udf.SwapDateGrid([T0], ["1Y"], "Length")
 
     def test_business_days(self):
-        self.assertEqual(udf.SwapBusinessDays("", 1, 1), [[date(2026, 10, 22)], [T0], [date(2026, 10, 26)]])
+        self.assertEqual(udf.SwapBusinessDays(T0, 1, 1), [[date(2026, 10, 22)], [T0], [date(2026, 10, 26)]])
+        # 暦だけで決まるので将来の日付も受け付ける(2026-10-24は土曜 → 次の営業日の10-26が中心)
+        self.assertEqual(udf.SwapBusinessDays(date(2026, 10, 24), 0, 0), [[date(2026, 10, 26)]])
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            udf.SwapBusinessDays("", 1, 1)
 
     def test_length_adjust_rows(self):
-        rows = udf.SwapLengthAdjust(self.RATES, ["5Y", "", "O/N"])
+        rows = udf.SwapLengthAdjust(self.RATES, ["5Y", "", "O/N"], T0)
         a = day_length.length_adjustment(_market(), "5Y")  # 1826日 ← 前の営業日 1827日
         self.assertEqual(rows[0], [a.days, a.prev_days, a.days - a.prev_days, a.adjustment, ""])
         self.assertEqual(rows[0][2], -1)
@@ -173,13 +177,28 @@ class UdfTest(unittest.TestCase):
         self.assertIn("O/N", rows[2][4])
 
     def test_vol_udfs(self):
-        stdev = udf.SwaptionStdevGrid(self.RATES, ["1Y"], ["10Y"], [[450.0]])
+        stdev = udf.SwaptionStdevGrid(self.RATES, ["1Y"], ["10Y"], [[450.0]], T0)
         ql.Settings.instance().evaluationDate = ql.Date.from_date(T0)
         expect = PremiumConverter(_market().curve, T0, when=datetime(2026, 10, 23, 15, 0)).convert("1Yx10Y", 450.0)
         self.assertAlmostEqual(stdev[0][0], expect.stdev, places=10)
-        days = udf.SwaptionExpiryDays(["1Y", ""], [[450.0]])
+        days = udf.SwaptionExpiryDays(["1Y", ""], [[450.0]], T0)
         self.assertEqual(days[0], [date(2027, 10, 25), expect.days, (date(2027, 10, 25) - T0).days])
         self.assertEqual(days[1], ["", "", ""])
+
+    def test_live_udfs_need_today(self):
+        """ライブのレートを使うUDFは取引日を今日だけ受け付ける(空欄・過去日・未来日はエラー。DBの引けと混ぜない)。"""
+        calls = [
+            lambda d: udf.SwapLengthAdjust(self.RATES, ["5Y"], d),
+            lambda d: udf.SwaptionStdevGrid(self.RATES, ["1Y"], ["10Y"], [[450.0]], d),
+            lambda d: udf.SwaptionExpiryDays(["1Y"], [[450.0]], d),
+        ]
+        for call in calls:
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                call("")
+            with self.assertRaisesRegex(ValueError, "今日にしてください"):
+                call(date(2026, 10, 22))
+            with self.assertRaisesRegex(ValueError, "未来日"):
+                call(date(2026, 10, 26))
 
 
 if __name__ == "__main__":

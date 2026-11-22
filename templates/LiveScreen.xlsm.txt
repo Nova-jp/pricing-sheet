@@ -1,8 +1,26 @@
 # シートの並び
+sheet Control
 sheet Swap
 sheet Dates
 sheet Vol
 # 定義名
+name DATES_Center = IF(DATES_CenterIn="",TradeDate,DATES_CenterIn)
+name DATES_CenterIn = Dates!$B$1
+name TradeDate = Control!$B$4
+# Control
+Control!A1 : "Control"
+Control!A3 : "Trade date"
+Control!C3 : "Required. Enter today every morning (Ctrl+;). Blank or a future date is an error (see Status). This book is live only: the rate UDFs (Swap Adj, Vol) are an error unless the trade date is today."
+Control!A4 : "TradeDate"
+Control!B4 = ValuationDate(B3)
+Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate). Blank Center date on the Dates sheet falls back to it."
+Control!A5 : "DB stamp"
+Control!B5 = DbStamp(B3)
+Control!C5 : "Morning batch run that the DB had when the trade date was entered."
+Control!A6 : "Status"
+Control!B6 = DataStatus(B3,B5)
+Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
+Control!B6 format cellIs notEqual: "OK"
 # Swap
 Swap!A1 : "Swap (live)"
 Swap!D1 : "Calculated"
@@ -27,7 +45,7 @@ Swap!C4 : "JP1DONI=TRDT"
 Swap!D4:D37 = RtGet("IDN",$C4,"BID")
 Swap!E4:E37 = RtGet("IDN",$C4,"ASK")
 Swap!F4:F37 = IF(AND(ISNUMBER(D4),ISNUMBER(E4)),(D4+E4)/2,"")
-Swap!G4 = SwapLengthAdjust(HSTACK(A4:A37,B4:B37,F4:F37),B4:B37)
+Swap!G4 = SwapLengthAdjust(HSTACK(A4:A37,B4:B37,F4:F37),B4:B37,TradeDate)
 Swap!M4 : "Leg 1"
 Swap!N4 : "Leg 2"
 Swap!O4 : "Spread (bp)"
@@ -136,8 +154,8 @@ Swap!C36 : "JP35YONI=TRDT"
 Swap!B37 : "40Y"
 Swap!C37 : "JP40YONI=TRDT"
 # Dates
-Dates!A1 : "Trade date"
-Dates!C1 : "空欄=今日(日付が変わったら Ctrl+Alt+F9)。起算日=T+2、標準の規約(年1回払い・ACT/365F)"
+Dates!A1 : "Center date"
+Dates!C1 : "Optional. Blank = TradeDate (Control). Any date (past or future) is fine: the dates depend on the calendar only. Spot = T+2, standard terms (annual, ACT/365F)"
 Dates!A2 : "Days before"
 Dates!B2:B3 : 5
 Dates!A3 : "Days after"
@@ -145,7 +163,7 @@ Dates!A5 : "Days (maturity − spot, calendar days)"
 Dates!A6 : "Trade date"
 Dates!B6 : "Spot"
 Dates!C6 = TRANSPOSE(FILTER(Swap!$B$4:$B$37,Swap!$B$4:$B$37<>"O/N"))
-Dates!A7 = SwapBusinessDays($B$1,$B$2,$B$3)
+Dates!A7 = SwapBusinessDays(DATES_Center,$B$2,$B$3)
 Dates!B7 = SwapDateGrid(ANCHORARRAY(A7),{"1Y"},"Spot")
 Dates!C7 = SwapDateGrid(ANCHORARRAY(A7),ANCHORARRAY(C6),"Days")
 Dates!A32 : "Days change vs previous business day"
@@ -160,9 +178,9 @@ Dates!B60 : "Spot"
 Dates!C60 = TRANSPOSE(FILTER(Swap!$B$4:$B$37,Swap!$B$4:$B$37<>"O/N"))
 Dates!A61:B61 = ANCHORARRAY(A7)
 Dates!C61 = SwapDateGrid(ANCHORARRAY(A61),ANCHORARRAY(C60),"Maturity")
-Dates!A34:AI57 format expression: AND($A34<>"",$A34=IF($B$1="",TODAY(),$B$1))
-Dates!A61:AI84 format expression: AND($A61<>"",$A61=IF($B$1="",TODAY(),$B$1))
-Dates!A7:AI30 format expression: AND($A7<>"",$A7=IF($B$1="",TODAY(),$B$1))
+Dates!A34:AI57 format expression: AND($A34<>"",$A34=TradeDate)
+Dates!A61:AI84 format expression: AND($A61<>"",$A61=TradeDate)
+Dates!A7:AI30 format expression: AND($A7<>"",$A7=TradeDate)
 Dates!C34:AI57 format expression: AND(ISNUMBER(C34),C34<>0)
 # Vol
 Vol!A1 : "Swaption vol (live)"
@@ -191,7 +209,7 @@ Vol!S4 : "Cal days"
 Vol!A5 : "1M"
 Vol!B5:N17 = IFERROR(RtGet("IDN","JPY"&$A5&B$4&"TOATM=TRDT","PRIMACT_1"),"")
 Vol!P5 : "1M"
-Vol!Q5 = SwaptionExpiryDays($A$5:$A$17,$B$5:$N$17)
+Vol!Q5 = SwaptionExpiryDays($A$5:$A$17,$B$5:$N$17,TradeDate)
 Vol!A6 : "3M"
 Vol!P6 : "3M"
 Vol!A7 : "6M"
@@ -232,7 +250,7 @@ Vol!L21 : "15Y"
 Vol!M21 : "20Y"
 Vol!N21 : "30Y"
 Vol!A22 : "1M"
-Vol!B22 = SwaptionStdevGrid(HSTACK(Swap!$A$4:$A$37,Swap!$B$4:$B$37,Swap!$F$4:$F$37),$A$5:$A$17,$B$4:$N$4,$B$5:$N$17)
+Vol!B22 = SwaptionStdevGrid(HSTACK(Swap!$A$4:$A$37,Swap!$B$4:$B$37,Swap!$F$4:$F$37),$A$5:$A$17,$B$4:$N$4,$B$5:$N$17,TradeDate)
 Vol!A23 : "3M"
 Vol!A24 : "6M"
 Vol!A25 : "9M"

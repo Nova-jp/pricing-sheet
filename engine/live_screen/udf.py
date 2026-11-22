@@ -7,8 +7,10 @@ LiveScreen.xlsm(スワップとボラのリアルタイムの画面)のUDF。
     計算方法が互いに影響しない。
   - スプレッド・フライ・合計・年率への直し方はExcelの数式。UDFはQuantLibが要る計算(日付・パーレート・
     プレミアム→σ√T)だけ。
-  - 評価日は常に今日(ライブのカーブ)。カーブは全UDFで共有する(engine/common/market.py。レートが同じなら
-    ブートストラップは1回だけ)。
+  - 評価日は先頭のControlシートの TradeDate(毎朝Ctrl+;、他のブックと同じ形。docs/decisions.md の「評価日」)。
+    今日やライブのレートで結果が変わるUDFは、すべて TradeDate を引数(末尾)で受け取る。ライブのレートを使うUDFは
+    今日だけを受け付け、過去日はエラー(RtGet のレート・プレミアムは今の値なので、DBの引けのカーブと混ぜない)。
+    カーブは全UDFで共有する(engine/common/market.py。レートが同じならブートストラップは1回だけ)。
 
 ■ UDF
   - SwapBusinessDays  : 前後の営業日(Datesシートの行)
@@ -18,6 +20,7 @@ LiveScreen.xlsm(スワップとボラのリアルタイムの画面)のUDF。
   - SwaptionExpiryDays: 満期ごとの満期日・残りの営業日数・暦日数(Volシート)
 """
 
+import datetime
 from typing import List
 
 import xlwings as xw
@@ -27,6 +30,14 @@ from engine.common.udf_common import _is_blank
 from engine.live_screen import day_length, vol
 
 DATE_ITEMS = ("Spot", "Maturity", "Days", "DaysChg")
+
+
+def _live_date(trade_date) -> datetime.date:
+    """ライブのレートで計算するUDFの取引日。空欄・未来日・過去日はエラー(LiveScreenはライブだけ)。"""
+    d = udf_common._required_date(trade_date, "取引日(TradeDate)")
+    if d != udf_common._today():
+        raise ValueError(f"LiveScreenはライブのレートだけで計算します。取引日を今日にしてください: {d}")
+    return d
 
 
 def _int(value, name: str) -> int:
@@ -48,9 +59,12 @@ def _labels(values) -> List[str]:
 
 @xw.func
 def SwapBusinessDays(center_date, before, after) -> List[list]:
-    """center_date(空欄=今日。休日ならその次の営業日)の前 before・後 after 営業日を縦に並べる(ql.Japan())。"""
+    """center_date(休日ならその次の営業日)の前 before・後 after 営業日を縦に並べる(ql.Japan())。
+    日付は暦だけで決まるので、過去・将来の日付も受け付ける。空欄はエラー(シートは空欄を式で TradeDate に寄せて渡す)。"""
+    if _is_blank(center_date):
+        raise ValueError("中心の日付が空欄です")
     days = day_length.business_days_around(
-        udf_common._to_date(center_date) or udf_common._today(), _int(before, "前の日数"), _int(after, "後の日数"),
+        udf_common._to_date(center_date), _int(before, "前の日数"), _int(after, "後の日数"),
     )
     return [[d] for d in days]
 
@@ -97,15 +111,16 @@ def SwapDateGrid(trade_dates, tenors, item) -> List[list]:
 @xw.func
 @xw.arg("rates", ndim=2)
 @xw.arg("tenors", ndim=1)
-def SwapLengthAdjust(rates, tenors) -> List[list]:
+def SwapLengthAdjust(rates, tenors, trade_date) -> List[list]:
     """
     テナーごとの [Days(今日の長さ), Prev days(前の営業日の長さ), Diff(差、暦日), Adj(bp), Message]。
     Adj = 今のカーブで、今日の起算日から今日の満期日までのパーレート − 前の営業日と同じ長さにしたパーレート
     (今日のほうが短く、カーブが右上がりなら負)。長さが同じなら0。
     rates: カーブに使う [Flag, Ticker, Mid] の範囲(Flag 0 の行はカーブから外す。Main シートと同じ)。
+    trade_date: TradeDate(今日だけ。_live_date)。
     行の誤り(O/N・会合スワップ・解釈できないテナー)はその行を空欄にし、Message に理由を出す。
     """
-    market = udf_common._market(rates, udf_common._today()).base
+    market = udf_common._market(rates, _live_date(trade_date)).base
     out = []
     for label in _labels(tenors):
         if not label:
@@ -124,13 +139,14 @@ def SwapLengthAdjust(rates, tenors) -> List[list]:
 @xw.arg("expiries", ndim=1)
 @xw.arg("tenors", ndim=1)
 @xw.arg("premiums", ndim=2)
-def SwaptionStdevGrid(rates, expiries, tenors, premiums) -> List[list]:
+def SwaptionStdevGrid(rates, expiries, tenors, premiums, trade_date) -> List[list]:
     """
     満期(行)×原資産(列)のATMストラドルのフォワード・プレミアム(bp、Traditionの PRIMACT_1)→
     満期までの標準偏差 σ√T(bp)。カーブは rates([Flag, Ticker, Mid])の今のレート。
     プレミアムが無い・0以下のセルは空欄。年率・1日あたりへの直し方はExcelで(engine/live_screen/vol.py)。
+    trade_date: TradeDate(今日だけ。_live_date)。
     """
-    cs = udf_common._market(rates, udf_common._today())
+    cs = udf_common._market(rates, _live_date(trade_date))
     grid = vol.stdev_grid(
         cs.base.curve, cs.valuation_date, udf_common._now(),
         [e for e in _labels(expiries)], [t for t in _labels(tenors)], premiums or [],
@@ -141,12 +157,13 @@ def SwaptionStdevGrid(rates, expiries, tenors, premiums) -> List[list]:
 @xw.func
 @xw.arg("expiries", ndim=1)
 @xw.arg("premiums", ndim=2)
-def SwaptionExpiryDays(expiries, premiums=None) -> List[list]:
+def SwaptionExpiryDays(expiries, premiums, trade_date) -> List[list]:
     """
     満期ごとの [Expiry(満期日), Bus days(満期の15時までの残りの営業日数、日中の残りも減らす), Cal days(満期日−今日)]。
     premiums: プレミアムの範囲。値は使わず、プレミアムが届くたびに残りの営業日数を数え直すために渡す。
+    trade_date: TradeDate(今日だけ。_live_date。日中の残りは今の時刻で数える)。
     """
-    today = udf_common._today()
+    today = _live_date(trade_date)
     now = udf_common._now()
     out = []
     for e in _labels(expiries):
