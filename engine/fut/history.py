@@ -44,6 +44,15 @@ class FutData:
     bonds: Dict[str, Tuple[float, date]]  # 銘柄コード → (利率, 償還日)
     fixings: Dict[date, float]  # TONA実績(%)
 
+    def until(self, last: date) -> "FutData":
+        """評価日 last 以前の分だけ(清算値・引け値・TONA実績。銘柄の情報はそのまま)。"""
+        return FutData(
+            {c: {d: v for d, v in prices.items() if d <= last} for c, prices in self.settles.items()},
+            {d: v for d, v in self.closes.items() if d <= last},
+            self.bonds,
+            {d: v for d, v in self.fixings.items() if d <= last},
+        )
+
     def quotes(self, as_of: date) -> List[BondQuote]:
         return [
             BondQuote(code, *self.bonds[code], y)

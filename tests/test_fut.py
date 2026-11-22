@@ -41,6 +41,7 @@ BONDS = [
 ]
 YIELDS = {"JB373": 2.60, "JB380": 2.80, "JL190": 3.30}
 FIXINGS = {date(2026, 9, 14): 0.977, date(2026, 9, 15): 0.978, date(2026, 9, 16): 0.976}
+TD = DATES[-1]  # 評価日(TradeDate)
 
 
 class FutUdfTest(unittest.TestCase):
@@ -56,7 +57,7 @@ class FutUdfTest(unittest.TestCase):
         patcher = mock.patch.object(udf_common, "_historical_store", return_value=self.store)
         patcher.start()
         self.addCleanup(patcher.stop)
-        for f in (udf._data_cached, udf._front_cached, udf._overlay_cached):
+        for f in (udf._all_data, udf._data_cached, udf._front_cached, udf._overlay_cached):
             f.cache_clear()
 
     def tearDown(self):
@@ -69,7 +70,7 @@ class FutUdfTest(unittest.TestCase):
         return jf.cheapest(jf.basis_table(contract, price, d, quotes, repo))
 
     def test_front_history(self):
-        rows = udf.FutHistory(None)
+        rows = udf.FutHistory(None, TD)
         self.assertEqual(rows[0], udf.FRONT_HEADER)
         by_date = {r[0]: dict(zip(udf.FRONT_HEADER, r)) for r in rows[1:]}
         self.assertEqual(list(by_date), DATES)
@@ -92,21 +93,38 @@ class FutUdfTest(unittest.TestCase):
 
     def test_manual_steps(self):
         steps = [["Start", "Rate"], [None, None], [date(2026, 9, 1), 0.5], [date(2026, 9, 15), 0.75]]
-        rows = udf.FutHistory(steps[1:])
+        rows = udf.FutHistory(steps[1:], TD)
         by_date = {r[0]: dict(zip(udf.FRONT_HEADER, r)) for r in rows[1:]}
         self.assertEqual(by_date[date(2026, 9, 11)]["Repo"], 0.5)
         self.assertEqual(by_date[date(2026, 9, 16)]["Repo"], 0.75)
         expected = self._expected_ctd(SEP, date(2026, 9, 11), 125.70, 0.5)
         self.assertEqual(by_date[date(2026, 9, 11)]["Net"], expected.net_basis)
         with self.assertRaises(ValueError):
-            udf.FutHistory([[date(2026, 9, 1), None]])
+            udf.FutHistory([[date(2026, 9, 1), None]], TD)
 
     def test_repo_steps(self):
-        self.assertEqual(udf.FutRepoSteps(), [["Start", "Rate"], [date(2026, 9, 14), 0.977]])
+        self.assertEqual(udf.FutRepoSteps(TD), [["Start", "Rate"], [date(2026, 9, 14), 0.977]])
+
+    def test_until_trade_date(self):
+        # 評価日より後のDBの値は使わない(過去の評価日にしたとき、その日に見えていた値になる)
+        rows = udf.FutHistory(None, date(2026, 9, 14))
+        self.assertEqual([r[0] for r in rows[1:]], DATES[:3])
+        self.assertEqual(udf.FutRepoSteps(date(2026, 9, 11)), [["Start", "Rate"]])  # TONA実績は9/14から
+        rows = udf.FutOverlay(["2026-12"], "NET", [[date(2026, 9, 1), 0.5]], date(2026, 9, 14))
+        bds = [history.business_days_to(d, jf.last_trade_date(DEC)) for d in (date(2026, 9, 11), date(2026, 9, 14))]
+        self.assertEqual(sorted(r[0] for r in rows[1:]), sorted(bds))
+
+    def test_blank_date_is_error(self):
+        # 空欄を今日やDBの最新日で補わない(シートは空欄を式で TradeDate に寄せて渡す)
+        for call in (lambda: udf.FutHistory(None, None), lambda: udf.FutRepoSteps(""),
+                     lambda: udf.FutOverlay(["2026-12"], "NET", None, None),
+                     lambda: udf.FutBasis("2026-12", None)):
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                call()
 
     def test_overlay(self):
         steps = [[date(2026, 9, 1), 0.5]]
-        rows = udf.FutOverlay(["2026-09", "JGBZ6"], "net", steps)
+        rows = udf.FutOverlay(["2026-09", "JGBZ6"], "net", steps, TD)
         self.assertEqual(rows[0], ["BD", "2026-09", "2026-12"])
         bds = [r[0] for r in rows[1:]]
         self.assertEqual(bds, sorted(bds, reverse=True))
@@ -119,7 +137,7 @@ class FutUdfTest(unittest.TestCase):
         self.assertEqual(by_bd[bd][1], self._expected_ctd(DEC, date(2026, 9, 11), 125.10, 0.5).net_basis)
         self.assertEqual(by_bd[0][1], "")
         with self.assertRaises(ValueError):
-            udf.FutOverlay(["2026-09"], "PRICE")
+            udf.FutOverlay(["2026-09"], "PRICE", None, TD)
 
     def test_day_basis_defaults(self):
         rows = udf.FutBasis("2026-12", date(2026, 9, 16))

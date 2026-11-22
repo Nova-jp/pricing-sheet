@@ -148,7 +148,7 @@ class BojImpliedRatesUdfTest(unittest.TestCase):
                 for p in periods]
         return rows + [["M10", None, None, None]]
 
-    def _call(self, tenors, meeting_range, today=VALUATION, valuation_date=None):
+    def _call(self, tenors, meeting_range, today=VALUATION, valuation_date=VALUATION):
         from engine.common import udf_common
         from engine.boj import udf
         with mock.patch.object(udf_common, "_today", lambda: today):
@@ -164,12 +164,17 @@ class BojImpliedRatesUdfTest(unittest.TestCase):
                 self.assertAlmostEqual(value, _par(boot, VALUATION, boot.spot_date, tenor=tenor), delta=1e-12)
 
     def test_missing_period_cuts_off_later_periods(self):
-        """M3の値が欠けたら、M4以降は使わない(M3の期間をM2で埋めない)。12Mは範囲外でエラー文字列。"""
+        """M3の値が欠けたら、M4以降は使わない(M3の期間をM2で埋めない)。12Mは範囲外で、テナーを付けたエラー
+        (エラーを文字列にして返さない)。"""
         rows = self._meeting_range(PERIODS)
         rows[3][1] = None
-        result = self._call(["2M", "12M"], rows)
-        self.assertIsInstance(result[0][0], float)
-        self.assertTrue(str(result[1][0]).startswith("エラー"))
+        self.assertIsInstance(self._call(["2M"], rows)[0][0], float)
+        with self.assertRaisesRegex(ValueError, "^12M: "):
+            self._call(["2M", "12M"], rows)
+
+    def test_blank_valuation_date_is_error(self):
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            self._call(["1W"], self._meeting_range(PERIODS), valuation_date=None)
 
     def test_past_valuation_date_is_error(self):
         with self.assertRaises(ValueError):
@@ -195,7 +200,7 @@ class BojSpotForwardsUdfTest(unittest.TestCase):
         from engine.swap_pricing import udf as pricing_udf
         rt = self._real_time()
         periods = [[datetime.datetime.combine(p.start, datetime.time()), p.end] for p in PERIODS]
-        result = self._call(udf.BojSpotForwards, periods, rt)
+        result = self._call(udf.BojSpotForwards, periods, rt, VALUATION)
         self.assertEqual(len(result), len(PERIODS))
         for (value,), p in zip(result, PERIODS):
             with self.subTest(period=p.label):
@@ -206,8 +211,15 @@ class BojSpotForwardsUdfTest(unittest.TestCase):
 
     def test_rows_without_dates_are_blank(self):
         from engine.boj import udf
-        result = self._call(udf.BojSpotForwards, [[None, None], ["", PERIODS[0].end], [None]], self._real_time())
+        result = self._call(
+            udf.BojSpotForwards, [[None, None], ["", PERIODS[0].end], [None]], self._real_time(), VALUATION,
+        )
         self.assertEqual(result, [[""], [""], [""]])
+
+    def test_blank_valuation_date_is_error(self):
+        from engine.boj import udf
+        with self.assertRaisesRegex(ValueError, "空欄"):
+            self._call(udf.BojSpotForwards, [[None, None]], self._real_time(), None)
 
 
 if __name__ == "__main__":

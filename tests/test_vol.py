@@ -105,7 +105,7 @@ class VolHistoryUdfTest(unittest.TestCase):
     def test_layout(self):
         udf._compute_cached.cache_clear()
         with mock.patch.object(udf_common, "_historical_store", return_value=self.store):
-            rows = udf.VolHistory(LABELS + [None, ""])
+            rows = udf.VolHistory(LABELS + [None, ""], DATES[-1])
         self.assertEqual(rows[0], [
             "Date", "1Mx10Y IV", "1Mx10Y Fwd", "1Mx10Y dF", "1Yx2Y IV", "1Yx2Y Fwd", "1Yx2Y dF",
         ])
@@ -119,7 +119,16 @@ class VolHistoryUdfTest(unittest.TestCase):
 
     def test_no_labels(self):
         with self.assertRaises(ValueError):
-            udf.VolHistory([None, ""])
+            udf.VolHistory([None, ""], DATES[-1])
+
+    def test_rows_until_trade_date(self):
+        # 評価日より後の日付は返さない(過去の評価日にしたとき、その日に見えていた行だけ)
+        udf._compute_cached.cache_clear()
+        with mock.patch.object(udf_common, "_historical_store", return_value=self.store):
+            rows = udf.VolHistory(LABELS, DATES[2])
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                udf.VolHistory(LABELS, None)
+        self.assertEqual([r[0] for r in rows[1:]], DATES[1:3])
 
 
 class VolFwdLiveUdfTest(unittest.TestCase):
@@ -128,7 +137,7 @@ class VolFwdLiveUdfTest(unittest.TestCase):
         boot = bootstrap_curve(base, SPOT_RATES)
         market = Market(base, boot.curve, boot.index, {})
         with mock.patch.object(udf_common, "_market", return_value=SimpleNamespace(base=market)):
-            rows = udf.VolFwdLive([LABELS[0], None, LABELS[1]], [["1", "1Y", 1.0]])
+            rows = udf.VolFwdLive([LABELS[0], None, LABELS[1]], [["1", "1Y", 1.0]], DATES[-1])
         self.assertEqual(len(rows), 3)
         self.assertEqual(rows[1], [""])  # 空欄の行は空欄のまま(行がずれない)
         for row, label in ((rows[0], LABELS[0]), (rows[2], LABELS[1])):
@@ -137,7 +146,7 @@ class VolFwdLiveUdfTest(unittest.TestCase):
 
     def test_no_labels(self):
         with self.assertRaises(ValueError):
-            udf.VolFwdLive([None, ""], [["1", "1Y", 1.0]])
+            udf.VolFwdLive([None, ""], [["1", "1Y", 1.0]], DATES[-1])
 
 
 if __name__ == "__main__":

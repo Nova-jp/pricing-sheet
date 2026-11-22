@@ -1,4 +1,5 @@
 # シートの並び
+sheet Control
 sheet PCA
 sheet PCAGrid
 sheet VolPCA
@@ -17,7 +18,7 @@ name FUT_ChNetAdj = ANCHORARRAY(FutBasis!$BE$4)
 name FUT_ChSettle = ANCHORARRAY(FutBasis!$BB$4)
 name FUT_ChSettleAdj = ANCHORARRAY(FutBasis!$BC$4)
 name FUT_Contract = FutBasis!$B$4
-name FUT_Date = IF(FUT_DateIn="",MAX(FUT_HD),FUT_DateIn)
+name FUT_Date = IF(FUT_DateIn="",TradeDate,FUT_DateIn)
 name FUT_DateIn = FutBasis!$B$5
 name FUT_Field = FutBasis!$B$9
 name FUT_From = FutBasis!$B$8
@@ -35,7 +36,8 @@ name FUT_Price = FutBasis!$B$6
 name FUT_Repo = FutBasis!$B$7
 name FUT_Steps = FutBasis!$T$15:$U$34
 name FUT_Yields = FutBasis!$W$15:$X$34
-name FWM_Base = FwdMonitor!$B$4
+name FWM_Base = IF(FWM_BaseIn="",TradeDate,FWM_BaseIn)
+name FWM_BaseIn = FwdMonitor!$B$4
 name FWM_Ch1 = ANCHORARRAY(FwdMonitor!$HJ$4)
 name FWM_Ch2 = ANCHORARRAY(FwdMonitor!$HK$4)
 name FWM_Ch3 = ANCHORARRAY(FwdMonitor!$HL$4)
@@ -74,7 +76,8 @@ name PCA_L5 = ANCHORARRAY(PCA!$X$34)
 name PCA_Mean = ANCHORARRAY(PCA!$G$34)
 name PCA_Mode = PCA!$B$6
 name PCA_Recon = ANCHORARRAY(PCA!$H$34)
-name PCA_ReconDate = PCA!$B$10
+name PCA_ReconDate = IF(PCA_ReconDateIn="",TradeDate,PCA_ReconDateIn)
+name PCA_ReconDateIn = PCA!$B$10
 name PCA_Resid = ANCHORARRAY(PCA!$I$34)
 name PCA_SDn = ANCHORARRAY(PCA!$CF$4)
 name PCA_SUp = ANCHORARRAY(PCA!$CE$4)
@@ -83,7 +86,8 @@ name PCA_SigmaDays = PCA!$B$12
 name PCA_Standardize = PCA!$B$7
 name PCA_Tenor = ANCHORARRAY(PCA!$E$34)
 name PCA_Up = ANCHORARRAY(PCA!$BX$4)
-name PCA_WindowEnd = PCA!$B$4
+name PCA_WindowEnd = IF(PCA_WindowEndIn="",TradeDate,PCA_WindowEndIn)
+name PCA_WindowEndIn = PCA!$B$4
 name PCA_k = PCA!$B$11
 name PCA_window = PCA!$B$5
 name PCG_Act1 = ANCHORARRAY(PCAGrid!$GQ$5)
@@ -178,7 +182,8 @@ name PCG_Rec6 = ANCHORARRAY(PCAGrid!$HE$255)
 name PCG_Rec7 = ANCHORARRAY(PCAGrid!$HE$305)
 name PCG_Rec8 = ANCHORARRAY(PCAGrid!$HE$355)
 name PCG_Rec9 = ANCHORARRAY(PCAGrid!$HE$405)
-name PCG_ReconDate = PCAGrid!$A$4
+name PCG_ReconDate = IF(PCG_ReconDateIn="",TradeDate,PCG_ReconDateIn)
+name PCG_ReconDateIn = PCAGrid!$A$4
 name PCG_SDn10_1 = ANCHORARRAY(PCAGrid!$HI$455)
 name PCG_SDn10_2 = ANCHORARRAY(PCAGrid!$HK$455)
 name PCG_SDn10_3 = ANCHORARRAY(PCAGrid!$HM$455)
@@ -279,6 +284,7 @@ name PCG_SUp9_2 = ANCHORARRAY(PCAGrid!$HJ$405)
 name PCG_SUp9_3 = ANCHORARRAY(PCAGrid!$HL$405)
 name PCG_SUp9_4 = ANCHORARRAY(PCAGrid!$HN$405)
 name PCG_SUp9_5 = ANCHORARRAY(PCAGrid!$HP$405)
+name PCG_Settings = LET(r,PCAGrid!$E$4:$BP$7,c,CHOOSECOLS(IF(r="","",r),SEQUENCE(1,10,1,7)),VSTACK(IF(TAKE(c,1)="",TradeDate,TAKE(c,1)),DROP(c,1)))
 name PCG_SigmaDays = PCAGrid!$B$55
 name PCG_Tenor = ANCHORARRAY(PCAGrid!$CB$4)
 name PCG_Up1 = ANCHORARRAY(PCAGrid!$HF$5)
@@ -341,6 +347,7 @@ name PCG_V9_2 = ANCHORARRAY(PCAGrid!$GY$405)
 name PCG_V9_3 = ANCHORARRAY(PCAGrid!$GZ$405)
 name PCG_V9_4 = ANCHORARRAY(PCAGrid!$HA$405)
 name PCG_V9_5 = ANCHORARRAY(PCAGrid!$HB$405)
+name TradeDate = Control!$B$4
 name VHV_ChDate = ANCHORARRAY(VolHV!$BF$4)
 name VHV_ChGap = ANCHORARRAY(VolHV!$BJ$4)
 name VHV_ChGapS = ANCHORARRAY(VolHV!$BK$4)
@@ -371,12 +378,28 @@ name VLV_Stat = LAMBDA(n,LET(s,VLV_Resids(n),x,INDEX(s,,1),y,INDEX(s,,2),r,INDEX
 name VOL_Expiries = ANCHORARRAY(VolPCA!$JD$4)
 name VOL_Labels = ANCHORARRAY(VolPCA!$JG$4)
 name VOL_Mode = VolPCA!$B$6
-name VOL_ReconDate = VolPCA!$B$10
+name VOL_ReconDate = IF(VOL_ReconDateIn="",TradeDate,VOL_ReconDateIn)
+name VOL_ReconDateIn = VolPCA!$B$10
 name VOL_Standardize = VolPCA!$B$7
 name VOL_Tenors = ANCHORARRAY(VolPCA!$JE$4)
-name VOL_WindowEnd = VolPCA!$B$4
+name VOL_WindowEnd = IF(VOL_WindowEndIn="",TradeDate,VOL_WindowEndIn)
+name VOL_WindowEndIn = VolPCA!$B$4
 name VOL_k = VolPCA!$B$11
 name VOL_window = VolPCA!$B$5
+# Control
+Control!A1 : "Control"
+Control!A3 : "Trade date"
+Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes. A past date uses the DB closes of that day (the live columns too)."
+Control!A4 : "TradeDate"
+Control!B4 = ValuationDate(B3)
+Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate). Blank date inputs on the sheets (Window end, Recon date, Base date, Date) fall back to it."
+Control!A5 : "DB stamp"
+Control!B5 = DbStamp(B3)
+Control!C5 : "Morning batch run that the DB had when the trade date was entered."
+Control!A6 : "Status"
+Control!B6 = DataStatus(B3,B5)
+Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
+Control!B6 format cellIs notEqual: "OK"
 # PCA
 PCA!A1 : "Rates"
 PCA!B1 : "Live"
@@ -562,15 +585,15 @@ PCAGrid!CD4 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
 PCAGrid!CI4 = PcaActual(ANCHORARRAY($CB$4),"Level",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
 PCAGrid!CJ4 = PcaActual(ANCHORARRAY($CB$4),"Change",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
 PCAGrid!CL4 = PcaActualInfo(ANCHORARRAY($CB$4),"Change",PCG_ReconDate,CHOOSECOLS(ANCHORARRAY($CD$4),1,2))
-PCAGrid!CO4 = PcaGrid(ANCHORARRAY($CB$4),LET(r,$E$4:$BP$7,CHOOSECOLS(IF(r="","",r),SEQUENCE(1,10,1,7))))
+PCAGrid!CO4 = PcaGrid(ANCHORARRAY($CB$4),PCG_Settings)
 PCAGrid!EP4 : "Case 1"
 PCAGrid!EQ4 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=1))
 PCAGrid!GQ4 : "Actual"
-PCAGrid!GR4 = IFERROR(LET(R,ANCHORARRAY($GR$5),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS4 = IFERROR(LET(R,ANCHORARRAY($GS$5),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT4 = IFERROR(LET(R,ANCHORARRAY($GT$5),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU4 = IFERROR(LET(R,ANCHORARRAY($GU$5),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV4 = IFERROR(LET(R,ANCHORARRAY($GV$5),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR4 = IF(OR(E$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$5),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS4 = IF(OR(E$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$5),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT4 = IF(OR(E$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$5),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU4 = IF(OR(E$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$5),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV4 = IF(OR(E$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$5),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX4 : "PC1"
 PCAGrid!GY4 : "PC2"
 PCAGrid!GZ4 : "PC3"
@@ -590,8 +613,7 @@ PCAGrid!HN4 : "+1σ (bp) band 4"
 PCAGrid!HO4 : "-1σ (bp) band 4"
 PCAGrid!HP4 : "+1σ (bp) band 5"
 PCAGrid!HQ4 : "-1σ (bp) band 5"
-PCAGrid!HR4 : "σ warning"
-PCAGrid!HS4 = PcaGridResidStd(ANCHORARRAY($CB$4),LET(r,$E$4:$BP$7,CHOOSECOLS(IF(r="","",r),SEQUENCE(1,10,1,7))),VSTACK($D$12,$D$28,$D$44,$D$60,$D$76),$B$55)
+PCAGrid!HS4 = PcaGridResidStd(ANCHORARRAY($CB$4),PCG_Settings,VSTACK($D$12,$D$28,$D$44,$D$60,$D$76),$B$55)
 PCAGrid!A5 : "Source"
 PCAGrid!D5 : "Window"
 PCAGrid!E5 : 20
@@ -619,18 +641,17 @@ PCAGrid!HD5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)
 PCAGrid!HE5 = LET(sl,ANCHORARRAY($EQ$4),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$5),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)+CHOOSECOLS(ANCHORARRAY($EQ$4),10)
 PCAGrid!HG5 = CHOOSECOLS(ANCHORARRAY($EQ$4),8)-CHOOSECOLS(ANCHORARRAY($EQ$4),10)
-PCAGrid!HH5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),3),IF(v="",NA(),v))
+PCAGrid!HH5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),2),IF(v="",NA(),v))
 PCAGrid!HI5 = -ANCHORARRAY($HH$5)
-PCAGrid!HJ5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),4),IF(v="",NA(),v))
+PCAGrid!HJ5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),3),IF(v="",NA(),v))
 PCAGrid!HK5 = -ANCHORARRAY($HJ$5)
-PCAGrid!HL5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),5),IF(v="",NA(),v))
+PCAGrid!HL5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),4),IF(v="",NA(),v))
 PCAGrid!HM5 = -ANCHORARRAY($HL$5)
-PCAGrid!HN5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),6),IF(v="",NA(),v))
+PCAGrid!HN5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),5),IF(v="",NA(),v))
 PCAGrid!HO5 = -ANCHORARRAY($HN$5)
-PCAGrid!HP5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),7),IF(v="",NA(),v))
+PCAGrid!HP5 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),6),IF(v="",NA(),v))
 PCAGrid!HQ5 = -ANCHORARRAY($HP$5)
-PCAGrid!HR5 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=1),1,2),"")
-PCAGrid!A6 = IFERROR(INDEX(ANCHORARRAY($CL$4),2,2),"")
+PCAGrid!A6 = INDEX(ANCHORARRAY($CL$4),2,2)
 PCAGrid!D6 : "Mode"
 PCAGrid!E6 : "Change"
 PCAGrid!L6 : "Change"
@@ -654,27 +675,27 @@ PCAGrid!BB7 : "No"
 PCAGrid!BI7 : "Yes"
 PCAGrid!BP7 : "Yes"
 PCAGrid!D8 : "Est. period"
-PCAGrid!E8 = IFERROR(LET(sl,ANCHORARRAY($EQ$4),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!L8 = IFERROR(LET(sl,ANCHORARRAY($EQ$54),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!S8 = IFERROR(LET(sl,ANCHORARRAY($EQ$104),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!Z8 = IFERROR(LET(sl,ANCHORARRAY($EQ$154),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!AG8 = IFERROR(LET(sl,ANCHORARRAY($EQ$204),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!AN8 = IFERROR(LET(sl,ANCHORARRAY($EQ$254),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!AU8 = IFERROR(LET(sl,ANCHORARRAY($EQ$304),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!BB8 = IFERROR(LET(sl,ANCHORARRAY($EQ$354),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!BI8 = IFERROR(LET(sl,ANCHORARRAY($EQ$404),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
-PCAGrid!BP8 = IFERROR(LET(sl,ANCHORARRAY($EQ$454),IF(ISNUMBER(INDEX(sl,1,2)),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")","Error")),"Error")
+PCAGrid!E8 = IF(E$5="","",LET(sl,ANCHORARRAY($EQ$4),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!L8 = IF(L$5="","",LET(sl,ANCHORARRAY($EQ$54),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!S8 = IF(S$5="","",LET(sl,ANCHORARRAY($EQ$104),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!Z8 = IF(Z$5="","",LET(sl,ANCHORARRAY($EQ$154),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!AG8 = IF(AG$5="","",LET(sl,ANCHORARRAY($EQ$204),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!AN8 = IF(AN$5="","",LET(sl,ANCHORARRAY($EQ$254),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!AU8 = IF(AU$5="","",LET(sl,ANCHORARRAY($EQ$304),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!BB8 = IF(BB$5="","",LET(sl,ANCHORARRAY($EQ$354),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!BI8 = IF(BI$5="","",LET(sl,ANCHORARRAY($EQ$404),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
+PCAGrid!BP8 = IF(BP$5="","",LET(sl,ANCHORARRAY($EQ$454),TEXT(INDEX(sl,1,2),"yyyy-mm-dd")&" - "&TEXT(INDEX(sl,1,3),"yyyy-mm-dd")&"  (n="&INDEX(sl,1,4)&")"))
 PCAGrid!D9 : "Warning"
-PCAGrid!E9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$4),1,6),IF($E$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$5),"")
-PCAGrid!L9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$54),1,6),IF($L$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$55),"")
-PCAGrid!S9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$104),1,6),IF($S$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$105),"")
-PCAGrid!Z9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$154),1,6),IF($Z$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$155),"")
-PCAGrid!AG9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$204),1,6),IF($AG$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$205),"")
-PCAGrid!AN9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$254),1,6),IF($AN$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$255),"")
-PCAGrid!AU9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$304),1,6),IF($AU$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$305),"")
-PCAGrid!BB9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$354),1,6),IF($BB$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$355),"")
-PCAGrid!BI9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$404),1,6),IF($BI$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$405),"")
-PCAGrid!BP9 = IFERROR(TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$454),1,6),IF($BP$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),""),$HR$455),"")
+PCAGrid!E9 = IF(E$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$4),1,6),IF($E$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!L9 = IF(L$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$54),1,6),IF($L$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!S9 = IF(S$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$104),1,6),IF($S$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!Z9 = IF(Z$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$154),1,6),IF($Z$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!AG9 = IF(AG$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$204),1,6),IF($AG$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!AN9 = IF(AN$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$254),1,6),IF($AN$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!AU9 = IF(AU$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$304),1,6),IF($AU$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!BB9 = IF(BB$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$354),1,6),IF($BB$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!BI9 = IF(BI$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$404),1,6),IF($BI$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
+PCAGrid!BP9 = IF(BP$5="","",TEXTJOIN(" / ",TRUE,INDEX(ANCHORARRAY($EQ$454),1,6),IF($BP$6="Change",INDEX(ANCHORARRAY($CL$4),4,2),"")))
 PCAGrid!A10 : "Tenors"
 PCAGrid!A11 : "Tenor"
 PCAGrid!B11 : "Use"
@@ -742,11 +763,11 @@ PCAGrid!A53 : "M8"
 PCAGrid!EP54 : "Case 2"
 PCAGrid!EQ54 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=2))
 PCAGrid!GQ54 : "Actual"
-PCAGrid!GR54 = IFERROR(LET(R,ANCHORARRAY($GR$55),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS54 = IFERROR(LET(R,ANCHORARRAY($GS$55),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT54 = IFERROR(LET(R,ANCHORARRAY($GT$55),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU54 = IFERROR(LET(R,ANCHORARRAY($GU$55),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV54 = IFERROR(LET(R,ANCHORARRAY($GV$55),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR54 = IF(OR(L$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$55),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS54 = IF(OR(L$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$55),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT54 = IF(OR(L$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$55),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU54 = IF(OR(L$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$55),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV54 = IF(OR(L$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$55),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX54 : "PC1"
 PCAGrid!GY54 : "PC2"
 PCAGrid!GZ54 : "PC3"
@@ -766,7 +787,6 @@ PCAGrid!HN54 : "+1σ (bp) band 4"
 PCAGrid!HO54 : "-1σ (bp) band 4"
 PCAGrid!HP54 : "+1σ (bp) band 5"
 PCAGrid!HQ54 : "-1σ (bp) band 5"
-PCAGrid!HR54 : "σ warning"
 PCAGrid!A55 : "Resid σ days"
 PCAGrid!GQ55 = IF($L$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -783,17 +803,16 @@ PCAGrid!HD55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)
 PCAGrid!HE55 = LET(sl,ANCHORARRAY($EQ$54),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$55),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)+CHOOSECOLS(ANCHORARRAY($EQ$54),10)
 PCAGrid!HG55 = CHOOSECOLS(ANCHORARRAY($EQ$54),8)-CHOOSECOLS(ANCHORARRAY($EQ$54),10)
-PCAGrid!HH55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),3),IF(v="",NA(),v))
+PCAGrid!HH55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),2),IF(v="",NA(),v))
 PCAGrid!HI55 = -ANCHORARRAY($HH$55)
-PCAGrid!HJ55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),4),IF(v="",NA(),v))
+PCAGrid!HJ55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),3),IF(v="",NA(),v))
 PCAGrid!HK55 = -ANCHORARRAY($HJ$55)
-PCAGrid!HL55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),5),IF(v="",NA(),v))
+PCAGrid!HL55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),4),IF(v="",NA(),v))
 PCAGrid!HM55 = -ANCHORARRAY($HL$55)
-PCAGrid!HN55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),6),IF(v="",NA(),v))
+PCAGrid!HN55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),5),IF(v="",NA(),v))
 PCAGrid!HO55 = -ANCHORARRAY($HN$55)
-PCAGrid!HP55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),7),IF(v="",NA(),v))
+PCAGrid!HP55 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),6),IF(v="",NA(),v))
 PCAGrid!HQ55 = -ANCHORARRAY($HP$55)
-PCAGrid!HR55 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=2),1,2),"")
 PCAGrid!A57 : "Guide tenors"
 PCAGrid!A58 : "5Y"
 PCAGrid!A59 : "10Y"
@@ -807,11 +826,11 @@ PCAGrid!D91 : "Vectors"
 PCAGrid!EP104 : "Case 3"
 PCAGrid!EQ104 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=3))
 PCAGrid!GQ104 : "Actual"
-PCAGrid!GR104 = IFERROR(LET(R,ANCHORARRAY($GR$105),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS104 = IFERROR(LET(R,ANCHORARRAY($GS$105),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT104 = IFERROR(LET(R,ANCHORARRAY($GT$105),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU104 = IFERROR(LET(R,ANCHORARRAY($GU$105),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV104 = IFERROR(LET(R,ANCHORARRAY($GV$105),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR104 = IF(OR(S$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$105),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS104 = IF(OR(S$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$105),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT104 = IF(OR(S$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$105),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU104 = IF(OR(S$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$105),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV104 = IF(OR(S$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$105),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX104 : "PC1"
 PCAGrid!GY104 : "PC2"
 PCAGrid!GZ104 : "PC3"
@@ -831,7 +850,6 @@ PCAGrid!HN104 : "+1σ (bp) band 4"
 PCAGrid!HO104 : "-1σ (bp) band 4"
 PCAGrid!HP104 : "+1σ (bp) band 5"
 PCAGrid!HQ104 : "-1σ (bp) band 5"
-PCAGrid!HR104 : "σ warning"
 PCAGrid!GQ105 = IF($S$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -847,27 +865,26 @@ PCAGrid!HD105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)
 PCAGrid!HE105 = LET(sl,ANCHORARRAY($EQ$104),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$105),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)+CHOOSECOLS(ANCHORARRAY($EQ$104),10)
 PCAGrid!HG105 = CHOOSECOLS(ANCHORARRAY($EQ$104),8)-CHOOSECOLS(ANCHORARRAY($EQ$104),10)
-PCAGrid!HH105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),3),IF(v="",NA(),v))
+PCAGrid!HH105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),2),IF(v="",NA(),v))
 PCAGrid!HI105 = -ANCHORARRAY($HH$105)
-PCAGrid!HJ105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),4),IF(v="",NA(),v))
+PCAGrid!HJ105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),3),IF(v="",NA(),v))
 PCAGrid!HK105 = -ANCHORARRAY($HJ$105)
-PCAGrid!HL105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),5),IF(v="",NA(),v))
+PCAGrid!HL105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),4),IF(v="",NA(),v))
 PCAGrid!HM105 = -ANCHORARRAY($HL$105)
-PCAGrid!HN105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),6),IF(v="",NA(),v))
+PCAGrid!HN105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),5),IF(v="",NA(),v))
 PCAGrid!HO105 = -ANCHORARRAY($HN$105)
-PCAGrid!HP105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),7),IF(v="",NA(),v))
+PCAGrid!HP105 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),6),IF(v="",NA(),v))
 PCAGrid!HQ105 = -ANCHORARRAY($HP$105)
-PCAGrid!HR105 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=3),1,2),"")
 PCAGrid!D107 : "k"
 PCAGrid!D108 : 3
 PCAGrid!EP154 : "Case 4"
 PCAGrid!EQ154 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=4))
 PCAGrid!GQ154 : "Actual"
-PCAGrid!GR154 = IFERROR(LET(R,ANCHORARRAY($GR$155),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS154 = IFERROR(LET(R,ANCHORARRAY($GS$155),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT154 = IFERROR(LET(R,ANCHORARRAY($GT$155),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU154 = IFERROR(LET(R,ANCHORARRAY($GU$155),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV154 = IFERROR(LET(R,ANCHORARRAY($GV$155),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR154 = IF(OR(Z$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$155),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS154 = IF(OR(Z$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$155),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT154 = IF(OR(Z$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$155),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU154 = IF(OR(Z$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$155),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV154 = IF(OR(Z$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$155),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX154 : "PC1"
 PCAGrid!GY154 : "PC2"
 PCAGrid!GZ154 : "PC3"
@@ -887,7 +904,6 @@ PCAGrid!HN154 : "+1σ (bp) band 4"
 PCAGrid!HO154 : "-1σ (bp) band 4"
 PCAGrid!HP154 : "+1σ (bp) band 5"
 PCAGrid!HQ154 : "-1σ (bp) band 5"
-PCAGrid!HR154 : "σ warning"
 PCAGrid!GQ155 = IF($Z$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -903,25 +919,24 @@ PCAGrid!HD155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)
 PCAGrid!HE155 = LET(sl,ANCHORARRAY($EQ$154),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$155),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)+CHOOSECOLS(ANCHORARRAY($EQ$154),10)
 PCAGrid!HG155 = CHOOSECOLS(ANCHORARRAY($EQ$154),8)-CHOOSECOLS(ANCHORARRAY($EQ$154),10)
-PCAGrid!HH155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),3),IF(v="",NA(),v))
+PCAGrid!HH155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),2),IF(v="",NA(),v))
 PCAGrid!HI155 = -ANCHORARRAY($HH$155)
-PCAGrid!HJ155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),4),IF(v="",NA(),v))
+PCAGrid!HJ155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),3),IF(v="",NA(),v))
 PCAGrid!HK155 = -ANCHORARRAY($HJ$155)
-PCAGrid!HL155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),5),IF(v="",NA(),v))
+PCAGrid!HL155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),4),IF(v="",NA(),v))
 PCAGrid!HM155 = -ANCHORARRAY($HL$155)
-PCAGrid!HN155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),6),IF(v="",NA(),v))
+PCAGrid!HN155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),5),IF(v="",NA(),v))
 PCAGrid!HO155 = -ANCHORARRAY($HN$155)
-PCAGrid!HP155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),7),IF(v="",NA(),v))
+PCAGrid!HP155 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),6),IF(v="",NA(),v))
 PCAGrid!HQ155 = -ANCHORARRAY($HP$155)
-PCAGrid!HR155 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=4),1,2),"")
 PCAGrid!EP204 : "Case 5"
 PCAGrid!EQ204 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=5))
 PCAGrid!GQ204 : "Actual"
-PCAGrid!GR204 = IFERROR(LET(R,ANCHORARRAY($GR$205),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS204 = IFERROR(LET(R,ANCHORARRAY($GS$205),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT204 = IFERROR(LET(R,ANCHORARRAY($GT$205),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU204 = IFERROR(LET(R,ANCHORARRAY($GU$205),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV204 = IFERROR(LET(R,ANCHORARRAY($GV$205),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR204 = IF(OR(AG$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$205),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS204 = IF(OR(AG$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$205),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT204 = IF(OR(AG$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$205),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU204 = IF(OR(AG$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$205),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV204 = IF(OR(AG$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$205),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX204 : "PC1"
 PCAGrid!GY204 : "PC2"
 PCAGrid!GZ204 : "PC3"
@@ -941,7 +956,6 @@ PCAGrid!HN204 : "+1σ (bp) band 4"
 PCAGrid!HO204 : "-1σ (bp) band 4"
 PCAGrid!HP204 : "+1σ (bp) band 5"
 PCAGrid!HQ204 : "-1σ (bp) band 5"
-PCAGrid!HR204 : "σ warning"
 PCAGrid!GQ205 = IF($AG$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -957,25 +971,24 @@ PCAGrid!HD205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)
 PCAGrid!HE205 = LET(sl,ANCHORARRAY($EQ$204),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$205),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)+CHOOSECOLS(ANCHORARRAY($EQ$204),10)
 PCAGrid!HG205 = CHOOSECOLS(ANCHORARRAY($EQ$204),8)-CHOOSECOLS(ANCHORARRAY($EQ$204),10)
-PCAGrid!HH205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),3),IF(v="",NA(),v))
+PCAGrid!HH205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),2),IF(v="",NA(),v))
 PCAGrid!HI205 = -ANCHORARRAY($HH$205)
-PCAGrid!HJ205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),4),IF(v="",NA(),v))
+PCAGrid!HJ205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),3),IF(v="",NA(),v))
 PCAGrid!HK205 = -ANCHORARRAY($HJ$205)
-PCAGrid!HL205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),5),IF(v="",NA(),v))
+PCAGrid!HL205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),4),IF(v="",NA(),v))
 PCAGrid!HM205 = -ANCHORARRAY($HL$205)
-PCAGrid!HN205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),6),IF(v="",NA(),v))
+PCAGrid!HN205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),5),IF(v="",NA(),v))
 PCAGrid!HO205 = -ANCHORARRAY($HN$205)
-PCAGrid!HP205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),7),IF(v="",NA(),v))
+PCAGrid!HP205 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),6),IF(v="",NA(),v))
 PCAGrid!HQ205 = -ANCHORARRAY($HP$205)
-PCAGrid!HR205 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=5),1,2),"")
 PCAGrid!EP254 : "Case 6"
 PCAGrid!EQ254 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=6))
 PCAGrid!GQ254 : "Actual"
-PCAGrid!GR254 = IFERROR(LET(R,ANCHORARRAY($GR$255),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS254 = IFERROR(LET(R,ANCHORARRAY($GS$255),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT254 = IFERROR(LET(R,ANCHORARRAY($GT$255),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU254 = IFERROR(LET(R,ANCHORARRAY($GU$255),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV254 = IFERROR(LET(R,ANCHORARRAY($GV$255),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR254 = IF(OR(AN$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$255),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS254 = IF(OR(AN$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$255),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT254 = IF(OR(AN$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$255),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU254 = IF(OR(AN$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$255),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV254 = IF(OR(AN$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$255),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX254 : "PC1"
 PCAGrid!GY254 : "PC2"
 PCAGrid!GZ254 : "PC3"
@@ -995,7 +1008,6 @@ PCAGrid!HN254 : "+1σ (bp) band 4"
 PCAGrid!HO254 : "-1σ (bp) band 4"
 PCAGrid!HP254 : "+1σ (bp) band 5"
 PCAGrid!HQ254 : "-1σ (bp) band 5"
-PCAGrid!HR254 : "σ warning"
 PCAGrid!GQ255 = IF($AN$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -1011,25 +1023,24 @@ PCAGrid!HD255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)
 PCAGrid!HE255 = LET(sl,ANCHORARRAY($EQ$254),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$255),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)+CHOOSECOLS(ANCHORARRAY($EQ$254),10)
 PCAGrid!HG255 = CHOOSECOLS(ANCHORARRAY($EQ$254),8)-CHOOSECOLS(ANCHORARRAY($EQ$254),10)
-PCAGrid!HH255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),3),IF(v="",NA(),v))
+PCAGrid!HH255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),2),IF(v="",NA(),v))
 PCAGrid!HI255 = -ANCHORARRAY($HH$255)
-PCAGrid!HJ255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),4),IF(v="",NA(),v))
+PCAGrid!HJ255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),3),IF(v="",NA(),v))
 PCAGrid!HK255 = -ANCHORARRAY($HJ$255)
-PCAGrid!HL255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),5),IF(v="",NA(),v))
+PCAGrid!HL255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),4),IF(v="",NA(),v))
 PCAGrid!HM255 = -ANCHORARRAY($HL$255)
-PCAGrid!HN255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),6),IF(v="",NA(),v))
+PCAGrid!HN255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),5),IF(v="",NA(),v))
 PCAGrid!HO255 = -ANCHORARRAY($HN$255)
-PCAGrid!HP255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),7),IF(v="",NA(),v))
+PCAGrid!HP255 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),6),IF(v="",NA(),v))
 PCAGrid!HQ255 = -ANCHORARRAY($HP$255)
-PCAGrid!HR255 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=6),1,2),"")
 PCAGrid!EP304 : "Case 7"
 PCAGrid!EQ304 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=7))
 PCAGrid!GQ304 : "Actual"
-PCAGrid!GR304 = IFERROR(LET(R,ANCHORARRAY($GR$305),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS304 = IFERROR(LET(R,ANCHORARRAY($GS$305),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT304 = IFERROR(LET(R,ANCHORARRAY($GT$305),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU304 = IFERROR(LET(R,ANCHORARRAY($GU$305),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV304 = IFERROR(LET(R,ANCHORARRAY($GV$305),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR304 = IF(OR(AU$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$305),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS304 = IF(OR(AU$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$305),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT304 = IF(OR(AU$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$305),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU304 = IF(OR(AU$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$305),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV304 = IF(OR(AU$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$305),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX304 : "PC1"
 PCAGrid!GY304 : "PC2"
 PCAGrid!GZ304 : "PC3"
@@ -1049,7 +1060,6 @@ PCAGrid!HN304 : "+1σ (bp) band 4"
 PCAGrid!HO304 : "-1σ (bp) band 4"
 PCAGrid!HP304 : "+1σ (bp) band 5"
 PCAGrid!HQ304 : "-1σ (bp) band 5"
-PCAGrid!HR304 : "σ warning"
 PCAGrid!GQ305 = IF($AU$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -1065,25 +1075,24 @@ PCAGrid!HD305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)
 PCAGrid!HE305 = LET(sl,ANCHORARRAY($EQ$304),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$305),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)+CHOOSECOLS(ANCHORARRAY($EQ$304),10)
 PCAGrid!HG305 = CHOOSECOLS(ANCHORARRAY($EQ$304),8)-CHOOSECOLS(ANCHORARRAY($EQ$304),10)
-PCAGrid!HH305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),3),IF(v="",NA(),v))
+PCAGrid!HH305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),2),IF(v="",NA(),v))
 PCAGrid!HI305 = -ANCHORARRAY($HH$305)
-PCAGrid!HJ305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),4),IF(v="",NA(),v))
+PCAGrid!HJ305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),3),IF(v="",NA(),v))
 PCAGrid!HK305 = -ANCHORARRAY($HJ$305)
-PCAGrid!HL305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),5),IF(v="",NA(),v))
+PCAGrid!HL305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),4),IF(v="",NA(),v))
 PCAGrid!HM305 = -ANCHORARRAY($HL$305)
-PCAGrid!HN305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),6),IF(v="",NA(),v))
+PCAGrid!HN305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),5),IF(v="",NA(),v))
 PCAGrid!HO305 = -ANCHORARRAY($HN$305)
-PCAGrid!HP305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),7),IF(v="",NA(),v))
+PCAGrid!HP305 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),6),IF(v="",NA(),v))
 PCAGrid!HQ305 = -ANCHORARRAY($HP$305)
-PCAGrid!HR305 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=7),1,2),"")
 PCAGrid!EP354 : "Case 8"
 PCAGrid!EQ354 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=8))
 PCAGrid!GQ354 : "Actual"
-PCAGrid!GR354 = IFERROR(LET(R,ANCHORARRAY($GR$355),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS354 = IFERROR(LET(R,ANCHORARRAY($GS$355),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT354 = IFERROR(LET(R,ANCHORARRAY($GT$355),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU354 = IFERROR(LET(R,ANCHORARRAY($GU$355),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV354 = IFERROR(LET(R,ANCHORARRAY($GV$355),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR354 = IF(OR(BB$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$355),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS354 = IF(OR(BB$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$355),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT354 = IF(OR(BB$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$355),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU354 = IF(OR(BB$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$355),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV354 = IF(OR(BB$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$355),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX354 : "PC1"
 PCAGrid!GY354 : "PC2"
 PCAGrid!GZ354 : "PC3"
@@ -1103,7 +1112,6 @@ PCAGrid!HN354 : "+1σ (bp) band 4"
 PCAGrid!HO354 : "-1σ (bp) band 4"
 PCAGrid!HP354 : "+1σ (bp) band 5"
 PCAGrid!HQ354 : "-1σ (bp) band 5"
-PCAGrid!HR354 : "σ warning"
 PCAGrid!GQ355 = IF($BB$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -1119,25 +1127,24 @@ PCAGrid!HD355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)
 PCAGrid!HE355 = LET(sl,ANCHORARRAY($EQ$354),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$355),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)+CHOOSECOLS(ANCHORARRAY($EQ$354),10)
 PCAGrid!HG355 = CHOOSECOLS(ANCHORARRAY($EQ$354),8)-CHOOSECOLS(ANCHORARRAY($EQ$354),10)
-PCAGrid!HH355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),3),IF(v="",NA(),v))
+PCAGrid!HH355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),2),IF(v="",NA(),v))
 PCAGrid!HI355 = -ANCHORARRAY($HH$355)
-PCAGrid!HJ355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),4),IF(v="",NA(),v))
+PCAGrid!HJ355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),3),IF(v="",NA(),v))
 PCAGrid!HK355 = -ANCHORARRAY($HJ$355)
-PCAGrid!HL355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),5),IF(v="",NA(),v))
+PCAGrid!HL355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),4),IF(v="",NA(),v))
 PCAGrid!HM355 = -ANCHORARRAY($HL$355)
-PCAGrid!HN355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),6),IF(v="",NA(),v))
+PCAGrid!HN355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),5),IF(v="",NA(),v))
 PCAGrid!HO355 = -ANCHORARRAY($HN$355)
-PCAGrid!HP355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),7),IF(v="",NA(),v))
+PCAGrid!HP355 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),6),IF(v="",NA(),v))
 PCAGrid!HQ355 = -ANCHORARRAY($HP$355)
-PCAGrid!HR355 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=8),1,2),"")
 PCAGrid!EP404 : "Case 9"
 PCAGrid!EQ404 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=9))
 PCAGrid!GQ404 : "Actual"
-PCAGrid!GR404 = IFERROR(LET(R,ANCHORARRAY($GR$405),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS404 = IFERROR(LET(R,ANCHORARRAY($GS$405),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT404 = IFERROR(LET(R,ANCHORARRAY($GT$405),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU404 = IFERROR(LET(R,ANCHORARRAY($GU$405),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV404 = IFERROR(LET(R,ANCHORARRAY($GV$405),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR404 = IF(OR(BI$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$405),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS404 = IF(OR(BI$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$405),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT404 = IF(OR(BI$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$405),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU404 = IF(OR(BI$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$405),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV404 = IF(OR(BI$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$405),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX404 : "PC1"
 PCAGrid!GY404 : "PC2"
 PCAGrid!GZ404 : "PC3"
@@ -1157,7 +1164,6 @@ PCAGrid!HN404 : "+1σ (bp) band 4"
 PCAGrid!HO404 : "-1σ (bp) band 4"
 PCAGrid!HP404 : "+1σ (bp) band 5"
 PCAGrid!HQ404 : "-1σ (bp) band 5"
-PCAGrid!HR404 : "σ warning"
 PCAGrid!GQ405 = IF($BI$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -1173,25 +1179,24 @@ PCAGrid!HD405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)
 PCAGrid!HE405 = LET(sl,ANCHORARRAY($EQ$404),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$405),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)+CHOOSECOLS(ANCHORARRAY($EQ$404),10)
 PCAGrid!HG405 = CHOOSECOLS(ANCHORARRAY($EQ$404),8)-CHOOSECOLS(ANCHORARRAY($EQ$404),10)
-PCAGrid!HH405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),3),IF(v="",NA(),v))
+PCAGrid!HH405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),2),IF(v="",NA(),v))
 PCAGrid!HI405 = -ANCHORARRAY($HH$405)
-PCAGrid!HJ405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),4),IF(v="",NA(),v))
+PCAGrid!HJ405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),3),IF(v="",NA(),v))
 PCAGrid!HK405 = -ANCHORARRAY($HJ$405)
-PCAGrid!HL405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),5),IF(v="",NA(),v))
+PCAGrid!HL405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),4),IF(v="",NA(),v))
 PCAGrid!HM405 = -ANCHORARRAY($HL$405)
-PCAGrid!HN405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),6),IF(v="",NA(),v))
+PCAGrid!HN405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),5),IF(v="",NA(),v))
 PCAGrid!HO405 = -ANCHORARRAY($HN$405)
-PCAGrid!HP405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),7),IF(v="",NA(),v))
+PCAGrid!HP405 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),6),IF(v="",NA(),v))
 PCAGrid!HQ405 = -ANCHORARRAY($HP$405)
-PCAGrid!HR405 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=9),1,2),"")
 PCAGrid!EP454 : "Case 10"
 PCAGrid!EQ454 = LET(g,DROP(ANCHORARRAY($CO$4),1),FILTER(g,TAKE(g,,1)=10))
 PCAGrid!GQ454 : "Actual"
-PCAGrid!GR454 = IFERROR(LET(R,ANCHORARRAY($GR$455),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$12&"   n/a")
-PCAGrid!GS454 = IFERROR(LET(R,ANCHORARRAY($GS$455),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$28&"   n/a")
-PCAGrid!GT454 = IFERROR(LET(R,ANCHORARRAY($GT$455),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$44&"   n/a")
-PCAGrid!GU454 = IFERROR(LET(R,ANCHORARRAY($GU$455),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$60&"   n/a")
-PCAGrid!GV454 = IFERROR(LET(R,ANCHORARRAY($GV$455),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"),"k="&$D$76&"   n/a")
+PCAGrid!GR454 = IF(OR(BP$5="",$D$12=""),"",LET(R,ANCHORARRAY($GR$455),a,ABS(R),"k="&$D$12&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GS454 = IF(OR(BP$5="",$D$28=""),"",LET(R,ANCHORARRAY($GS$455),a,ABS(R),"k="&$D$28&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GT454 = IF(OR(BP$5="",$D$44=""),"",LET(R,ANCHORARRAY($GT$455),a,ABS(R),"k="&$D$44&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GU454 = IF(OR(BP$5="",$D$60=""),"",LET(R,ANCHORARRAY($GU$455),a,ABS(R),"k="&$D$60&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
+PCAGrid!GV454 = IF(OR(BP$5="",$D$76=""),"",LET(R,ANCHORARRAY($GV$455),a,ABS(R),"k="&$D$76&"   RMS "&TEXT(SQRT(SUMSQ(R)/ROWS(R)),"0.00")&"bp   Max "&TEXT(MAX(a),"0.00")&"bp ("&XLOOKUP(MAX(a),a,ANCHORARRAY($CB$4))&")"))
 PCAGrid!GX454 : "PC1"
 PCAGrid!GY454 : "PC2"
 PCAGrid!GZ454 : "PC3"
@@ -1211,7 +1216,6 @@ PCAGrid!HN454 : "+1σ (bp) band 4"
 PCAGrid!HO454 : "-1σ (bp) band 4"
 PCAGrid!HP454 : "+1σ (bp) band 5"
 PCAGrid!HQ454 : "-1σ (bp) band 5"
-PCAGrid!HR454 : "σ warning"
 PCAGrid!GQ455 = IF($BP$6="Change",ANCHORARRAY($CJ$4),ANCHORARRAY($CI$4))
 PCAGrid!GR455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$12),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
 PCAGrid!GS455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$28),(x-(mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg))))*100)
@@ -1227,17 +1231,16 @@ PCAGrid!HD455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)
 PCAGrid!HE455 = LET(sl,ANCHORARRAY($EQ$454),mu,CHOOSECOLS(sl,8),sg,CHOOSECOLS(sl,9),x,ANCHORARRAY($GQ$455),V,TAKE(DROP(sl,,10),,$D$108),mu+sg*MMULT(V,MMULT(TRANSPOSE(V),(x-mu)/sg)))
 PCAGrid!HF455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)+CHOOSECOLS(ANCHORARRAY($EQ$454),10)
 PCAGrid!HG455 = CHOOSECOLS(ANCHORARRAY($EQ$454),8)-CHOOSECOLS(ANCHORARRAY($EQ$454),10)
-PCAGrid!HH455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),3),IF(v="",NA(),v))
+PCAGrid!HH455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),2),IF(v="",NA(),v))
 PCAGrid!HI455 = -ANCHORARRAY($HH$455)
-PCAGrid!HJ455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),4),IF(v="",NA(),v))
+PCAGrid!HJ455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),3),IF(v="",NA(),v))
 PCAGrid!HK455 = -ANCHORARRAY($HJ$455)
-PCAGrid!HL455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),5),IF(v="",NA(),v))
+PCAGrid!HL455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),4),IF(v="",NA(),v))
 PCAGrid!HM455 = -ANCHORARRAY($HL$455)
-PCAGrid!HN455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),6),IF(v="",NA(),v))
+PCAGrid!HN455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),5),IF(v="",NA(),v))
 PCAGrid!HO455 = -ANCHORARRAY($HN$455)
-PCAGrid!HP455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),7),IF(v="",NA(),v))
+PCAGrid!HP455 = LET(v,CHOOSECOLS(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),6),IF(v="",NA(),v))
 PCAGrid!HQ455 = -ANCHORARRAY($HP$455)
-PCAGrid!HR455 = IFERROR(INDEX(FILTER(DROP(ANCHORARRAY($HS$4),1),TAKE(DROP(ANCHORARRAY($HS$4),1),,1)=10),1,2),"")
 PCAGrid!A4 validation date greaterThanOrEqual: 1
 PCAGrid!A58:A62 validation list: $A$12:$A$53
 PCAGrid!AG4 AN4 AU4 BB4 BI4 BP4 E4 L4 S4 Z4 validation date greaterThanOrEqual: 1
@@ -1472,7 +1475,7 @@ VolHV!BB2 : "Live vol (Name / RIC / Value)"
 VolHV!BF2 : "Chart data (From onwards)"
 VolHV!A3 : "Legs"
 VolHV!F3 : "Summary"
-VolHV!AB3 = VolHistory($B$5:$B$7)
+VolHV!AB3 = VolHistory($B$5:$B$7,TradeDate)
 VolHV!AL3 : "Date"
 VolHV!AM3 : "Leg1 IV"
 VolHV!AN3 : "Leg1 HV"
@@ -1641,7 +1644,7 @@ VolLevel!AE3 = IF($B$1="Fixed",LiveSnapshot("swap"),LiveQuotes("swap"))
 VolLevel!AJ3 = LET(q,ANCHORARRAY($AE$3),t,$AP$4:$AP$47,HSTACK($AQ$4:$AQ$47,t,INDEX(q,XMATCH(t,INDEX(q,,1)),{2,3,4})))
 VolLevel!AP3 : "Ticker"
 VolLevel!AQ3 : "Flag"
-VolLevel!AS3 = VolHistory($B$4:$B$6)
+VolLevel!AS3 = VolHistory($B$4:$B$6,TradeDate)
 VolLevel!BD3 : "Live Fwd"
 VolLevel!BF3 : "P1 Date"
 VolLevel!BG3 : "P1 Fwd"
@@ -1672,14 +1675,14 @@ VolLevel!CH3 : "Fit y1"
 VolLevel!CI3 : "Fit y2"
 VolLevel!CK3 : "Option"
 VolLevel!CL3 : "Live Fwd"
-VolLevel!CN3 = VolHistory(ANCHORARRAY($CK$4))
-VolLevel!VA3 = REDUCE({"Option","Slope","Intercept","R2","Resid sd","Obs","Fwd DB","IV DB","Resid 0","Resid 1","Resid 4","Resid 5","Pctl DB"},VLV_GLabels,LAMBDA(acc,n,VSTACK(acc,IFERROR(VLV_Stat(n),HSTACK(n,IF(SEQUENCE(1,12),NA()))))))
-VolLevel!VP3 = LET(s,VLV_GStats,n,INDEX(s,,1),b,INDEX(s,,2),a,INDEX(s,,3),sd,INDEX(s,,5),live,VLV_GPoint="Live",ivl,XLOOKUP(n,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()),fl,XLOOKUP(n,VLV_GLabels,VLV_GLiveFwd,NA()),fp,IF(live,fl,INDEX(s,,7)),ip,IF(live,ivl,INDEX(s,,8)),rp,ip-(a+b*fp),z,rp/sd,ra,IF(live,INDEX(s,,9),INDEX(s,,10)),rb,IF(live,INDEX(s,,11),INDEX(s,,12)),pc,IF(VLV_GValue="Pctl",IF(live,MAP(n,rp,LAMBDA(o,q,IFERROR(LET(r,INDEX(VLV_Resids(o),,3),SUM(--(r<=q))/ROWS(r)),NA()))),INDEX(s,,13)),IF(SEQUENCE(ROWS(n)),NA())),VSTACK({"Option","Fwd","IV","Resid","Z","dZ 1D","dZ 1W","R2","Pctl"},HSTACK(n,fp,ip,rp,z,z-ra/sd,z-rb/sd,INDEX(s,,4),pc)))
+VolLevel!CN3 = VolHistory(ANCHORARRAY($CK$4),TradeDate)
+VolLevel!VA3 = REDUCE({"Option","Slope","Intercept","R2","Resid sd","Obs","Fwd DB","IV DB","Resid 0","Resid 1","Resid 4","Resid 5","Pctl DB"},VLV_GLabels,LAMBDA(acc,n,VSTACK(acc,VLV_Stat(n))))
+VolLevel!VP3 = LET(s,VLV_GStats,n,INDEX(s,,1),b,INDEX(s,,2),a,INDEX(s,,3),sd,INDEX(s,,5),live,VLV_GPoint="Live",ivl,XLOOKUP(n,INDEX(VLV_LiveVol,,1),INDEX(VLV_LiveVol,,3),NA()),fl,XLOOKUP(n,VLV_GLabels,VLV_GLiveFwd,NA()),fp,IF(live,fl,INDEX(s,,7)),ip,IF(live,ivl,INDEX(s,,8)),rp,ip-(a+b*fp),z,rp/sd,ra,IF(live,INDEX(s,,9),INDEX(s,,10)),rb,IF(live,INDEX(s,,11),INDEX(s,,12)),pc,IF(VLV_GValue="Pctl",IF(live,MAP(n,rp,LAMBDA(o,q,LET(r,INDEX(VLV_Resids(o),,3),SUM(--(r<=q))/ROWS(r)))),INDEX(s,,13)),IF(SEQUENCE(ROWS(n)),NA())),VSTACK({"Option","Fwd","IV","Resid","Z","dZ 1D","dZ 1W","R2","Pctl"},HSTACK(n,fp,ip,rp,z,z-ra/sd,z-rb/sd,INDEX(s,,4),pc)))
 VolLevel!WP3 = LET(r,DROP(ANCHORARRAY($A$53),1),c,DROP(ANCHORARRAY($A$65),1),v,VSTACK(TAKE(r,,2),TAKE(c,,2)),SORTBY(v,INDEX(v,,2),1))
 VolLevel!A4 : "Pair 1"
 VolLevel!B4 : "5Yx5Y"
 VolLevel!AP4 : "O/N"
-VolLevel!BD4 = VolFwdLive($B$4:$B$6,TAKE(ANCHORARRAY($AJ$3),,3))
+VolLevel!BD4 = VolFwdLive($B$4:$B$6,TAKE(ANCHORARRAY($AJ$3),,3),TradeDate)
 VolLevel!BF4 = IF($B$4="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$4,"Fwd"),v,VLV_Col($B$4,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
 VolLevel!BM4 = IF($B$5="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$5,"Fwd"),v,VLV_Col($B$5,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
 VolLevel!BT4 = IF($B$6="",NA(),LET(d,VLV_Dates,f,VLV_Col($B$6,"Fwd"),v,VLV_Col($B$6,"IV"),k,ISNUMBER(v)*(d>=N(VLV_From)),x,FILTER(f,k),y,FILTER(v,k),n,ROWS(y),r,SEQUENCE(n),rs,y-(INTERCEPT(y,x)+SLOPE(y,x)*x),HSTACK(FILTER(d,k),x,y,rs,IF(r<=n-VLV_Recent,y,NA()),IF(r>n-VLV_Recent,y,NA()))))
@@ -1693,7 +1696,7 @@ VolLevel!CG4 = IF($B$4="",NA(),LET(x,INDEX(ANCHORARRAY($BF$4),,2),IF(ISNUMBER(CB
 VolLevel!CH4 = IF($B$4="",NA(),B24+B23*CF4)
 VolLevel!CI4 = IF($B$4="",NA(),B24+B23*CG4)
 VolLevel!CK4 = LET(es,$A$36:$A$48,ts,$B$35:$M$35,TOCOL(IF((es<>"")*(ts<>""),es&"x"&ts,NA()),2))
-VolLevel!CL4 = VolFwdLive(ANCHORARRAY($CK$4),TAKE(ANCHORARRAY($AJ$3),,3))
+VolLevel!CL4 = VolFwdLive(ANCHORARRAY($CK$4),TAKE(ANCHORARRAY($AJ$3),,3),TradeDate)
 VolLevel!A5 : "Pair 2"
 VolLevel!B5 : "5Yx10Y"
 VolLevel!AP5 : "1W"
@@ -1925,14 +1928,14 @@ BOJ!V7 : "2M"
 BOJ!A8 : "RD"
 BOJ!B8:B17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,4),"")
 BOJ!C8:C17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,5),"")
-BOJ!D8:D17 = IF(AND(ISNUMBER(B8),ISNUMBER(C8)),C8-B8,"")
+BOJ!D8:D17 = IF(OR(B8="",C8=""),"",C8-B8)
 BOJ!E8:E17 = XLOOKUP($A8,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,3),"")
-BOJ!F8 = BojSpotForwards(B8:C17,TAKE(ANCHORARRAY($P$3),,3))
-BOJ!G8:G17 = IF(AND(ISNUMBER(E8),ISNUMBER(F8)),(E8-F8)*100,"")
-BOJ!H8 = IF(AND(ISNUMBER(E8),ISNUMBER($B$3)),(E8-$B$3)*100,"")
+BOJ!F8 = BojSpotForwards(B8:C17,TAKE(ANCHORARRAY($P$3),,3),TradeDate)
+BOJ!G8:G17 = IF(OR(E8="",F8=""),"",(E8-F8)*100)
+BOJ!H8 = IF(OR(E8="",$B$3=""),"",(E8-$B$3)*100)
 BOJ!V8 : "3M"
 BOJ!A9 : "M1"
-BOJ!H9:H17 = IF(AND(ISNUMBER(E9),ISNUMBER(E8)),(E9-E8)*100,"")
+BOJ!H9:H17 = IF(OR(E9="",E8=""),"",(E9-E8)*100)
 BOJ!V9 : "4M"
 BOJ!A10 : "M2"
 BOJ!V10 : "5M"
@@ -1961,8 +1964,8 @@ BOJ!D21 : "Gap (bp) spot - meeting"
 BOJ!V21 : "24M"
 BOJ!A22 : "1W"
 BOJ!B22:B34 = XLOOKUP($A22,INDEX(ANCHORARRAY($P$3),,2),INDEX(ANCHORARRAY($P$3),,3),"")
-BOJ!C22 = BojImpliedRates(A22:A34,TAKE(ANCHORARRAY($P$3),,3),HSTACK(A8:A17,E8:E17,B8:C17))
-BOJ!D22:D34 = IF(AND(ISNUMBER(B22),ISNUMBER(C22)),(B22-C22)*100,"")
+BOJ!C22 = BojImpliedRates(A22:A34,TAKE(ANCHORARRAY($P$3),,3),HSTACK(A8:A17,E8:E17,B8:C17),TradeDate)
+BOJ!D22:D34 = IF(OR(B22="",C22=""),"",(B22-C22)*100)
 BOJ!V22 : "36M"
 BOJ!A23 : "1M"
 BOJ!V23 : "4Y"
@@ -2053,7 +2056,7 @@ FwdMonitor!HM3 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE
 FwdMonitor!HO3 : "Series"
 FwdMonitor!HP3 : "Live (%)"
 FwdMonitor!A4 : "Base date"
-FwdMonitor!C4 : "FIXED / ROLLING: trades of this date (blank = today)"
+FwdMonitor!C4 : "FIXED / ROLLING: trades of this date (blank = trade date)"
 FwdMonitor!BH4 : "O/N"
 FwdMonitor!GY4 = VALUE(TEXTBEFORE($A$12,"y"))
 FwdMonitor!GZ4 = $B$12
@@ -2069,7 +2072,7 @@ FwdMonitor!HK4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE
 FwdMonitor!HL4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),3),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
 FwdMonitor!HM4 = LET(r,IFERROR(SMALL(IF((FWM_TShow="Yes")*(FWM_TL1<>""),SEQUENCE(10)),4),0),LET(keep,FWM_Dates>=N(FWM_From),d,FILTER(FWM_Dates,keep),IF(r=0,IF(d,NA()),LET(x,FILTER(FWM_Row(r,""),keep),IF(FWM_View="Change",x-INDEX(x,1),x)))))
 FwdMonitor!HO4 = FILTER($A$12:$A$35,$A$12:$A$35<>"")
-FwdMonitor!HP4 = FwdLive(ANCHORARRAY($HO$4),TAKE(ANCHORARRAY($BB$3),,3))
+FwdMonitor!HP4 = FwdLive(ANCHORARRAY($HO$4),TAKE(ANCHORARRAY($BB$3),,3),TradeDate)
 FwdMonitor!A5 : "Compare date"
 FwdMonitor!B5 : 46290
 FwdMonitor!C5 : "Strip and 'vs compare' column (nearest DB date on or before)"
@@ -2151,7 +2154,7 @@ FwdMonitor!E11 : "Chg 1M (bp)"
 FwdMonitor!F11 : "vs compare (bp)"
 FwdMonitor!G11 : "Curve vs prev (bp)"
 FwdMonitor!H11:J11 = "Z 1D ("&H$10&")"
-FwdMonitor!L11 = HSTACK(TODAY(),INDEX(TAKE(FWM_Dates,-19),SEQUENCE(1,19,19,-1)))
+FwdMonitor!L11 = HSTACK(TradeDate,INDEX(TAKE(FWM_Dates,-19),SEQUENCE(1,19,19,-1)))
 FwdMonitor!BH11 : "6M"
 FwdMonitor!GY11 = VALUE(TEXTBEFORE($A$19,"y"))
 FwdMonitor!GZ11 = $B$19
@@ -2378,7 +2381,7 @@ FutBasis!BA2 : "History charts (from Chart from)"
 FutBasis!BG2 : "FutOverlay (CTD by business days to the last trading day)"
 FutBasis!BO2 : "Overlay chart (sen, IRR in %)"
 FutBasis!A3 : "Settings"
-FutBasis!AE3 = FutHistory(FUT_Steps)
+FutBasis!AE3 = FutHistory(FUT_Steps,TradeDate)
 FutBasis!AT3 : "Date"
 FutBasis!AU3 : "dSettle used"
 FutBasis!AV3 : "Settle adj"
@@ -2390,7 +2393,7 @@ FutBasis!BB3 : "Settle"
 FutBasis!BC3 : "Settle adj"
 FutBasis!BD3 : "Net (sen)"
 FutBasis!BE3 : "Net adj (sen)"
-FutBasis!BG3 = FutOverlay(FUT_Overlay,FUT_Field,FUT_Steps)
+FutBasis!BG3 = FutOverlay(FUT_Overlay,FUT_Field,FUT_Steps,TradeDate)
 FutBasis!BO3 : "BD"
 FutBasis!BP3 = INDEX(ANCHORARRAY($BG$3),1,2)
 FutBasis!BQ3 = INDEX(ANCHORARRAY($BG$3),1,3)
@@ -2452,7 +2455,7 @@ FutBasis!A14 = FutBasis(FUT_Contract,FUT_Date,FUT_Price,FUT_Repo,FUT_Yields)
 FutBasis!M14 : "Gross (sen)"
 FutBasis!N14 : "Carry (sen)"
 FutBasis!O14 : "Net (sen)"
-FutBasis!Q14 = FutRepoSteps()
+FutBasis!Q14 = FutRepoSteps(TradeDate)
 FutBasis!T14 : "Start"
 FutBasis!U14 : "Rate (%)"
 FutBasis!W14 : "Code"

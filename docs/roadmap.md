@@ -149,18 +149,15 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 ## 24. 評価日(取引日)の扱いを全ブックでそろえる(2026-11-18〜、ユーザーと順に進めている)
 
 方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
-volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・PositionSheetは先頭の`Control`シート(全ブック共通の形)に
-移った(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、PositionSheetはB7 `BaseDate`)。
+volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・PositionSheet・SwapAnalysisは先頭の`Control`シート
+(全ブック共通の形)に移った(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、PositionSheetはB7 `BaseDate`)。
+SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した(decisions.mdの「分析ブックのUDF」)。
 
-- 残りのブックも同じ形のControlシートを作り、今日・DBに依存するUDFは`TradeDate`を引数に取る(Import Functionsが要る)。
-  分析の設定の日付(PCAの推定の最終日・FwdMonitorのBase等)は各シートに残し、空欄は式で`TradeDate`に寄せる
-  (UDFの中で空欄=今日を決めない)。LiveScreen(自動計算)も同じ形にするかは、LiveScreenの番で相談する。
-- **SwapAnalysis**: 空欄=今日やDBの中身に黙って依存するUDF(どれもPython側でDBの更新時刻をキーにキャッシュ済み):
-  `PcaWindow`・`PcaModel`・`PcaEigen`・`PcaResidStd`(推定の最終日が空欄=今日)・`PcaGrid`・`PcaGridResidStd`(中で今日)・
-  `FwdHistory`(Baseが空欄)・`VolHistory`・`FutHistory`・`FutOverlay`・`FutRepoSteps`・`FutBasis`(日付の引数が無い・DBだけ)。
-  ライブのレートを受ける`PcaActual`等・BOJは問題ない。日付の引数が無いUDFには引数を足す(式とImport Functionsが要る)。
+- **共通の`ValuationDate`(Control!B4)の空欄もエラーにする**(ユーザー賛成、2026-11-22。全ブックに効くので別のPR)。
+  `udf_common._resolve_valuation_date`の空欄=今日と、decisions.mdの「空欄は今日として計算する(互換のため)」も直す。
+- **他のブックのUDFも、日付の空欄をエラーにし、エラーを隠さない形にそろえるか**(PricingSheet・BondOption・PositionSheetは
+  まだ`valuation_date=None`=今日を受け付ける)。ブックごとに相談する。
 - **LiveScreen**: `Dates!A7 =SwapBusinessDays($B$1,…)`(B1が空欄=今日)。自動計算でも入力が変わらないセルは計算されないので、
-  前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。
-- **直下のブックへの反映が残っている**: SwapAnalysis(#88のFwdMonitor)。受信領域の無いブックは、`tools.template --compare`で違いがマージ済みの
-  変更だけと確かめて雛形のコピーで置き換え、Ctrl+Alt+F9を1回押す(雛形は計算結果を消してあり、Shift+F9では普通の式が計算されない)。直下のDBは引け値・カーブとも2026-10-27で
-  止まっている(朝バッチを流す)。
+  前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。同じ形のControlシートにするかは、
+  LiveScreenの番で相談する。
+- 直下のDBは引け値・カーブとも2026-10-27で止まっている(朝バッチを流す)。

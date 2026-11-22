@@ -90,6 +90,22 @@ def _resolve_valuation_date(valuation_date) -> datetime.date:
     return d if d is not None else _today()
 
 
+def _required_date(value, what: str = "評価日(TradeDate)") -> datetime.date:
+    """日付の引数(必須)。空欄・未来日はエラー(空欄を今日で補わない。シートは空欄を式で TradeDate に寄せて渡す。
+    docs/decisions.md の「評価日」)。"""
+    d = _to_date(value)
+    if d is None:
+        raise ValueError(f"{what}が空欄です")
+    if d > _today():
+        raise ValueError(f"{what}が未来日です: {d}")
+    return d
+
+
+def _labels(values) -> tuple:
+    """銘柄の縦の並び → 空欄を除いた文字列のタプル(並び順は保つ)。"""
+    return tuple(str(v).strip() for v in (values or []) if not _is_blank(v))
+
+
 def _now() -> datetime.datetime:
     """今の時刻(テストで差し替えられるように1か所にまとめる)。"""
     return datetime.datetime.now()
@@ -119,6 +135,11 @@ def _db_version(store: HistoricalStore) -> tuple:
     (volatileの評価日の下流でF9のたびに呼ばれても、DBが同じなら読み直さないため)。"""
     stat = store.db_path.stat()
     return (str(store.db_path), stat.st_mtime_ns, stat.st_size)
+
+
+def _db_key() -> tuple:
+    """今のヒストリカルDBの版(_db_version)。DBが無ければエラー。分析ブックのUDFのキャッシュの鍵。"""
+    return _db_version(_historical_store())
 
 
 def _db_fixings() -> Dict[datetime.date, float]:
