@@ -149,14 +149,11 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 ## 24. 評価日(取引日)の扱いを全ブックでそろえる(2026-11-18〜、ユーザーと順に進めている)
 
 方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
-volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・PositionSheet・SwapAnalysisは先頭の`Control`シート
+volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・PositionSheet・SwapAnalysis・LiveScreenは先頭の`Control`シート
 (全ブック共通の形)に移った(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、PositionSheetはB7 `BaseDate`)。
 SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した(decisions.mdの「分析ブックのUDF」)。
 
 - **他のブックの任意の日付の空欄・エラーを隠す式をそろえるか**。評価日・基準日(`TradeDate`・`BaseDate`・HistChartの基準日)は
   全ブックで必須になった(空欄はエラー)。残りは評価日ではない任意の日付(ASW・HistChartの開始日・終了日の空欄=全期間、
   `PosBusinessDays`の終了日の空欄=今日)と、PricingSheet・BondOption・PositionSheetの`IFERROR`。ブックごとに相談する。
-- **LiveScreen**: `Dates!A7 =SwapBusinessDays($B$1,…)`(B1が空欄=今日)。自動計算でも入力が変わらないセルは計算されないので、
-  前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。同じ形のControlシートにするかは、
-  LiveScreenの番で相談する。
 - 直下のDBは引け値・カーブとも2026-10-27で止まっている(朝バッチを流す)。
