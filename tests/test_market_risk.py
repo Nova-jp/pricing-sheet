@@ -186,14 +186,14 @@ class RiskGridTest(unittest.TestCase):
         ]
 
     def test_sum_of_flagged_rows_aligned_to_realtime_rows(self):
-        grid = udf.RiskGrid(self.table, self.rt)
+        grid = udf.RiskGrid(self.table, self.rt, udf_common._today())
         self.assertEqual(grid[0], ["Ticker", "Delta"])
         self.assertEqual([r[0] for r in grid[1:]], [r[1] for r in self.rt])
         by_ticker = {r[0]: r[1] for r in grid[1:]}
         self.assertEqual(by_ticker["40Y"], "")  # フラグ0
         self.assertEqual(by_ticker["M1"], "")  # カーブに使っていない
 
-        curves = udf_common._market(self.rt, None)
+        curves = udf_common._market(self.rt, udf_common._today())
         expected = {}
         for row in (self.table[1], self.table[3]):
             params = resolve_params(curves, SwapParams(SwapTerms(row[5], CONV, tenor=row[6]), row[2], row[17]))
@@ -206,18 +206,18 @@ class RiskGridTest(unittest.TestCase):
     def test_row_error_reports_row_number(self):
         table = self.table + [_pricing_row(1, self.today, "5y", pay_rec="XXX")]
         with self.assertRaisesRegex(ValueError, "5行目"):
-            udf.RiskGrid(table, self.rt)
+            udf.RiskGrid(table, self.rt, udf_common._today())
 
     def test_missing_header_is_reported(self):
         with self.assertRaisesRegex(ValueError, "pay/rec"):
-            udf.RiskGrid([_HEADER[:-1]], self.rt)
+            udf.RiskGrid([_HEADER[:-1]], self.rt, udf_common._today())
 
     def test_swap_delta_matches_sum_of_parallel(self):
         """SwapDelta(行ごとの全テナー+1bp)も共有カーブを使い、再ブートストラップと一致する。"""
         row = self.table[1]
         delta = udf.SwapDelta(row[5], row[6], None, *[row[i] for i in (9, 10, 12, 13)],
-                              row[2], "PAY", "", self.rt)
-        curves = udf_common._market(self.rt, None)
+                              row[2], "PAY", "", self.rt, udf_common._today())
+        curves = udf_common._market(self.rt, udf_common._today())
         params = resolve_params(curves, SwapParams(SwapTerms(row[5], CONV, tenor="5y"), NOTIONAL, "PAY"))
         self.assertAlmostEqual(delta, parallel_delta(curves, params) / 1_000_000.0, delta=1e-12)
 
@@ -260,13 +260,23 @@ class ValuationDateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "未来日"):
             udf.FairRate(None, "10y", None, *CONV_ARGS, _rt_range(), future)
 
+    def test_blank_date_is_rejected(self):
+        """評価日の空欄は今日で補わずエラー(TradeDate がエラーのときも xlwings は None で渡す)。"""
+        for blank in (None, ""):
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                udf.FairRate(None, "10y", None, *CONV_ARGS, _rt_range(), blank)
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                udf.PricingTable([_HEADER], _rt_range(), blank)
+            with self.assertRaisesRegex(ValueError, "基準日"):
+                udf.HistoricalRates([[""] * 7] * 3, "ROLLING", blank)
+
     def test_today_past_start_uses_db_fixings(self):
         """評価日=今日でも、過去起算のTONA実績はDBから読む(Excelの範囲は受け取らない)。"""
         today, start = date(2026, 9, 28), date(2026, 7, 1)  # DBの実績は9/25まで
         rt = _rt_range()
         with mock.patch.object(udf_common, "_today", lambda: today):
-            par = udf.FairRate(start, "1y", None, *CONV_ARGS, rt)
-            curves = udf_common._market(rt, None)
+            par = udf.FairRate(start, "1y", None, *CONV_ARGS, rt, udf_common._today())
+            curves = udf_common._market(rt, udf_common._today())
         market = Market(today, curves.base.curve, curves.base.index, FIXINGS)
         expected = price_swap(market, SwapTerms(start, CONV, tenor="1y"), notional=1.0, pay_rec="PAY")
         self.assertEqual(par, expected.target_fixrate)
@@ -275,9 +285,9 @@ class ValuationDateTest(unittest.TestCase):
         today = date(2026, 9, 28)
         no_db = mock.patch.object(udf_common, "_historical_store", side_effect=ValueError("DBなし"))
         with mock.patch.object(udf_common, "_today", lambda: today), no_db:
-            udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, _rt_range())
+            udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, _rt_range(), udf_common._today())
             with self.assertRaisesRegex(ValueError, "morning_batch"):
-                udf.FairRate(date(2026, 7, 1), "1y", None, *CONV_ARGS, _rt_range())
+                udf.FairRate(date(2026, 7, 1), "1y", None, *CONV_ARGS, _rt_range(), udf_common._today())
 
     def test_fixings_come_from_db_before_valuation_date(self):
         """TONA実績はDBから読み、評価日より前の日だけが市場データに入る(当日以降は使わない)。"""
@@ -293,24 +303,24 @@ class TenorStartUdfTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.rt = _rt_range()
-        self.spot = udf_common._market(self.rt, None).spot_date
+        self.spot = udf_common._market(self.rt, udf_common._today()).spot_date
         self.fwd = forward_start_date(self.spot, "10y")
 
     def test_pricing_udfs(self):
         conv = list(CONV_ARGS)
         self.assertEqual(
-            udf.FairRate("10y", "20y", None, *conv, self.rt),
-            udf.FairRate(self.fwd, "20y", None, *conv, self.rt),
+            udf.FairRate("10y", "20y", None, *conv, self.rt, udf_common._today()),
+            udf.FairRate(self.fwd, "20y", None, *conv, self.rt, udf_common._today()),
         )
         args = (NOTIONAL, "PAY", None, self.rt)
         self.assertEqual(
-            udf.SwapDelta("10Y", "20y", None, *conv, *args),
-            udf.SwapDelta(self.fwd, "20y", None, *conv, *args),
+            udf.SwapDelta("10Y", "20y", None, *conv, *args, udf_common._today()),
+            udf.SwapDelta(self.fwd, "20y", None, *conv, *args, udf_common._today()),
         )
 
     def test_risk_grid(self):
-        by_tenor = udf.RiskGrid([_HEADER, _pricing_row(1, "10y", "20y")], self.rt)
-        by_date = udf.RiskGrid([_HEADER, _pricing_row(1, self.fwd, "20y")], self.rt)
+        by_tenor = udf.RiskGrid([_HEADER, _pricing_row(1, "10y", "20y")], self.rt, udf_common._today())
+        by_date = udf.RiskGrid([_HEADER, _pricing_row(1, self.fwd, "20y")], self.rt, udf_common._today())
         self.assertEqual([r[0] for r in by_tenor], [r[0] for r in by_date])
         for a, b in zip(by_tenor[1:], by_date[1:]):
             if a[1] == "":
@@ -325,22 +335,22 @@ class BusinessDaysStartUdfTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.rt = _rt_range()
-        self.curves = udf_common._market(self.rt, None)
+        self.curves = udf_common._market(self.rt, udf_common._today())
 
     def test_pricing_udfs(self):
         conv = list(CONV_ARGS)
         self.assertEqual(
-            udf.FairRate("2bd", "5y", None, *conv, self.rt),
-            udf.FairRate(self.curves.spot_date, "5y", None, *conv, self.rt),
+            udf.FairRate("2bd", "5y", None, *conv, self.rt, udf_common._today()),
+            udf.FairRate(self.curves.spot_date, "5y", None, *conv, self.rt, udf_common._today()),
         )
         start = business_days_start(self.curves.valuation_date, "10bd")
         args = (NOTIONAL, "PAY", None, self.rt)
         self.assertEqual(
-            udf.SwapPV("10BD", "5y", None, *conv, *args),
-            udf.SwapPV(start, "5y", None, *conv, *args),
+            udf.SwapPV("10BD", "5y", None, *conv, *args, udf_common._today()),
+            udf.SwapPV(start, "5y", None, *conv, *args, udf_common._today()),
         )
-        by_days = udf.RiskGrid([_HEADER, _pricing_row(1, "10bd", "5y")], self.rt)
-        by_date = udf.RiskGrid([_HEADER, _pricing_row(1, start, "5y")], self.rt)
+        by_days = udf.RiskGrid([_HEADER, _pricing_row(1, "10bd", "5y")], self.rt, udf_common._today())
+        by_date = udf.RiskGrid([_HEADER, _pricing_row(1, start, "5y")], self.rt, udf_common._today())
         self.assertEqual([r[0] for r in by_days], [r[0] for r in by_date])
         for a, b in zip(by_days[1:], by_date[1:]):
             if a[1] == "":
@@ -379,11 +389,11 @@ class HistoricalLatestRealTimeTest(_HistoricalDbCase):
     def _rates(self, today, base_date=None, real_time_range="rt", conventions=None):
         rt = self.rt if real_time_range == "rt" else real_time_range
         with mock.patch.object(udf_common, "_today", lambda: today):
-            return udf.HistoricalRates(conventions or [self.CONV_ROW], "ROLLING", base_date, None, None, rt)
+            return udf.HistoricalRates(conventions or [self.CONV_ROW], "ROLLING", base_date or today, None, None, rt)
 
     def _fair_rate(self, today):
         with mock.patch.object(udf_common, "_today", lambda: today):
-            return udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, self.rt, None)
+            return udf.FairRate(spot_date_for(today), "10y", None, *CONV_ARGS, self.rt, udf_common._today())
 
     def test_today_not_in_db_is_added_from_realtime(self):
         today = date(2026, 9, 29)  # 営業日、DBにない
@@ -425,7 +435,7 @@ class ReleaseCurvesTest(_HistoricalDbCase):
 
     def _call(self, fn):
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            udf.FairRate(spot_date_for(self.TODAY), "5y", None, *CONV_ARGS, self.rt, None)
+            udf.FairRate(spot_date_for(self.TODAY), "5y", None, *CONV_ARGS, self.rt, udf_common._today())
             pricing = list(market._cache.values())
             self.assertEqual(len(pricing), 1)
             fn()
@@ -440,14 +450,14 @@ class ReleaseCurvesTest(_HistoricalDbCase):
         self.assertEqual(len(market._cache), 0)
 
     def test_date_axis_only_keeps_pricing_curves(self):
-        pricing = self._call(lambda: udf.HistoricalRates([[""] * 7] * 3, "ROLLING", None, None, None, self.rt))
+        pricing = self._call(lambda: udf.HistoricalRates([[""] * 7] * 3, "ROLLING", udf_common._today(), None, None, self.rt))
         self.assertEqual(list(market._cache.values()), [pricing])
-        pricing = self._call(lambda: udf.HedgeHistoricalRates([[""]], "ROLLING", [[DAYS[0]]], None, self.rt))
+        pricing = self._call(lambda: udf.HedgeHistoricalRates([[""]], "ROLLING", [[DAYS[0]]], udf_common._today(), self.rt))
         self.assertEqual(list(market._cache.values()), [pricing])
 
     def test_today_row_leaves_the_same_snapshot_as_pricing(self):
         """今日の行(RealTime)で組んだカーブは、pricingと同じスナップショットとして残る(値も同じ)。"""
-        pricing = self._call(lambda: udf.HistoricalRates([self.CONV_ROW], "ROLLING", None, None, None, self.rt))
+        pricing = self._call(lambda: udf.HistoricalRates([self.CONV_ROW], "ROLLING", udf_common._today(), None, None, self.rt))
         (after,) = market._cache.values()
         self.assertEqual(after.snapshot, pricing.snapshot)
 
@@ -477,11 +487,11 @@ class HistoricalPastCacheTest(_HistoricalDbCase):
 
     def _rates(self, rt, today=None):
         with mock.patch.object(udf_common, "_today", lambda: today or self.TODAY):
-            return udf.HistoricalRates([self.CONV_ROW], "ROLLING", None, None, None, rt)
+            return udf.HistoricalRates([self.CONV_ROW], "ROLLING", udf_common._today(), None, None, rt)
 
     def _hedge(self, rt, dates):
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            return udf.HedgeHistoricalRates([["2Y"], ["10Y"]], "ROLLING", [[d] for d in dates], None, rt)
+            return udf.HedgeHistoricalRates([["2Y"], ["10Y"]], "ROLLING", [[d] for d in dates], udf_common._today(), rt)
 
     def test_live_change_recomputes_only_today(self):
         first = self._rates(self.rt)
@@ -489,7 +499,7 @@ class HistoricalPastCacheTest(_HistoricalDbCase):
         self.assertEqual(self._past_calls(self.spy), 1)
         self.assertEqual(second[:-1], first[:-1])
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            fair = udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt2, None)
+            fair = udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt2, udf_common._today())
         self.assertEqual(second[-1], [self.TODAY, fair, "", ""])
 
     def test_same_result_as_without_cache(self):
@@ -514,7 +524,7 @@ class HistoricalPastCacheTest(_HistoricalDbCase):
         """覚えている結果を使うときは評価日を切り替えないので、pricingのカーブを手放さない。"""
         self._rates(self.rt)
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt, None)
+            udf.FairRate(spot_date_for(self.TODAY), "10y", None, *CONV_ARGS, self.rt, udf_common._today())
         pricing = list(market._cache.values())
         self._rates(self.rt)
         self.assertEqual(list(market._cache.values()), pricing)
@@ -539,11 +549,11 @@ class HedgeHistoricalRatesUdfTest(_HistoricalDbCase):
     def _hedge(self, tickers, dates, rt="rt", mode="ROLLING"):
         rt = self.rt if rt == "rt" else rt
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            return udf.HedgeHistoricalRates([[t] for t in tickers], mode, [[d] for d in dates], None, rt)
+            return udf.HedgeHistoricalRates([[t] for t in tickers], mode, [[d] for d in dates], udf_common._today(), rt)
 
     def _outright(self, tenor, mode="ROLLING"):
         with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
-            rows = udf.HistoricalRates([["", tenor, "", *CONV_ARGS]], mode, None, None, None, self.rt)
+            rows = udf.HistoricalRates([["", tenor, "", *CONV_ARGS]], mode, udf_common._today(), None, None, self.rt)
         return {r[0]: r[1] for r in rows[1:]}
 
     def test_matches_outright_series_in_given_order(self):

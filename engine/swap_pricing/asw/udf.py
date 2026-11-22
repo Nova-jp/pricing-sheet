@@ -150,7 +150,7 @@ def AswCloseTable(close_table, valuation_date=None) -> List[list]:
     ライブのレートの範囲は引数に取らない(非volatile。Shift+F9でライブのレートが動いても計算し直さない)。
     close_table: 見出し行から最終行まで。列は見出し名で探す(bond, fix freq, fix dcf, float freq, roll conv)。
         このUDFの出力の列を含めると循環参照になる。
-    valuation_date: 評価日(空欄=今日)。その日以前で直近の引け値を使う。
+    valuation_date: 評価日(必須。空欄・未来日はエラー)。その日以前で直近の引け値を使う。
     """
     with udf_common._historical_store() as store:
-        return close.price_table(close_table, udf_common._resolve_valuation_date(valuation_date), store)
+        return close.price_table(close_table, udf_common._required_date(valuation_date), store)

@@ -37,7 +37,19 @@ class DataStatusTest(unittest.TestCase):
 
     def test_valuation_date(self):
         self.assertEqual(status_udf.ValuationDate(date(2026, 11, 17)), date(2026, 11, 17))
-        self.assertEqual(status_udf.ValuationDate(None), TODAY)
+        self.assertEqual(status_udf.ValuationDate(TODAY), TODAY)
+        # 空欄・未来日はエラー(今日で補わない。DataStatus は B3 を直接見て理由を出す)
+        for blank in (None, ""):
+            with self.assertRaisesRegex(ValueError, "空欄"):
+                status_udf.ValuationDate(blank)
+        with self.assertRaisesRegex(ValueError, "未来日"):
+            status_udf.ValuationDate(date(2026, 11, 19))
+
+    def test_blank_trade_date_keeps_db_stamp_and_status(self):
+        """B3 が空欄で B4 がエラーでも、B5 DbStamp(B3) は時刻を返し、B6 DataStatus(B3,B5) は空欄の理由を出す。"""
+        stamp = self._run(datetime(2026, 11, 18, 7, 0, 0))
+        self.assertEqual(status_udf.DbStamp(None), stamp)
+        self.assertEqual(status_udf.DataStatus(None, status_udf.DbStamp(None)), status_udf.BLANK)
 
     def _run(self, at, ok=True, message=""):
         return self.store.record_batch_run(at, ok, message).finished_at

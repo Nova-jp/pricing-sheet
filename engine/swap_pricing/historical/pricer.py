@@ -9,7 +9,7 @@
 
 ■ 入力は起算日・満期日の2つの日付として読む
   start/end の入力の種類(日付・IMMコード・空欄・tenor)に関係なく、まず基準日B(通常は
-  ControlシートのTradeDate、空欄=今日)の取引の起算日・満期日に直す。
+  ControlシートのTradeDate)の取引の起算日・満期日に直す。
     ・空欄のstart → Bのスポット日
     ・startのテナー(10y等) → Bのスポット日+tenor(フォワードスタート)
     ・startの営業日数(2bd等) → BからN営業日後(2bd=Bのスポット日)

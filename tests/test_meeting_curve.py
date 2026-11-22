@@ -205,7 +205,7 @@ class BojSpotForwardsUdfTest(unittest.TestCase):
         for (value,), p in zip(result, PERIODS):
             with self.subTest(period=p.label):
                 expected = self._call(
-                    pricing_udf.FairRate, p.start, "", p.end, "PA", "act/365fixed", "PA", "STD", rt,
+                    pricing_udf.FairRate, p.start, "", p.end, "PA", "act/365fixed", "PA", "STD", rt, VALUATION,
                 )
                 self.assertEqual(value, expected)
 

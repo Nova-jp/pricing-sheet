@@ -25,7 +25,7 @@ Excelの式では書きにくいものだけをUDFにし、それ以外(受渡�
 ■ データ
   銘柄情報・引け値は朝のバッチ(python -m engine.common.morning_batch)がLSEGから data/historical.db に
   保存したものを読むだけ。ボラはフィード(live_feed.toml の "vol")を LiveQuotes("vol") で読んだ範囲を渡す。
-  計算方法は「手動」+F9。評価日はシートの評価日セル(空欄=今日)。TODAY()は使わない。
+  計算方法は「手動」+F9。評価日はControlシートのTradeDate(空欄・未来日はエラー)。TODAY()は使わない。
 """
 
 from datetime import timedelta
@@ -52,8 +52,8 @@ def _blank_if_none(value):
 @xw.func
 def JgbMaster(valuation_date=None) -> List[list]:
     """全銘柄(償還日の順)の [銘柄コード, 利率(%), 償還日, 引け値の単利(%), 引けの日付, RIC, ISIN]。
-    引け値は評価日(空欄=今日)以前で直近のもの。無ければ空欄。"""
-    as_of = udf_common._resolve_valuation_date(valuation_date)
+    引け値は評価日以前で直近のもの。無ければ空欄。評価日の空欄・未来日はエラー。"""
+    as_of = udf_common._required_date(valuation_date)
     with udf_common._historical_store() as store:
         rows = store.jgb_master(as_of)
     if not rows:
@@ -92,7 +92,7 @@ def SwaptionVol(vol_range, trade_date, expiry, maturity) -> float:
     vol_range: LiveQuotes("vol") 等の [銘柄(1Mx10Y), …, 値] の範囲(1列目と最後の列を使う)。"""
     rows = [list(r) for r in (vol_range or []) if r is not None]
     return vol.bond_option_vol(
-        rows, udf_common._resolve_valuation_date(trade_date), _date(expiry, "満期"), _date(maturity, "償還日"),
+        rows, udf_common._required_date(trade_date), _date(expiry, "満期"), _date(maturity, "償還日"),
     )
 
 
@@ -198,7 +198,7 @@ def VolRatioTable(bonds, coupons, maturities, trade_date, window) -> List[list]:
     引数は同じ行数の列の範囲(銘柄・利率・償還日)と、取引日・窓(営業日数、日次変化の数)。
     現物はDBの引け値、スワップは同じ償還日のOISをDBのカーブで評価したもの(engine/common/option/bond/hv.py)。"""
     global _rates
-    as_of = udf_common._resolve_valuation_date(trade_date)
+    as_of = udf_common._required_date(trade_date)
     with udf_common._historical_store() as store:
         key = udf_common._db_version(store)
         if _rates is None or _rates.db_key != key:

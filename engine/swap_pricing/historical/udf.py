@@ -55,7 +55,7 @@ def HistoricalRate(
     mode: "FIXED"(同じ日付の取引をそのまま過去日で評価)/
           "ROLLING"(基準日のスポット日からの距離を保って各過去日へ平行移動)。
           詳細は engine/swap_pricing/historical/pricer.py。
-    base_date: ROLLINGの基準日(空欄=今日)。通常は Main!評価日 を渡す。
+    base_date: 基準日(必須。空欄・未来日はエラー)。通常は TradeDate を渡す。
     from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
     過去起算になる日のTONA実績は、DBに取り込み済みのもの(Fixingシート由来)を使う。
     """
@@ -67,7 +67,7 @@ def HistoricalRate(
         )
         series = historical_swap_rate_series(
             spec, mode,
-            base_date=udf_common._to_date(base_date), from_date=udf_common._to_date(from_date),
+            base_date=udf_common._required_date(base_date, "基準日(Base date)"), from_date=udf_common._to_date(from_date),
             to_date=udf_common._to_date(to_date), fixings=db_fixings(store), curves=store,
         )
     rows = [["Date", "Rate", "Start", "End"]]
@@ -196,7 +196,7 @@ def HistoricalRates(
     mode: "FIXED" / "ROLLING"(全脚に共通)。base_date/from_date/to_date は HistoricalRate と同じ。
     期間内でカーブのある日付は全て返し、計算できない日(FIXEDで満期後)は空欄("")にする。
     日付ごとにDBからカーブを1回だけ読み、全脚を評価する。
-    real_time_range: フラグ/Ticker/Value の範囲(TAKE($AO$3#,,3)。省略可)。基準日が今日(空欄を含む)で今日が営業日なら、
+    real_time_range: フラグ/Ticker/Value の範囲(TAKE($AO$3#,,3)。省略可)。基準日が今日で今日が営業日なら、
         今日を最新日として加え、DBの引け値ではなくRealTimeのライブのレートで計算する
         (pricingシートのFairRateと同じカーブ)。日付の並びを揃えるため、日付軸だけを求める
         呼び出しにも同じ範囲を渡すこと。並び順(昇順)の変更はExcel側で行う。
@@ -205,7 +205,7 @@ def HistoricalRates(
     specs = _specs_from_range(conventions)
     active = [s for s in specs if s is not None]
     today = udf_common._today()
-    base = udf_common._to_date(base_date) or today
+    base = udf_common._required_date(base_date, "基準日(Base date)")
     first, last = udf_common._to_date(from_date), udf_common._to_date(to_date)
     live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
@@ -271,7 +271,7 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
         except ValueError:
             days.append(None)
     today = udf_common._today()
-    base = udf_common._to_date(base_date) or today
+    base = udf_common._required_date(base_date, "基準日(Base date)")
     live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
         fixings = db_fixings(store)

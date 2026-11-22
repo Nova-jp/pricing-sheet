@@ -50,7 +50,7 @@ def _labels(values) -> List[str]:
 def SwapBusinessDays(center_date, before, after) -> List[list]:
     """center_date(空欄=今日。休日ならその次の営業日)の前 before・後 after 営業日を縦に並べる(ql.Japan())。"""
     days = day_length.business_days_around(
-        udf_common._resolve_valuation_date(center_date), _int(before, "前の日数"), _int(after, "後の日数"),
+        udf_common._to_date(center_date) or udf_common._today(), _int(before, "前の日数"), _int(after, "後の日数"),
     )
     return [[d] for d in days]
 
@@ -105,7 +105,7 @@ def SwapLengthAdjust(rates, tenors) -> List[list]:
     rates: カーブに使う [Flag, Ticker, Mid] の範囲(Flag 0 の行はカーブから外す。Main シートと同じ)。
     行の誤り(O/N・会合スワップ・解釈できないテナー)はその行を空欄にし、Message に理由を出す。
     """
-    market = udf_common._market(rates, None).base
+    market = udf_common._market(rates, udf_common._today()).base
     out = []
     for label in _labels(tenors):
         if not label:
@@ -130,7 +130,7 @@ def SwaptionStdevGrid(rates, expiries, tenors, premiums) -> List[list]:
     満期までの標準偏差 σ√T(bp)。カーブは rates([Flag, Ticker, Mid])の今のレート。
     プレミアムが無い・0以下のセルは空欄。年率・1日あたりへの直し方はExcelで(engine/live_screen/vol.py)。
     """
-    cs = udf_common._market(rates, None)
+    cs = udf_common._market(rates, udf_common._today())
     grid = vol.stdev_grid(
         cs.base.curve, cs.valuation_date, udf_common._now(),
         [e for e in _labels(expiries)], [t for t in _labels(tenors)], premiums or [],

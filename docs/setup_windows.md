@@ -138,7 +138,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
    期間は`historical_data.xlsx`の設定シート(取得営業日数・開始日、`入力_フィキシング開始日`(B11))のまま。
 3. カーブに使うテナーや引き方は`historical_curve.toml`で変更する(変更後に再実行すると、
    影響する日だけ作り直される)。全日付を作り直すときは`--rebuild`を付ける。
-4. 評価日はMainシートのB4(空欄=今日)。`TODAY()`は使っていないので、日付が変わっても
+4. 評価日はControlシートのB3(必須。空欄はエラー)。`TODAY()`は使っていないので、日付が変わっても
    レートや入力が変わらない限り再計算されない(LSEGの更新でレートが変われば再計算される)。
 
 ## 5.1 分析ブック(SwapAnalysis.xlsm)
@@ -165,7 +165,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
   スキップされ、「JGB取得: 失敗のためスキップ」と表示される)。カーブだけ作り直すときは`--skip-jgb`。
 - ボラはフィードの`"vol"`を読む(4.1のフィードを起動しておく)。B1が取得モード(Live/Fixed)。
 - 使い方: Optionシートの黄色の列(Bond・Type・Expiry・Settle lag・Repo・ATM/Strikeのスライド等)を入れてF9。
-  評価日はB3(空欄=今日)。ATM単利は引け値+ATMのスライド。ボラはbp vol・ノーマルvolのどちらでも上書きできる。
+  評価日はControlシートのB3(必須)。ATM単利は引け値+ATMのスライド。ボラはbp vol・ノーマルvolのどちらでも上書きできる。
 
 ## 5.3 ポジション・リスク管理(PositionSheet.xlsm)
 

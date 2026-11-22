@@ -153,10 +153,9 @@ volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・Posi
 (全ブック共通の形)に移った(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、PositionSheetはB7 `BaseDate`)。
 SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した(decisions.mdの「分析ブックのUDF」)。
 
-- **共通の`ValuationDate`(Control!B4)の空欄もエラーにする**(ユーザー賛成、2026-11-22。全ブックに効くので別のPR)。
-  `udf_common._resolve_valuation_date`の空欄=今日と、decisions.mdの「空欄は今日として計算する(互換のため)」も直す。
-- **他のブックのUDFも、日付の空欄をエラーにし、エラーを隠さない形にそろえるか**(PricingSheet・BondOption・PositionSheetは
-  まだ`valuation_date=None`=今日を受け付ける)。ブックごとに相談する。
+- **他のブックの任意の日付の空欄・エラーを隠す式をそろえるか**。評価日・基準日(`TradeDate`・`BaseDate`・HistChartの基準日)は
+  全ブックで必須になった(空欄はエラー)。残りは評価日ではない任意の日付(ASW・HistChartの開始日・終了日の空欄=全期間、
+  `PosBusinessDays`の終了日の空欄=今日)と、PricingSheet・BondOption・PositionSheetの`IFERROR`。ブックごとに相談する。
 - **LiveScreen**: `Dates!A7 =SwapBusinessDays($B$1,…)`(B1が空欄=今日)。自動計算でも入力が変わらないセルは計算されないので、
   前日に保存したブックを開くと営業日数が前日のままになる見込み(実機では未確認)。同じ形のControlシートにするかは、
   LiveScreenの番で相談する。

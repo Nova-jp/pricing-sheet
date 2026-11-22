@@ -2,13 +2,13 @@
 評価日(取引日)とDBの状態の表示。全ブック共通で、各ブックの同名の.pyが再エクスポートする
 (各ブックの先頭のControlシートに同じ形で置く。docs/decisions.md の「評価日」)。
 
-評価日は値としてセルに入れ(空欄=今日はUDFが今日として計算するが、Excelからは日付の変化が見えない)、
+評価日は値としてセルに入れ(必須。空欄・未来日は ValuationDate がエラーになり、DataStatus が理由を出す)、
 UDFはすべて評価日のセルを引数で受け取る。日付を入れ直したときだけ下流が1回計算される。
 DataStatus は、その前提が崩れていないかを1セルで見せる。
 
   Controlシート:
     B3 Trade date(入力、毎朝Ctrl+;)
-    B4 =ValuationDate(B3)        名前 TradeDate。空欄なら今日(非volatile)
+    B4 =ValuationDate(B3)        名前 TradeDate。空欄・未来日はエラー(非volatile)
     B5 =DbStamp(B3)              評価日を入れたときのDBの朝バッチの実行時刻(非volatile)
     B6 =DataStatus(B3, B5)       volatile。"OK" 以外は条件付き書式で赤
 
@@ -75,9 +75,10 @@ def db_stamp() -> str:
 
 @xw.func
 def ValuationDate(valuation_date=None):
-    """評価日(取引日)。空欄=今日(非volatile。空欄のまま日をまたいでも計算し直されないので、評価日のセルには
-    日付を入れる。空欄・今日でない等は DataStatus が赤で知らせる)。ControlシートのB4、名前 TradeDate。"""
-    return udf_common._resolve_valuation_date(valuation_date)
+    """評価日(取引日)。ControlシートのB4、名前 TradeDate(非volatile)。空欄・未来日はエラー(空欄を今日で補わない。
+    空欄=今日だと日をまたいでも計算し直されず、前の日付が残る)。理由は DataStatus が赤で知らせる。
+    xlwingsはエラーのセルを None で渡すので、TradeDate を受け取る下流のUDFも空欄のエラーになる。"""
+    return udf_common._required_date(valuation_date)
 
 
 @xw.func
