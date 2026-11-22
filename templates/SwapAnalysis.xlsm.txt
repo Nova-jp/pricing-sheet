@@ -389,7 +389,7 @@ name VOL_window = VolPCA!$B$5
 # Control
 Control!A1 : "Control"
 Control!A3 : "Trade date"
-Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes. A past date uses the DB closes of that day (the live columns too)."
+Control!C3 : "Required. Enter today every morning (Ctrl+;). Blank or a future date is an error (see Status). A past date uses the DB closes of that day (the live columns too)."
 Control!A4 : "TradeDate"
 Control!B4 = ValuationDate(B3)
 Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate). Blank date inputs on the sheets (Window end, Recon date, Base date, Date) fall back to it."

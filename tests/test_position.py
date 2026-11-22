@@ -42,7 +42,7 @@ def _curves():
     market._cache.clear()
     with mock.patch.object(udf_common, "_db_fixings", lambda: {}), \
             mock.patch.object(udf_common, "_today", lambda: FRIDAY):
-        return udf_common._market(_rt_range(), None)
+        return udf_common._market(_rt_range(), udf_common._today())
 
 
 class BondRiskTest(unittest.TestCase):
@@ -186,10 +186,10 @@ class CloseRatesTest(unittest.TestCase):
         # 空欄 = 今日(ライブ)は今の時刻で数える。15時ちょうどなら引けと同じ。8:45はイブニング(1/3)が済んで残り2/3日が多い
         close = datetime.datetime.combine(FRIDAY, datetime.time(15))
         with mock.patch.object(udf_common, "_today", lambda: FRIDAY), mock.patch.object(udf_common, "_now", lambda: close):
-            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], "")[0][0], factor, places=12)
+            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], udf_common._today())[0][0], factor, places=12)
         morning = datetime.datetime.combine(FRIDAY, datetime.time(8, 45))
         with mock.patch.object(udf_common, "_today", lambda: FRIDAY), mock.patch.object(udf_common, "_now", lambda: morning):
-            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], "")[0][0],
+            self.assertAlmostEqual(udf.PosVolCalendarFactor(["1M"], udf_common._today())[0][0],
                                    math.sqrt((20 + 2 / 3) / 252) * math.sqrt(365 / (31 + 6.25 / 24)), places=12)
 
     def test_business_days_from_base_date(self):
@@ -221,13 +221,16 @@ class CloseRatesTest(unittest.TestCase):
         with mock.patch.object(udf_common, "_historical_store", lambda: store), \
                 mock.patch.object(udf_common, "_today", lambda: monday):
             self.assertEqual(udf.PosBaseDate(monday), FRIDAY)  # 取引日(月曜)のカーブがあっても、その前の直近
-            self.assertEqual(udf.PosBaseDate(None), FRIDAY)  # 空欄は今日
-            self.assertEqual(udf.PosBaseDate(""), FRIDAY)
             self.assertEqual(udf.PosBaseDate(FRIDAY), date(2026, 9, 24))  # 過去の取引日は、その前の直近
+            for blank in (None, ""):  # 空欄は今日で補わずエラー(TradeDate がエラーのときも None で渡る)
+                with self.assertRaisesRegex(ValueError, "空欄"):
+                    udf.PosBaseDate(blank)
+            with self.assertRaisesRegex(ValueError, "未来日"):
+                udf.PosBaseDate(date(2026, 9, 29))
         with mock.patch.object(udf_common, "_historical_store", lambda: _Store([monday])), \
                 mock.patch.object(udf_common, "_today", lambda: monday):
             with self.assertRaises(ValueError):
-                udf.PosBaseDate(None)
+                udf.PosBaseDate(monday)
 
 class IntradayTest(unittest.TestCase):
     def setUp(self):
@@ -278,7 +281,7 @@ class IntradayTest(unittest.TestCase):
     def _udf(self, func, table, *args):
         with mock.patch.object(udf_common, "_historical_store", lambda: self.store),                 mock.patch.object(udf_common, "_db_fixings", lambda: {}),                 mock.patch.object(udf_common, "_today", lambda: FRIDAY):
             udf._intraday_cache.clear()
-            return func(table, PILLARS, _rt_range(), None, *args)
+            return func(table, PILLARS, _rt_range(), udf_common._today(), *args)
 
     def test_udf_rows_and_grid(self):
         table = [

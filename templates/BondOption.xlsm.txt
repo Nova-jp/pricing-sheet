@@ -21,7 +21,7 @@ name VolDays = Option!$C$5
 # Control
 Control!A1 : "Control"
 Control!A3 : "Trade date"
-Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes. A past date uses the DB closes of that day."
+Control!C3 : "Required. Enter today every morning (Ctrl+;). Blank or a future date is an error (see Status). A past date uses the DB closes of that day."
 Control!A4 : "TradeDate"
 Control!B4 = ValuationDate(B3)
 Control!C4 : "Trade date used. Every UDF in this book refers to this cell (name TradeDate)."

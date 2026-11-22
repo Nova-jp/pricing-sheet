@@ -23,7 +23,7 @@ Excelのセル関数(UDF)として直接呼び出せる計算関数群。xlwings
     数式に任せる。
   - 計算方法はブックの計算方法を「手動」にし、F9(再計算)で都度実行する想定。
     UDFは非volatileのままでよい。VBAコードは一切不要。
-  - 評価日は Controlシートの TradeDate(=ValuationDate(B3)、B3に日付を入れる)を各UDFに渡す。空欄なら今日。
+  - 評価日は Controlシートの TradeDate(=ValuationDate(B3)、B3に日付を入れる)を各UDFに渡す。空欄・未来日はエラー。
     TODAY()は使わない(volatileなのでF9のたびに全UDFが再計算されてしまうため)。
   - 評価日が今日なら ライブのレート、過去日ならヒストリカルDBのその日の
     レートでカーブを組む(判定は udf_common._market だけ。詳細はengine/common/market.py)。

@@ -5,7 +5,7 @@
   - UDFにするのは、QuantLibが要る日中の取引・現物(Raw_JGB)・現物オプションのデルタ・ガンマと、DBの引け値の
     読み出しだけ。
     会社のリスクの抽出・今のデルタ(SOD + ガンマ × Move + 今日の取引)・合計はExcelの数式(四則演算)で計算する。
-  - 計算方法は「手動」+ Shift+F9。UDFは非volatile。TODAY()は引数に使わない(評価日の空欄=今日)。
+  - 計算方法は「手動」+ Shift+F9。UDFは非volatile。TODAY()は引数に使わない(評価日はTradeDate、空欄・未来日はエラー)。
   - 配列はそのまま返し、Excelの動的配列のスピルに任せる(@xw.ret(expand=...)は使わない)。
 
 ■ 単位・符号
@@ -13,7 +13,7 @@
 
 ■ 引数(共通)
   pillars: グリッドのピラーの縦の並び(短い順)。結果の行はこの並び。
-  real_time_range: フラグ/Ticker/Value の範囲(Positionシートのピラーの行)。評価日の空欄=今日はライブ
+  real_time_range: フラグ/Ticker/Value の範囲(Positionシートのピラーの行)。評価日が今日ならライブ
     (他のブックと同じ udf_common._market)。
 """
 
@@ -74,10 +74,10 @@ def _db_key() -> Optional[int]:
 
 @xw.func
 def PosBaseDate(trade_date=None):
-    """会社のリスクの基準日(引け値を読む日付。Control!B7、名前BaseDate)。取引日(Control!B3、毎朝Ctrl+;)より前で、
-    DBにカーブがある直近の日付(取引日が今日なら、朝バッチが置いた昨日の引け)。取引日の空欄は今日として扱うが、
-    非volatileなので日をまたいでも計算し直されない(Control!B6のDataStatusが赤で知らせる。docs/decisions.md の「評価日」)。"""
-    trade = udf_common._resolve_valuation_date(trade_date)
+    """会社のリスクの基準日(引け値を読む日付。Control!B7 =PosBaseDate(TradeDate)、名前BaseDate)。取引日より前で、
+    DBにカーブがある直近の日付(取引日が今日なら、朝バッチが置いた昨日の引け)。取引日の空欄・未来日はエラー
+    (docs/decisions.md の「評価日」)。"""
+    trade = udf_common._required_date(trade_date)
     with udf_common._historical_store() as store:
         dates = [x for x in store.dates() if x < trade]
     if not dates:
@@ -124,7 +124,7 @@ def PosCloseVols(expiries, tails, as_of_date) -> List[list]:
 def PosVolCalendarFactor(expiries, trade_date=None) -> List[list]:
     """営業日ベースのvol(DB・フィード)→ 暦日ベースのvol(bp/年)の掛け目の縦1列(満期の並び)。
     = √(取引日から満期日までの営業日数/252) × √(365/暦日数)。会社のベガは暦日の年率のvolで微分した値なので、
-    Positionのボラの動きは暦日ベースで見る(ユーザー指示、2026-11-10)。trade_date: 空欄なら今日(ライブのvol)。
+    Positionのボラの動きは暦日ベースで見る(ユーザー指示、2026-11-10)。trade_date: 取引日(必須。今日ならライブのvol)。
     引けのvolには基準日を渡す。今日なら今の時刻で数える(ライブのvolと同じ。日中に変わるので volatile)。"""
     when = udf_common._valuation_moment(trade_date)
     return [[swaption.calendar_factor(when, e)] for e in _labels(expiries)]

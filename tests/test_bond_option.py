@@ -303,9 +303,9 @@ class TableUdfTest(unittest.TestCase):
         morning = datetime.datetime(2026, 10, 16, 8, 45)
         with mock.patch.object(udf_common, "_today", lambda: self.T0), \
                 mock.patch.object(udf_common, "_now", lambda: morning):
-            (t,), = bo_udf.OptionTermTable(["JS999"], [expiry], None)
+            (t,), = bo_udf.OptionTermTable(["JS999"], [expiry], self.T0)
             normal = bo_udf.OptionMarketTable(["JS999"], [2.0], [self.MAT], [100.5], [datetime.datetime(2026, 11, 18)],
-                                              [expiry], self.VOLS, "")[0][4]
+                                              [expiry], self.VOLS, self.T0)[0][4]
         self.assertAlmostEqual(t, (business_days(self.T0, date(2026, 11, 16)) + 2 / 3) / 252, places=15)
         self.assertEqual(normal, vol.grid_vol(vol.build_grid(self.VOLS, morning), morning, date(2026, 11, 16), date(2031, 3, 20)))
 
@@ -314,7 +314,7 @@ class TableUdfTest(unittest.TestCase):
         holidays = {d for d in (self.T0 + datetime.timedelta(n) for n in range(800)) if not CALENDAR.isBusinessDay(
             ql.Date.from_date(d)) and d.weekday() < 5}
         # 過去の評価日(今日でない日付)は引け時点で数える。営業日が1日も無い組(旧式で0)はエラーの文字列
-        with mock.patch.object(udf_common, "_today", lambda: date(2000, 1, 1)):
+        with mock.patch.object(udf_common, "_today", lambda: date(2100, 1, 1)):
             for t0 in (self.T0 + datetime.timedelta(n) for n in range(0, 370, 7)):
                 expiries = [t0 + datetime.timedelta(n) for n in range(1, 400, 3)]
                 rows = bo_udf.OptionTermTable(["JS999"] * len(expiries), expiries, t0)

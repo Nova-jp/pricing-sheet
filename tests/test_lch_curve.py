@@ -55,31 +55,31 @@ class PricingTableLchTest(unittest.TestCase):
     def test_lch_rows_use_lch_curve(self):
         result = udf.PricingTable(
             [_HEADER] + [_with_index(r, "JSCC") for r in self.rows] + [_with_index(r, "LCH") for r in self.rows],
-            self.jscc, None, self.lch,
+            self.jscc, udf_common._today(), self.lch,
         )
-        only_jscc = udf.PricingTable([_HEADER] + self.rows, self.jscc)
-        only_lch = udf.PricingTable([_HEADER] + self.rows, self.lch)  # LCHのレートをJSCCの範囲として渡す
+        only_jscc = udf.PricingTable([_HEADER] + self.rows, self.jscc, udf_common._today())
+        only_lch = udf.PricingTable([_HEADER] + self.rows, self.lch, udf_common._today())  # LCHのレートをJSCCの範囲として渡す
         self.assertEqual(result[1:3], only_jscc[1:])
         self.assertEqual(result[3:5], only_lch[1:])
         self.assertNotAlmostEqual(result[1][0], result[3][0], delta=1e-6)  # 別のカーブになっている
 
     def test_blank_index_is_jscc_and_unknown_is_row_error(self):
         result = udf.PricingTable(
-            [_HEADER, _with_index(self.rows[0], ""), _with_index(self.rows[0], "tibor")], self.jscc, None, self.lch,
+            [_HEADER, _with_index(self.rows[0], ""), _with_index(self.rows[0], "tibor")], self.jscc, udf_common._today(), self.lch,
         )
-        self.assertEqual(result[1], udf.PricingTable([_HEADER, self.rows[0]], self.jscc)[1])
+        self.assertEqual(result[1], udf.PricingTable([_HEADER, self.rows[0]], self.jscc, udf_common._today())[1])
         self.assertEqual(result[2][:5], [""] * 5)
         self.assertIn("JSCC/LCH", result[2][5])
 
     def test_lch_without_range_is_row_error(self):
-        result = udf.PricingTable([_HEADER, self.rows[0], _with_index(self.rows[0], "LCH")], self.jscc)
+        result = udf.PricingTable([_HEADER, self.rows[0], _with_index(self.rows[0], "LCH")], self.jscc, udf_common._today())
         self.assertEqual(result[1][5], "")
         self.assertIn("LCH", result[2][5])
 
     def test_lch_on_past_valuation_date_is_row_error(self):
         today = udf_common._today()
         past = today - datetime.timedelta(days=1)
-        jscc_past = mock.patch.object(udf_common, "_market", return_value=udf_common._market(self.jscc, None))
+        jscc_past = mock.patch.object(udf_common, "_market", return_value=udf_common._market(self.jscc, udf_common._today()))
         with jscc_past:
             result = udf.PricingTable(
                 [_HEADER, self.rows[0], _with_index(self.rows[0], "LCH")], self.jscc, past, self.lch,
@@ -89,10 +89,10 @@ class PricingTableLchTest(unittest.TestCase):
 
     def test_curves_are_cached_per_clearing_house(self):
         table = [_HEADER, self.rows[0], _with_index(self.rows[0], "LCH")]
-        udf.PricingTable(table, self.jscc, None, self.lch)
+        udf.PricingTable(table, self.jscc, udf_common._today(), self.lch)
         self.assertEqual(set(market._cache), {"JSCC", "LCH"})
         with mock.patch.object(market, "bootstrap_curve", wraps=market.bootstrap_curve) as spy:
-            udf.PricingTable(table, self.jscc, None, self.lch)
+            udf.PricingTable(table, self.jscc, udf_common._today(), self.lch)
         self.assertEqual(spy.call_count, 0)
 
 
@@ -106,10 +106,10 @@ class RiskGridLchTest(unittest.TestCase):
         self.lch_rows = [_with_index(_pricing_row(1, today, "10y", pay_rec="REC"), "LCH", RISK_INDEX)]
 
     def test_lch_rows_are_bumped_on_lch_curve_and_added_by_ticker(self):
-        grid = udf.RiskGrid([_RISK_HEADER] + self.jscc_rows + self.lch_rows, self.jscc, None, self.lch)
-        jscc_only = udf.RiskGrid([_RISK_HEADER] + self.jscc_rows, self.jscc)
+        grid = udf.RiskGrid([_RISK_HEADER] + self.jscc_rows + self.lch_rows, self.jscc, udf_common._today(), self.lch)
+        jscc_only = udf.RiskGrid([_RISK_HEADER] + self.jscc_rows, self.jscc, udf_common._today())
         lch_only = udf.RiskGrid(
-            [_RISK_HEADER] + [_with_index(r, "JSCC", RISK_INDEX) for r in self.lch_rows], self.lch,
+            [_RISK_HEADER] + [_with_index(r, "JSCC", RISK_INDEX) for r in self.lch_rows], self.lch, udf_common._today(),
         )
         self.assertEqual([r[0] for r in grid], [r[0] for r in jscc_only])
         for row, a, b in zip(grid[1:], jscc_only[1:], lch_only[1:]):
@@ -121,7 +121,7 @@ class RiskGridLchTest(unittest.TestCase):
 
     def test_lch_row_error_reports_row_number(self):
         with self.assertRaisesRegex(ValueError, "3行目"):
-            udf.RiskGrid([_RISK_HEADER] + self.jscc_rows + self.lch_rows, self.jscc)
+            udf.RiskGrid([_RISK_HEADER] + self.jscc_rows + self.lch_rows, self.jscc, udf_common._today())
 
 
 class LiveFeedConfigTest(unittest.TestCase):

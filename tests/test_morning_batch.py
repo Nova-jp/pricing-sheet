@@ -189,8 +189,8 @@ class CurveBatchTest(unittest.TestCase):
         conv = list(CONV_ARGS)
         table = [["", "5y", ""] + conv, ["", "", ""] + ["", "", "", ""], ["", "10Y", ""] + conv]
         with mock.patch.object(udf_common, "_historical_store", lambda: store):
-            rows = udf.HistoricalRates(table, "rolling")
-            single = udf.HistoricalRate("", "10Y", "", *conv, "ROLLING")
+            rows = udf.HistoricalRates(table, "rolling", udf_common._today())
+            single = udf.HistoricalRate("", "10Y", "", *conv, "ROLLING", udf_common._today())
         self.assertEqual(rows[0], ["Date", "A", "B", "C"])
         self.assertEqual([r[0] for r in rows[1:]], DAYS)
         self.assertTrue(all(r[2] == "" for r in rows[1:]))
@@ -204,7 +204,7 @@ class CurveBatchTest(unittest.TestCase):
 
         self._run()
         with mock.patch.object(udf_common, "_historical_store", lambda: HistoricalStore(self.db)):
-            rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED")
+            rows = udf.HistoricalRates([[""] * 7] * 3, "FIXED", udf_common._today())
         self.assertEqual(rows[1:], [[d, "", "", ""] for d in DAYS])
 
     def _premiums(self):

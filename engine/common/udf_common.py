@@ -85,13 +85,9 @@ def _today() -> datetime.date:
     return datetime.date.today()
 
 
-def _resolve_valuation_date(valuation_date) -> datetime.date:
-    d = _to_date(valuation_date)
-    return d if d is not None else _today()
-
-
 def _required_date(value, what: str = "評価日(TradeDate)") -> datetime.date:
     """日付の引数(必須)。空欄・未来日はエラー(空欄を今日で補わない。シートは空欄を式で TradeDate に寄せて渡す。
+    xlwingsはエラーのセルを None で渡すので、TradeDate がエラーなら下流もこの空欄のエラーになる。
     docs/decisions.md の「評価日」)。"""
     d = _to_date(value)
     if d is None:
@@ -112,9 +108,9 @@ def _now() -> datetime.datetime:
 
 
 def _valuation_moment(valuation_date):
-    """オプションの満期までの残りを数える時点。評価日が今日(空欄を含む)なら今の時刻(日中の残りも数える)、
-    過去・将来の日付ならその日付(その日の引け時点。engine/common/option/term.py)。"""
-    d = _resolve_valuation_date(valuation_date)
+    """オプションの満期までの残りを数える時点。評価日が今日なら今の時刻(日中の残りも数える)、
+    過去の日付ならその日付(その日の引け時点。engine/common/option/term.py)。空欄・未来日はエラー。"""
+    d = _required_date(valuation_date)
     return _now() if d == _today() else d
 
 
@@ -153,12 +149,9 @@ def _db_fixings() -> Dict[datetime.date, float]:
 
 
 def _market(real_time_range, valuation_date) -> CurveSet:
-    """評価日のカーブ一式。今日ならRealTime、過去日ならヒストリカルDB(同じフラグでテナーを選ぶ)。"""
-    valuation_date = _resolve_valuation_date(valuation_date)
-    today = _today()
-    if valuation_date > today:
-        raise ValueError(f"評価日が未来日です: {valuation_date}")
-    if valuation_date == today:
+    """評価日のカーブ一式。今日ならRealTime、過去日ならヒストリカルDB(同じフラグでテナーを選ぶ)。空欄・未来日はエラー。"""
+    valuation_date = _required_date(valuation_date)
+    if valuation_date == _today():
         snapshot = realtime_snapshot(valuation_date, _rates_from_range(real_time_range), _db_fixings())
     else:
         labels = [t for t, _, use in _realtime_rows(real_time_range) if use]
@@ -170,7 +163,7 @@ def _market(real_time_range, valuation_date) -> CurveSet:
 def _live_market(real_time_range, valuation_date, curve: str) -> CurveSet:
     """ライブのレートだけで引く清算機関のカーブ一式(LCH)。ヒストリカルDBにそのレートの履歴が無いので、
     評価日が今日のときだけ(過去の評価日はエラー。JSCCのDBのレートで黙って代用しない)。"""
-    valuation_date = _resolve_valuation_date(valuation_date)
+    valuation_date = _required_date(valuation_date)
     if valuation_date != _today():
         raise ValueError(f"{curve}のカーブは評価日が今日のときだけ使えます(評価日 {valuation_date})")
     if not real_time_range:

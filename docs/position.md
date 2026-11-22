@@ -18,7 +18,7 @@ UDFを消した)。
   `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと取引日(Control!B3)は雛形では消す
   (`tools/template.py`の`RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
 - **先頭のControlシート(全ブック共通の形)のB3に取引日を入れ(毎朝Ctrl+;)、基準日はその前の直近の引け**。B4
-  `=ValuationDate(B3)`が名前`TradeDate`、B7 `=PosBaseDate(B3)`が名前`BaseDate`(取引日より前でDBにカーブがある直近の日 =
+  `=ValuationDate(B3)`が名前`TradeDate`、B7 `=PosBaseDate(TradeDate)`が名前`BaseDate`(取引日より前でDBにカーブがある直近の日 =
   取引日が今日なら朝バッチが置いた昨日の引け。2026-11-18、ユーザー了承)。今日やDBで結果が変わるUDFは、すべて
   `TradeDate`か`BaseDate`を引数で受け取る(今日の取引の`PosIntradayRisk`・`PosIntradayGrid`・ライブのvolの掛け目
   `PosVolCalendarFactor`・セータの日数`PosBusinessDays`は`TradeDate`)。B6の`DataStatus(B3,B5)`が、B3が空欄・今日でない・

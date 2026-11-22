@@ -15,7 +15,7 @@ name TradeDate = Control!$B$4
 # Control
 Control!A1 : "Control"
 Control!A3 : "Trade date"
-Control!C3 : "Enter today every morning (Ctrl+;). Blank = today, but it is not recalculated when the date changes."
+Control!C3 : "Required. Enter today every morning (Ctrl+;). Blank or a future date is an error (see Status)."
 Control!A4 : "TradeDate"
 Control!B4 = ValuationDate(B3)
 Control!C4 : "Trade date used (name TradeDate). Today's trades and the live curve use this date."
@@ -26,7 +26,7 @@ Control!A6 : "Status"
 Control!B6 = DataStatus(B3,B5)
 Control!C6 : "Not OK = red. After running the morning batch, re-enter the trade date (even the same date)."
 Control!A7 : "BaseDate"
-Control!B7 = PosBaseDate(B3)
+Control!B7 = PosBaseDate(TradeDate)
 Control!C7 : "Base date (name BaseDate) = the latest close in the DB before the trade date. The company files and the closes are as of this date."
 Control!B6 format cellIs notEqual: "OK"
 # Position

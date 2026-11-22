@@ -42,7 +42,7 @@ class PricingTableTest(unittest.TestCase):
     def setUp(self):
         market._cache.clear()
         self.rt = _rt_range()
-        self.curves = udf_common._market(self.rt, None)
+        self.curves = udf_common._market(self.rt, udf_common._today())
         self.spot = self.curves.spot_date
 
     def _expected(self, start, tenor, notional, pay_rec, fix_rate=None, delta_mm=None):
@@ -76,7 +76,7 @@ class PricingTableTest(unittest.TestCase):
             _row(start="2bd", tenor="5y"),
             _row(start="1y", tenor="10y", pay_rec="REC", fix_rate=1.5, delta=3.0),
             _row(start="2bd", tenor="30y", notional=5_000_000_000, delta=-2.0),
-        ], self.rt)
+        ], self.rt, udf_common._today())
         self.assertEqual(result[0], list(table.OUTPUT_HEADER))
         self.assertEqual(len(result), 4)
         self._assert_row(result[1], self._expected(self.spot, "5y", NOTIONAL, "PAY"))
@@ -87,20 +87,20 @@ class PricingTableTest(unittest.TestCase):
     def test_matches_single_row_udfs(self):
         """1行用のUDF(FairRate等)とPricingTableは同じ部品を使い、同じ値になる。"""
         row = _row(start="2bd", tenor="7y", fix_rate=1.2, delta=1.0)
-        result = udf.PricingTable([_HEADER, row], self.rt)[1]
+        result = udf.PricingTable([_HEADER, row], self.rt, udf_common._today())[1]
         conv = ("PA", "act/365fixed", "PA", "STD")
-        self.assertEqual(result[0], udf.FairRate("2bd", "7y", None, *conv, self.rt))
-        self.assertEqual(result[1], udf.SwapPV("2bd", "7y", None, *conv, NOTIONAL, "PAY", 1.2, self.rt))
-        self.assertEqual(result[2], udf.SwapDelta("2bd", "7y", None, *conv, NOTIONAL, "PAY", 1.2, self.rt))
-        self.assertEqual(result[3], udf.SwapAnnuityDelta("2bd", "7y", None, *conv, NOTIONAL, "PAY", self.rt))
-        self.assertEqual(result[4], udf.NotionalForDelta(1.0, "2bd", "7y", None, *conv, "PAY", self.rt))
+        self.assertEqual(result[0], udf.FairRate("2bd", "7y", None, *conv, self.rt, udf_common._today()))
+        self.assertEqual(result[1], udf.SwapPV("2bd", "7y", None, *conv, NOTIONAL, "PAY", 1.2, self.rt, udf_common._today()))
+        self.assertEqual(result[2], udf.SwapDelta("2bd", "7y", None, *conv, NOTIONAL, "PAY", 1.2, self.rt, udf_common._today()))
+        self.assertEqual(result[3], udf.SwapAnnuityDelta("2bd", "7y", None, *conv, NOTIONAL, "PAY", self.rt, udf_common._today()))
+        self.assertEqual(result[4], udf.NotionalForDelta(1.0, "2bd", "7y", None, *conv, "PAY", self.rt, udf_common._today()))
 
     def test_rows_without_tenor_or_end_are_blank(self):
         """規約の列(既定値・数式)やstartが入っていても、tenorもendも空欄の行は計算しない。"""
         result = udf.PricingTable([
             _HEADER, _row(tenor=""), _row(tenor=None), [None] * len(_HEADER), [],
             _row(tenor="", end=date(2031, 11, 20)), _row(),
-        ], self.rt)
+        ], self.rt, udf_common._today())
         for r in result[1:5]:
             self.assertEqual(r, [""] * 6)
         self.assertIsInstance(result[5][0], float)  # endだけの行
@@ -108,11 +108,11 @@ class PricingTableTest(unittest.TestCase):
 
     def test_extra_flag_column_is_ignored(self):
         """列は見出し名で探すので、表に旧来のflag列が残っていても値は変わらない。"""
-        result = udf.PricingTable([["flag"] + _HEADER, [0] + _row(delta=1.0)], self.rt)
-        self.assertEqual(result, udf.PricingTable([_HEADER, _row(delta=1.0)], self.rt))
+        result = udf.PricingTable([["flag"] + _HEADER, [0] + _row(delta=1.0)], self.rt, udf_common._today())
+        self.assertEqual(result, udf.PricingTable([_HEADER, _row(delta=1.0)], self.rt, udf_common._today()))
 
     def test_blank_notional_and_delta_leave_their_columns_blank(self):
-        result = udf.PricingTable([_HEADER, _row(notional="", delta="")], self.rt)[1]
+        result = udf.PricingTable([_HEADER, _row(notional="", delta="")], self.rt, udf_common._today())[1]
         self.assertIsInstance(result[0], float)
         self.assertEqual(result[1:], ["", "", "", "", ""])
 
@@ -122,7 +122,7 @@ class PricingTableTest(unittest.TestCase):
             _row(start="XYZ"),  # 起算日を解釈できない → その行は全部空欄
             _row(pay_rec="XXX", delta=1.0),  # パーレートは出る、PV・adj_notionalは空欄
             _row(),
-        ], self.rt)
+        ], self.rt, udf_common._today())
         self.assertEqual(result[1][:5], [""] * 5)
         self.assertIn("日付として解釈できません", result[1][5])
         self.assertIsInstance(result[2][0], float)
@@ -135,19 +135,19 @@ class PricingTableTest(unittest.TestCase):
     def test_columns_are_found_by_header(self):
         order = list(reversed(range(len(_HEADER))))
         result = udf.PricingTable(
-            [[_HEADER[i] for i in order], [_row(delta=1.0)[i] for i in order]], self.rt,
+            [[_HEADER[i] for i in order], [_row(delta=1.0)[i] for i in order]], self.rt, udf_common._today(),
         )
-        self.assertEqual(result, udf.PricingTable([_HEADER, _row(delta=1.0)], self.rt))
+        self.assertEqual(result, udf.PricingTable([_HEADER, _row(delta=1.0)], self.rt, udf_common._today()))
 
     def test_missing_header_is_reported(self):
         with self.assertRaisesRegex(ValueError, "pay/rec"):
-            udf.PricingTable([_HEADER[:-1]], self.rt)
+            udf.PricingTable([_HEADER[:-1]], self.rt, udf_common._today())
 
     def test_three_evaluations_per_row(self):
         """par・PV・パラレルの3回(1行用のUDFを5つ並べると7回)。"""
         # パラレルはrisk.parallel_deltaの中で評価する(risk.price)ので、両方を数える
         with mock.patch.object(measures, "price", wraps=measures.price) as spy,                 mock.patch.object(risk, "price", wraps=risk.price) as risk_spy:
-            udf.PricingTable([_HEADER, _row(delta=1.0), _row(fix_rate=1.0)], self.rt)
+            udf.PricingTable([_HEADER, _row(delta=1.0), _row(fix_rate=1.0)], self.rt, udf_common._today())
         self.assertEqual(spy.call_count + risk_spy.call_count, 6)
 
 

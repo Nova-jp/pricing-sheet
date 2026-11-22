@@ -57,7 +57,7 @@ def FairRate(
     """指定コンベンションのパーレート(%)を返す。tenorかend_dateのどちらかは空欄にする。
 
     real_time_range は フラグ/Ticker/Value の範囲(各シートの TAKE(カーブ用の範囲#,,3)。1列目=採否フラグ[1/空欄=使う, 0=使わない],
-    C列=Ticker, D列=Value)。valuation_date は Main!評価日(空欄=今日)。
+    C列=Ticker, D列=Value)。valuation_date は ControlシートのTradeDate(空欄・未来日はエラー)。
 
     引数名は ``end`` だとVBAの予約語(Endステートメント)と衝突し、xlwingsが
     生成する ``xlwings_udfs`` モジュールがコンパイルできなくなるため ``end_date``。

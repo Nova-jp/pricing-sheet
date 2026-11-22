@@ -92,7 +92,7 @@ class _AswDbCase(unittest.TestCase):
         # 過去起算のMMS用のTONA実績(ローカルのDBに依存しない)
         fixings = {date(2026, 8, 1) + timedelta(days=i): 0.48 for i in range((FRIDAY - date(2026, 8, 1)).days)}
         with mock.patch.object(udf_common, "_db_fixings", lambda: fixings),                 mock.patch.object(udf_common, "_today", lambda: FRIDAY):
-            self.curves = udf_common._market(self.rt, None)
+            self.curves = udf_common._market(self.rt, udf_common._today())
         self.today = mock.patch.object(udf_common, "_today", lambda: FRIDAY)
         self.today.start()
 
@@ -202,7 +202,7 @@ class AswPricingTableTest(_AswDbCase):
 
     def test_udf_reads_db_and_market(self):
         with mock.patch.object(udf_common, "_historical_store", lambda: self.store):
-            out = udf.AswPricingTable([_HEADER, _row()], self.rt)
+            out = udf.AswPricingTable([_HEADER, _row()], self.rt, FRIDAY)
         self.assertEqual(out[1], [*self._price(_row())[0].values()])
 
 
@@ -231,7 +231,7 @@ class AswUnwindTableTest(unittest.TestCase):
         ]
         for p in self.patches:
             p.start()
-        self.curves = udf_common._market(self.rt, None)
+        self.curves = udf_common._market(self.rt, udf_common._today())
 
     def tearDown(self):
         for p in self.patches:
@@ -289,7 +289,7 @@ class AswUnwindTableTest(unittest.TestCase):
             unwind.price_table([_UNWIND_HEADER[:-1], _unwind_row()[:-1]], self.curves)
 
     def test_udf(self):
-        out = udf.AswUnwindTable([_UNWIND_HEADER, _unwind_row()], self.rt)
+        out = udf.AswUnwindTable([_UNWIND_HEADER, _unwind_row()], self.rt, FRIDAY)
         self.assertEqual(out[1], [*self._price(_unwind_row())[0].values()])
 
 
@@ -368,9 +368,9 @@ class AswCloseTableTest(_AswDbCase):
     def test_udf(self):
         with mock.patch.object(udf_common, "_historical_store", lambda: self.store):
             out = udf.AswCloseTable([_CLOSE_HEADER, _close_row()], FRIDAY)
-            blank_is_today = udf.AswCloseTable([_CLOSE_HEADER, _close_row()], None)
+            with self.assertRaisesRegex(ValueError, "空欄"):  # 空欄は今日で補わない
+                udf.AswCloseTable([_CLOSE_HEADER, _close_row()], None)
         self.assertEqual(out[1], [*self._close([_close_row()])[0].values()])
-        self.assertEqual(blank_is_today, out)
 
 
 class AswHistoryBuildTest(_AswDbCase):
