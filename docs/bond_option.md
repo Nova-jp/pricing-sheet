@@ -204,7 +204,7 @@ F10のBlack式(割引なし)を、先渡clean F・価格ボラ σP・期間 T �
 
 | UDF | 返す値 |
 |---|---|
-| `ValuationDate(評価日)`・`DbStamp(評価日)`・`DataStatus(評価日, DbStamp)` | Controlシートの評価日・DBの朝バッチの実行時刻・状態(全ブック共通。下の「評価日」) |
+| `ValuationDate(評価日)`・`DbStamp(評価日)`・`DataStatus(評価日, DbStamp)` | Controlシートの評価日・DBの朝バッチの実行時刻・状態(全ブック共通。[udf.md](udf.md)の「評価日」) |
 | `JgbMaster(評価日)` | 全銘柄(償還日の順)の [銘柄コード, 利率, 償還日, 引け値の単利, 引けの日付, RIC, ISIN]。引けが無い銘柄は空欄 |
 | `JapanHolidays(開始日, 終了日)` | 日本の祝日(土日を除く)を縦に |
 | `OptionTermTable(銘柄, 満期, 取引日)` | 全行の T(年)の縦1列。銘柄が空欄の行は空欄、計算できない行(満期が取引日以前等)は理由の文字列(下流の表UDFのmessageに出る) |
@@ -228,12 +228,7 @@ Excelの式のまま残す(手で上書きしたときに対応しやすいた�
 UDFは銘柄コードを受けず、利率・償還日のセルの値を受け取る(不具合のときも途中のセルに値を手で入れれば残りが計算される)。
 日付の引数は日付だけを受け付ける(スワップ用のIMMコード・テナーの表記は通さない)。計算方法は手動+F9。
 
-**評価日(ユーザー了承)**: 先頭のControlシート(全ブック共通の形)のB3に日付を入れる(毎朝Ctrl+;)。B4
-`=ValuationDate(B3)`が名前`TradeDate`で、全UDFはこれを参照する。`ValuationDate`・`JgbMaster`は非volatileなので、
-B3が空欄(=今日)のままだと日をまたいでもF9でTradeDateが前の日付のまま残る(下流の`JgbMaster`・XLOOKUPも、
-`OptionTermTable`の期間Tの起点も古いまま)。B6の`=DataStatus(B3, B5)`が、B3が空欄・今日でない・未来、今日の朝バッチの
-実行が無い・失敗、B5の`DbStamp`(B3を入れたときの実行時刻)がDBの最後の実行と違う(B3を入れた後に朝バッチを流した)
-ときに赤く出す。理由は[decisions.md](decisions.md)の「評価日」。
+**評価日**: 先頭のControlシート(全ブック共通の形、[udf.md](udf.md)の「評価日」)。全UDFは`TradeDate`を参照する。
 
 ## ブック(`BondOption.xlsm`)
 

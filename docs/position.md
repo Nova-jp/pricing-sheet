@@ -18,12 +18,11 @@ UDFを消した)。
   `Raw_Swaption`は満期の近いスワップションの約定(まだ使っていない)。生シートと取引日(Control!B3)は雛形では消す
   (`tools/template.py`の`RECEIVE_AREAS`)。Setupの列名・dataset名・テナーの対応(黄色のセル)は社内データではないので雛形に残す。
 - **先頭のControlシート(全ブック共通の形)のB3に取引日を入れ(毎朝Ctrl+;)、基準日はその前の直近の引け**。B4
-  `=ValuationDate(B3)`が名前`TradeDate`、B7 `=PosBaseDate(TradeDate)`が名前`BaseDate`(取引日より前でDBにカーブがある直近の日 =
+  の名前`TradeDate`のほかに、B7 `=PosBaseDate(TradeDate)`が名前`BaseDate`(取引日より前でDBにカーブがある直近の日 =
   取引日が今日なら朝バッチが置いた昨日の引け。2026-11-18、ユーザー了承)。今日やDBで結果が変わるUDFは、すべて
   `TradeDate`か`BaseDate`を引数で受け取る(今日の取引の`PosIntradayRisk`・`PosIntradayGrid`・ライブのvolの掛け目
-  `PosVolCalendarFactor`・セータの日数`PosBusinessDays`は`TradeDate`)。B6の`DataStatus(B3,B5)`が、B3が空欄・今日でない・
-  未来、今日の朝バッチの実行が無い・失敗、B3を入れた後に朝バッチを流した(B5の`DbStamp`がDBの最後の実行と違う)ときに
-  赤く出す。過去の基準日で見たいときは、B3にその翌営業日を入れる。理由は[decisions.md](decisions.md)の「評価日」。
+  `PosVolCalendarFactor`・セータの日数`PosBusinessDays`は`TradeDate`)。過去の基準日で見たいときは、B3にその翌営業日を入れる。
+  Controlシートの形は[udf.md](udf.md)の「評価日」。
 - **会社のファイルの形が変わっても直すのはSetupだけ**: 列は見出しの名前で探す(Setupの列名 → 列番号)。
 - **デルタの合計 = derivative + bond**(XVAは含まない。ユーザー確認)。
 - **グリッドのピラーはマーケットの基準(ライブのカーブの34本)**。会社のファイルに無いテナー(4M・5M・15M等)の
@@ -207,7 +206,7 @@ Bondのデルタ・ガンマとセータ(PL)に足す。ベガは約定ごとの
 | `PosVegaGrid` | 会社のベガ(Raw_IRVOLの列)を格子に振り分けた合計(円) |
 | `PosBusinessDays` | 基準日から取引日までの営業日数(セータのPL) |
 | `PosBaseDate` | 基準日(取引日より前でDBにカーブがある直近の日付) |
-| `ValuationDate` / `DbStamp` / `DataStatus` | Controlシートの取引日・DBの朝バッチの実行時刻・状態(全ブック共通。`DataStatus`は`OK`以外は赤、volatile) |
+| `ValuationDate` / `DbStamp` / `DataStatus` | Controlシートの取引日・DBの朝バッチの実行時刻・状態(全ブック共通。[udf.md](udf.md)の「評価日」) |
 | `PosBondOptMarket` / `PosBondOptGreeks` | 現物オプションの行ごとの市場の値・グリークス(上の「現物オプション」) |
 | `PosBondRiskGrid` | 現物オプションのピラーごとのデルタ・ガンマ・セータ |
 | `PosJgbRisk` / `PosJgbGrid` | Raw_JGBの行ごとの [Code, Coupon, Maturity, Yield, Compound, MD, Convexity, Pillar, Delta, Gamma, Message] / ピラーごとの [Delta, Gamma] |

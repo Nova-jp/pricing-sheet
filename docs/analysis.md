@@ -11,11 +11,10 @@ pricingとは切り分けた分析用のブック(ユーザー指示)。スワ�
   設定を変えるたびに別のシートへ移らずに済む)。設定の説明はセルの入力時メッセージ。計算方法は手動のまま(計算方法はExcel全体の
   設定なので、自動にすると同時に開いたPricingSheetも自動になる)。
 - 元データが畳んだ列にあるグラフは「非表示の行と列のデータを表示」にしてある(この設定がないと系列が消える)。
-- **先頭のControlシートに評価日**(B3入力・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`。全ブック共通の形、
-  [decisions.md](decisions.md)の「評価日」)。今日・DBで結果が変わるUDFはすべて`TradeDate`を引数に取り、日付の引数の空欄はエラー。
+- **先頭のControlシートに評価日**(全ブック共通の形、[udf.md](udf.md)の「評価日」)。
   各シートの日付の入力欄(Window end・Recon date・Base date・FutBasisのDate)の空欄は名前の式で`TradeDate`に寄せる
   (`PCA_WindowEnd`=`IF(PCA_WindowEndIn="",TradeDate,PCA_WindowEndIn)`等、PCAGridのケースの設定は`PCG_Settings`)。
-- UDFは計算できないところがあれば全体をエラーにし、シートでもエラーを空欄に置き換えない(decisions.mdの「分析ブックのUDF」)。
+- UDFは計算できないところがあれば全体をエラーにし、シートでもエラーを空欄に置き換えない([udf.md](udf.md)の「エラーの出し方」)。
 - 1行目は取得モードの欄。ライブのレートのセル: PCA CA4(`CHOOSECOLS(…,1,2)`を渡す)、PCAGrid CD4、VolPCA LA3(`"vol"`)、
   VolHV BB3(`"vol"`)、VolLevel AA3(`"vol"`)・AE3(`"swap"`)、FwdMonitor AW3、BOJ K3。
 

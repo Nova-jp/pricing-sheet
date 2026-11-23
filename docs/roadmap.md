@@ -151,7 +151,7 @@ LiveScreen.xlsm([live_screen.md](live_screen.md))に、過去のアウトライ�
 方針は[decisions.md](decisions.md)の「評価日」(日付を値で入れる・今日やDBで結果が変わるUDFは日付のセルを引数で受け取る・
 volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・PositionSheet・SwapAnalysis・LiveScreenは先頭の`Control`シート
 (全ブック共通の形)に移った(B3 `Trade date`・B4 `TradeDate`・B5 `DbStamp`・B6 `DataStatus`、PositionSheetはB7 `BaseDate`)。
-SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した(decisions.mdの「分析ブックのUDF」)。
+SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した([udf.md](udf.md)の「エラーの出し方」)。
 
 - **他のブックの任意の日付の空欄・エラーを隠す式をそろえるか**。評価日・基準日(`TradeDate`・`BaseDate`・HistChartの基準日)は
   全ブックで必須になった(空欄はエラー)。残りは評価日ではない任意の日付(ASW・HistChartの終了日の空欄は評価日まで、
