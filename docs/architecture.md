@@ -140,7 +140,7 @@ engine/
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプションの表UDF(計算の部品は common/option/bond/)
-  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス)
+  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス+Fwdのスポット換算)
   live_screen/     # LiveScreen.xlsm固有のリアルタイムの画面(スポットの日付・日数の調整幅・プレミアム→σ√T。自動計算+RtGet)
 ```
 

@@ -30,7 +30,7 @@ from engine.common import bond, market, udf_common  # noqa: E402
 from engine.common.historical_store import HistoricalStore  # noqa: E402
 from engine.common.jgb_source import JgbClose, JgbRecord  # noqa: E402
 from engine.common.option.swaption import convert as swaption  # noqa: E402
-from engine.position import bonds, intraday, trades, udf  # noqa: E402
+from engine.position import bonds, forwards, intraday, trades, udf  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 from tests.test_market_risk import _rt_range  # noqa: E402
 
@@ -152,6 +152,48 @@ class TradeRiskTest(unittest.TestCase):
         self.assertGreater(risk.deltas["10y"], 0)
         others = sum(abs(v) for k, v in risk.deltas.items() if k != "10y")
         self.assertLess(others, risk.deltas["10y"] * 1e-3)
+
+class ForwardSpotTest(unittest.TestCase):
+    def setUp(self):
+        self.curves = _curves()
+
+    def test_start_labels(self):
+        self.assertIsNone(forwards.forward_start("O/N"))
+        self.assertEqual(forwards.forward_start("1.5Y"), "18M")
+        self.assertEqual(forwards.forward_start("5y"), "5Y")
+
+    def test_5y1y_sits_on_5y_and_6y_and_sums_to_risk(self):
+        r = forwards.forward_risks(self.curves, ["5Y"], [1.0])[0]
+        self.assertAlmostEqual(sum(r.deltas.values()), 1.0, places=9)
+        self.assertGreater(r.deltas["6y"], 1.0)  # スポットに直すと入れたリスクより大きい
+        self.assertLess(r.deltas["5y"], -1.0)
+        others = sum(abs(v) for k, v in r.deltas.items() if k not in ("5y", "6y"))
+        self.assertLess(others, abs(r.deltas["6y"]) * 1e-2)
+        self.assertLess(r.notional, 0)  # 金利が上がると得 = Pay(Recを正)
+
+    def test_matches_forward_trade(self):
+        r = forwards.forward_risks(self.curves, ["3Y"], [-2.0])[0]
+        ref = trades.trade_risks(self.curves, [trades.Trade("3Y", "1Y", abs(r.notional), "REC")])[0]
+        for k, v in ref.deltas.items():
+            self.assertAlmostEqual(r.deltas[k], v, places=6)
+
+    def test_udf_rows_follow_pillars(self):
+        pillars = ["O/N", "1Y", "5Y", "10Y"]
+        with mock.patch.object(udf_common, "_db_fixings", lambda: {}), \
+                mock.patch.object(udf_common, "_today", lambda: FRIDAY), \
+                mock.patch.object(udf, "_db_key", lambda: None):
+            out = udf.PosForwardSpotDeltas(pillars, ["", 0, 1.0, None], _rt_range(), FRIDAY)
+        self.assertEqual(len(out), 4)
+        self.assertEqual([row[0] for row in out][:2], ["", ""])
+        self.assertNotEqual(out[2][0], "")
+        ref = forwards.forward_risks(self.curves, ["5Y"], [1.0])[0]
+        self.assertAlmostEqual(out[2][1], ref.deltas["5y"], places=6)
+        self.assertAlmostEqual(out[1][1], ref.deltas.get("1y", 0.0), places=6)
+
+    def test_row_count_mismatch(self):
+        with self.assertRaises(ValueError):
+            forwards.forward_risks(self.curves, ["5Y", "6Y"], [1.0])
+
 
 class CloseRatesTest(unittest.TestCase):
     def test_pillar_order_fixing_and_blanks(self):
