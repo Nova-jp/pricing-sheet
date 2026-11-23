@@ -43,6 +43,7 @@ LSEG Workspace(起動・ログイン中)
 | `historical_curve.toml` | ヒストリカル日次カーブの設定(カーブの引き方・使うテナー) |
 | `data/` | `historical.db`(日次カーブ等)・`live.db`(リアルタイム)・`live_feed.log`。LSEG由来のためコミットしない |
 | `tools/template.py` | 作業用のブックから雛形を作る・検査する(`python -m tools.template`) |
+| `tools/raw_sample.py` | 生シートの作り物の見本(`templates/raw_samples/`)をブックに貼る・書き出す(`python -m tools.raw_sample load/dump`) |
 | `tests/` | リグレッションテスト |
 | `docs/` | 設計・運用ドキュメント |
 
@@ -111,7 +112,7 @@ Excelのブックは`templates/`の雛形を直下にコピーして使う。直
 | `PricingSheet.xlsm` | Mainシートの評価日(空欄=今日)とカーブのテナーの採否を確かめる。pricingシートの表にコンベンション・テナー・想定元本等を入れてShift+F9(パーレート・PV・デルタ。RiskGridはrisk_flagの行のピラーごとのデルタ。ブローカーはpricing!F1で切り替え)。HistChartは系列の条件を入れてヒストリカルの推移、ASW・ASWPricerは銘柄を入れてASW |
 | `SwapAnalysis.xlsm` | PCA/VolPCA/PCAGridは推定(Window end・window)と復元(Recon date・主成分数)を入れてF9。VolHV・VolLevel・FwdMonitor・FutBasis・BOJは条件を入れてF9(過去分はDB、今日はライブ) |
 | `BondOption.xlsm` | Optionシートに銘柄・スキーム・満期・額面・ストライクの指定(6つの入力列のどれか1つ)を入れてF9。プレミアム(銭)とQuote textが出る。ボラ・レポは上書きできる |
-| `PositionSheet.xlsm` | 会社のファイルをRaw_IR・Raw_IRVOLに、現物オプションの全約定をRaw_BondOptionにA1から貼る。Setupの基準日(既定はDBの直近の引け。B3で上書き)とレポを確かめてF9。日中はPositionシートのG列に現物のMove(複利のbp)を、下段に今日の取引を入れてShift+F9(PLはAB:AHとAB40のまとめ) |
+| `PositionSheet.xlsm` | 会社のファイルをRaw_IR・Raw_IRVOLに、現物の保有銘柄をRaw_JGBに、現物オプションの全約定をRaw_BondOptionにA1から貼る。ControlのB3に取引日、Setupのレポを確かめてF9。日中はPositionシートのC列に現物のMove(複利のbp)を、下段に今日の取引を入れてShift+F9(PLはAG:AMとAG40のまとめ) |
 
 ブックごとの構成は下の「ドキュメント」を参照。
 
