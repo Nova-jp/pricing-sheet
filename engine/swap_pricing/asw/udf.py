@@ -14,8 +14,7 @@ Excel境界の型変換は`engine.common.udf_common`を`udf_common.xxx(...)`の�
 (名前のコピーはしない。理由はudf_common.pyのdocstring)。
 """
 
-from datetime import date
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import xlwings as xw
 
@@ -35,13 +34,6 @@ def _convention(value) -> str:
     return conv
 
 
-def _date_range(from_date, to_date, trade_date) -> Tuple[Optional[date], date]:
-    """ヒストリカルの読む範囲。終了日の空欄・評価日より後は評価日まで(評価日は必須)。開始日の空欄はDBの最初から。"""
-    trade = udf_common._required_date(trade_date, "評価日(TradeDate)")
-    end = udf_common._to_date(to_date)
-    return udf_common._to_date(from_date), trade if end is None or end > trade else end
-
-
 def _rate(q: Optional[AswRate], convention: str):
     if q is None:
         return ""
@@ -58,7 +50,7 @@ def AswHistoricalRate(bond_code, convention, from_date, to_date, trade_date) -> 
     trade_date: 評価日(TradeDate、必須)。これより後の日付は返さない。
     """
     conv = _convention(convention)
-    first, last = _date_range(from_date, to_date, trade_date)
+    first, last = udf_common._history_range(from_date, to_date, trade_date)
     with udf_common._historical_store() as store:
         quotes = store.asw_quotes_for(str(bond_code).strip(), first, last)
     rows = [["Date", "Rate"]]
@@ -94,7 +86,7 @@ def AswHistoricalRates(bond_codes, convention, from_date, to_date, trade_date) -
     conv = _convention(convention)
     codes = _codes_from_range(bond_codes)
     active = [c for c in codes if c is not None]
-    first, last = _date_range(from_date, to_date, trade_date)
+    first, last = udf_common._history_range(from_date, to_date, trade_date)
     with udf_common._historical_store() as store:
         per_leg: Dict[str, Dict] = {c: store.asw_quotes_for(c, first, last) for c in active}
     all_dates = sorted(set().union(*per_leg.values())) if per_leg else []
