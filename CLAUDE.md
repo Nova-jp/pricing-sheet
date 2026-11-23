@@ -8,6 +8,7 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
 詳細設計・運用情報は`docs/`配下を参照(このファイルは要点のみ、肥大化させない)。
 
 - 全体構成・データフロー・モジュール一覧: `docs/architecture.md`
+- UDFの作り方(全ブック共通。UDFを作る・変えるときは必ず読む): `docs/udf.md`
 - ブックにまたがる設計判断とその理由: `docs/decisions.md`
 - ブックごとの構成と判断: `docs/pricing.md`・`docs/analysis.md`・`docs/bond_option.md`・`docs/position.md`
 - 保留中の項目: `docs/roadmap.md`(済んだら消す)
@@ -41,23 +42,17 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
 
 ## 設計方針(必ず守る)
 
-- **UDF専用、VBAなし**。QuantLibが必要な計算(パーレート/PV/デルタ/
-  リスクの合算(RiskGrid)/ヒストリカル)だけをUDFにする。
-  カーブのスプレッド・フライ・合計のような四則演算はExcel自身の数式に
-  任せる。「高度な計算が必要そうなら、勝手にUDF化・複雑化せず先に相談する」。
-- `PricingSheet.py`は`engine/swap_pricing/udf.py`の再エクスポート専用
-  (`from engine.swap_pricing.udf import *`)。ワークブックと同名の.pyファイルに
-  UDF実体が必要というxlwings(Windows)の制約のため(`udf.py`自体は薄い再エクスポート層)。
-  VBAのRunPython/マクロボタンでUDFセルを静的値で上書きするような実装は絶対に作らない
-  (過去に実際に事故が起きた設計)。
-  例外: PositionSheetのデータの取得・計算の開始のボタンはVBAで作ってよい(ユーザー了承。重い計算はPythonに任せ、
-  書き込み先は専用の領域にしてUDFのセルは上書きしない。`docs/decisions.md`)。
-- 配列を返すUDFに`@xw.ret(expand="table")`を使わない(旧式配列数式に書き換わり
-  動的配列のスピルと衝突する)。配列をそのまま返しExcelのスピルに任せる。
-- 価格計算の値はQuantLibを正とし、手計算の再実装による検証ロジックは作らない。
-- 評価日はブックごとに1セルに集約し、日付を値で入れる(毎朝Ctrl+;)。今日やDBで結果が変わるUDFは、すべてその
-  セルを引数で受け取る(UDFの中で黙って今日やDBを見ない)。`TODAY()`もvolatileの評価日も使わない(volatileの下流は
-  F9のたびに全部計算される)。volatileは状態の表示`DataStatus`だけ(`docs/decisions.md`の「評価日」)。カーブは`engine/common/market.py`で全UDFが共有し、
+- **UDFを作る・引数を変えるときは、先に`docs/udf.md`(全ブック共通の作り方)を読んで守る**。要点:
+  - UDF専用、VBAなし。UDFにするのはQuantLibが要る計算とDBの読み出しだけで、四則演算はExcelの数式。
+    「高度な計算が必要そうなら、勝手にUDF化・複雑化せず先に相談する」。
+  - **今日・DB・ライブのレートで結果が変わるUDFは、Controlシートの`TradeDate`を引数で受け取る**(UDFの中で黙って今日やDBを
+    見ない。日付の空欄はエラー)。日付で結果が変わらないUDFは例外として作ってよいが、理由をdocstringに書く。
+    `TODAY()`・volatileの評価日は使わない(volatileは`docs/udf.md`に挙げたものだけ)。
+  - VBAのRunPython/マクロボタンでUDFセルを静的値で上書きするような実装は絶対に作らない(過去に実際に事故が起きた設計)。
+    例外: PositionSheetのデータの取得・計算の開始のボタンはVBAで作ってよい(ユーザー了承。書き込み先は専用の領域)。
+  - `PricingSheet.py`等のワークブックと同名の.pyは再エクスポート専用(xlwings(Windows)の制約)。
+    配列を返すUDFに`@xw.ret(expand="table")`を使わない。
+- 価格計算の値はQuantLibを正とし、手計算の再実装による検証ロジックは作らない。カーブは`engine/common/market.py`で全UDFが共有し、
   UDFごと・行ごとにブートストラップしない。
 - データの供給元はLSEG Workspace(`historical_data.xlsx`と、Python APIのデスクトップセッション。リアルタイムは常駐の
   フィード`engine/common/live_feed.py`、JGBの銘柄情報・引け値は`engine/common/jgb_source.py`)。ヒストリカルは手動実行のバッチ
