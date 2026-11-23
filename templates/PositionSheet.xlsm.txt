@@ -4,6 +4,7 @@ sheet Position
 sheet Setup
 sheet BondOpt
 sheet JGB
+sheet FutOpt
 sheet Raw_IR
 sheet Raw_IRVOL
 sheet Raw_Swaption
@@ -35,10 +36,10 @@ Position!C1 : "Bond move: compound yield change since close (input, blank = no m
 Position!H1 : "Now = close + today's Done trades + gamma x move (bond incl. bond options). Delta: mn/bp, Gamma: mn/bp2"
 Position!Q1 : "Remove: ASW risk A is taken from both sides (bond - A, swap + A). Fwd nY1Y = risk of the 1Y fwd starting at the pillar (swap only, mn/bp)"
 Position!AF1 = "Close ("&IF(BaseDate="","base date?",TEXT(BaseDate,"yyyy-mm-dd"))&")"
-Position!AH1 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet) + bond options (BondOpt sheet). Delta: mn/bp, Gamma: mn/bp2"
+Position!AH1 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet) + bond options (BondOpt sheet) + JGB futures options (FutOpt sheet, on the Setup I9 pillar; F = incl. futures options). Delta: mn/bp, Gamma: mn/bp2"
 Position!AQ1 : "PL (approx. since base-date close, mn JPY)"
-Position!BD1 : "Bond option theta (mn/day)"
-Position!BI1 = BondOpt!$AE$3
+Position!BD1 : "Bond + futures option theta (mn/day)"
+Position!BI1 = BondOpt!$AE$3+N(FutOpt!$AA$3)
 Position!B2 : "Live"
 Position!C2 = LiveInfo("swap",ANCHORARRAY($BS$4))
 Position!E2 = IF(ROWS(ANCHORARRAY($BS$4))>1,"Live: OK",LEFT($BS$4,80))
@@ -143,12 +144,12 @@ Position!AB4:AB37 = AA4
 Position!AC4:AC37 = N(AM4)+BA4
 Position!AD4:AD37 = AC4
 Position!AE4:AE37 = AA4+AC4
-Position!AF4:AF37 = N(JGB!$S4)+N(BondOpt!$BB4)
+Position!AF4:AF37 = N(JGB!$S4)+N(BondOpt!$BB4)+IF($B4=Setup!$I$9,N(FutOpt!$Y$3),0)
 Position!AG4:AG37 = AF4
 Position!AH4:AH37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$12)/10^6)
 Position!AI4:AI37 = AH4
 Position!AJ4:AJ37 = IF(AND(AF4="",AH4=""),"",N(AF4)+N(AH4))
-Position!AK4:AK37 = N(JGB!$T4)+N(BondOpt!$BC4)
+Position!AK4:AK37 = N(JGB!$T4)+N(BondOpt!$BC4)+IF($B4=Setup!$I$9,N(FutOpt!$Z$3),0)
 Position!AL4:AL37 = AK4
 Position!AM4:AM37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$14)/10^6)
 Position!AN4:AN37 = AM4
@@ -157,7 +158,7 @@ Position!AQ4:AQ37 = N(AH4)*N(D4)
 Position!AR4:AR37 = 0.5*N(AM4)*N(D4)^2
 Position!AS4:AS37 = N(AF4)*N(C4)
 Position!AT4:AT37 = 0.5*N(AK4)*N(C4)^2
-Position!AU4:AU37 = N(BondOpt!$BD4)*N($AR$52)
+Position!AU4:AU37 = (N(BondOpt!$BD4)+IF($B4=Setup!$I$9,N(FutOpt!$AA$3),0))*N($AR$52)
 Position!AV4:AV37 = SUM(AQ4:AU4)
 Position!AW4:AW37 = AV4
 Position!BD4 : "1W"
@@ -1016,6 +1017,9 @@ Setup!H8 : "HV window (days)"
 Setup!I8 : 20
 Setup!A9 : "Tenor column"
 Setup!B9 : "tenor"
+Setup!H9 : "Fut option pillar"
+Setup!I9 : "7Y"
+Setup!J9 = IF(COUNTIF(Position!$B$4:$B$37,I9)=0,"Not a Position pillar","OK")
 Setup!H10 : "Item"
 Setup!I10 : "Raw column"
 Setup!J10 : "Column no."
@@ -1032,7 +1036,7 @@ Setup!H11:I11 : "ID"
 Setup!J11:J18 = XMATCH(I11,Raw_BondOption!$1:$1)
 Setup!L11 : "ID"
 Setup!M11 : "Instrument ID"
-Setup!N11:N14 = XMATCH(M11,Raw_JGB!$1:$1)
+Setup!N11:N17 = XMATCH(M11,Raw_JGB!$1:$1)
 Setup!A12 : "Delta Swap"
 Setup!B12 : "delta_derivative_base"
 Setup!C12:C15 = XMATCH(B12,Raw_IR!$1:$1)
@@ -1061,13 +1065,18 @@ Setup!B15 : "gamma_bond_base"
 Setup!E15 = JGB!$V$38
 Setup!H15 : "Expiry"
 Setup!I15 : "ExerciseDate"
+Setup!L15:M15 : "Name"
 Setup!H16 : "Settle"
 Setup!I16 : "EffectiveDate"
+Setup!L16 : "Holding type"
+Setup!M16 : "Holding Type"
 Setup!A17 : "Vol (Raw_IRVOL)"
 Setup!D17 : "Raw total"
 Setup!E17 : "Grid total"
 Setup!F17 : "Diff"
 Setup!H17:I17 : "Strike"
+Setup!L17 : "Mark price"
+Setup!M17 : "Closing Mark Pr"
 Setup!A18 : "Dataset"
 Setup!B18 : "VOLCUBE.JPY.ZABR.SWAPTION_NormalATMVol"
 Setup!C18 = COUNTIF(INDEX(Raw_IRVOL!$A:$CZ,0,$C$19),B18)&" rows"
@@ -1306,12 +1315,41 @@ JGB!B5 : "Maturity"
 JGB!C5 : "Nominal (mn)"
 JGB!D5 : "Yield (%)"
 JGB!F5 = PosJgbRisk($A$6:$A$505,$B$6:$B$505,$C$6:$C$505,$D$6:$D$505,Position!$B$4:$B$37,BaseDate)
-JGB!A6:A505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$11),IF(v="","",v))
-JGB!B6:B505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$12),IF(v="","",v))
-JGB!C6:C505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$13),IF(v="","",v))
-JGB!D6:D505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$14),IF(v="","",v))
+JGB!A6:A505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$11),h,IFERROR(INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$16),""),IF(OR(v="",LEFT(h,3)="OPT"),"",v))
+JGB!B6:B505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$12),h,IFERROR(INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$16),""),IF(OR(v="",LEFT(h,3)="OPT"),"",v))
+JGB!C6:C505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$13),h,IFERROR(INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$16),""),IF(OR(v="",LEFT(h,3)="OPT"),"",v))
+JGB!D6:D505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$14),h,IFERROR(INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$16),""),IF(OR(v="",LEFT(h,3)="OPT"),"",v))
 JGB!R38 : "Total"
 JGB!S38:X38 = SUM(S4:S37)
+# FutOpt
+FutOpt!A1 : "JGB futures options (Raw_JGB rows with Holding Type OPT..., valued at the close of the base date)"
+FutOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   Pillar: "&Setup!$I$9&"   Lots: 1 lot = 100 mn face of the futures"
+FutOpt!X3 : "Total"
+FutOpt!Y3:AC3 = SUM(Y6:Y205)
+FutOpt!A4 : "Holding (Raw_JGB)"
+FutOpt!F4 : "Calc: PosFutOptRisk (futures settle from the DB, vol implied from the mark, Black w/o discount, CTD = min net basis; per 100 face)"
+FutOpt!W4 : "Risk: CTD face = lots x 100 x delta / CF, delta = CTD face x dP / 100, gamma = (lots x 100 x gamma / CF^2 x dP^2 + CTD face x d2P) / 100"
+FutOpt!A5 : "Name"
+FutOpt!B5 : "Holding type"
+FutOpt!C5 : "Lots"
+FutOpt!D5 : "Last trade"
+FutOpt!E5 : "Mark"
+FutOpt!F5 = PosFutOptRisk(INDEX(ANCHORARRAY($A$6),,1),INDEX(ANCHORARRAY($A$6),,4),INDEX(ANCHORARRAY($A$6),,5),BaseDate,Setup!$I$7)
+FutOpt!W5 : "CTD face (mn)"
+FutOpt!X5 : "Price gamma x face"
+FutOpt!Y5 : "Delta (mn/bp)"
+FutOpt!Z5 : "Gamma (mn/bp2)"
+FutOpt!AA5 : "Theta (mn/day)"
+FutOpt!AB5 : "Vega (mn / 1% vol)"
+FutOpt!AC5 : "PV (mn)"
+FutOpt!A6 = LET(r,Raw_JGB!$A$2:$CZ$2000,h,INDEX(r,0,Setup!$N$16),IFERROR(FILTER(HSTACK(INDEX(r,0,Setup!$N$15),h,INDEX(r,0,Setup!$N$13),INDEX(r,0,Setup!$N$12),INDEX(r,0,Setup!$N$17)),LEFT(h,3)="OPT"),""))
+FutOpt!W6:W205 = IF(OR($F6="",$U6<>""),"",$C6*100*$M6/$R6)
+FutOpt!X6:X205 = IF(W6="","",$C6*100*$N6/$R6^2)
+FutOpt!Y6:Y205 = IF(W6="","",W6*$S6/100)
+FutOpt!Z6:Z205 = IF(W6="","",(X6*$S6^2+W6*$T6)/100)
+FutOpt!AA6:AA205 = IF(W6="","",$C6*$P6)
+FutOpt!AB6:AB205 = IF(W6="","",$C6*$O6)
+FutOpt!AC6:AC205 = IF(W6="","",$C6*$L6)
 # Raw_IR
 # Raw_IRVOL
 # Raw_Swaption

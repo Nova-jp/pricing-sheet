@@ -1,2 +1,5 @@
 Instrument ID,Name,Holding Type,Yesterday,Complete,incomplete,Total(1),Nominal Total,Factor,Coupon,CPN Date,CPN Date Flag,Maturity,Term To Maturity,Closing Mark Pr,ClosingMark Ps,Closing Mark S Yld
 0-02-0023-00068,,,500,,,,,,,,,2036-06-20,,,,
+0-63-2112-01001,債先2612C127.50,OPT+,20,0,0,20,20,1,,,,2026-11-30,0.054795,0.723519,,
+0-63-2112-01301,債先2612C128.25,OPT-,-110,0,0,-110,-110,1,,,,2026-11-30,0.054795,0.353621,,
+0-63-2112-01301,債先2612C128.25,OPT+,0,0,0,0,0,1,,,,2026-11-30,0.054795,0.353621,,

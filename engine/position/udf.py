@@ -29,7 +29,7 @@ from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
 from engine.common.option.swaption import convert as swaption
 from engine.common.udf_common import _is_blank, _to_date
-from engine.position import bond_options, bonds, forwards, intraday, trades, vega
+from engine.position import bond_options, bonds, forwards, futures_options, intraday, trades, vega
 
 
 def _labels(values) -> Tuple[str, ...]:
@@ -471,6 +471,32 @@ def PosBondOptMarket(codes, expiries, settles, base_date, repo, window) -> List[
                                             _vol_rows(store, d))
 
     return _cached("market", (_freeze([codes, expiries, settles]), d, r, window), compute)
+
+
+@xw.func
+@xw.arg("names", ndim=1)
+@xw.arg("expiries", ndim=1)
+@xw.arg("marks", ndim=1)
+def PosFutOptRisk(names, expiries, marks, base_date, repo) -> List[list]:
+    """
+    長期国債先物オプション(Raw_JGBのNameが`債先`の行)の行ごとの [Contract, Type, Strike, Futures, T, Vol (%), Premium,
+    Delta, Gamma, Vega, Theta, CTD, CF, dP, d2P, Message](基準日の引け、額面100円あたり。engine/position/futures_options.py)。
+    names・expiries・marks: Raw_JGBの Name・Maturity(取引最終日)・Closing Mark Pr の列(同じ行数。FutOptシートが
+    Holding Typeが`OPT`の行だけを渡す)。repo: レポ(%)。Nameが空欄の行は空欄。枚数・符号・百万円への換算、ピラーへの合計はシートの数式。
+    """
+    d = _base_date(base_date)
+    r = _optional_number(repo, "Repo")
+    names, expiries, marks = (_column(v) for v in (names, expiries, marks))
+    if not (len(names) == len(expiries) == len(marks)):
+        raise ValueError(f"Name・Maturity・Closing Mark Prの行数が違います({len(names)}・{len(expiries)}・{len(marks)}行)")
+    dates = [_to_date(e) if not _is_blank(e) else None for e in expiries]
+
+    def compute():
+        with udf_common._historical_store() as store:
+            rows = futures_options.risk_rows(store, names, dates, marks, d, r)
+        return [list(futures_options.HEADER)] + rows
+
+    return _cached("futopt", (_freeze([names, expiries, marks]), d, r), compute)
 
 
 @xw.func

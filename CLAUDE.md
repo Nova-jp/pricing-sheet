@@ -35,7 +35,7 @@ Python/QuantLib + LSEG Workspace(データの供給元、詳細は`docs/decision
   - 分析ブック(`pca/`・`vol/`・`boj/`・`fwd/`・`fut/`)は`swap_pricing/`に依存させず、`common/`だけを使う
     (ブック同士を参照させない。PricingSheetのUDFが必要なら`common/`の部品で組む)
   - `engine/bond_option/` — BondOption.xlsm固有の現物オプション(table/udf)。計算の部品は`engine/common/option/bond/`(pricer/vol/hv、PositionSheetも使う)、JGBの規約は`engine/common/bond.py`
-  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/bond_options/trades/forwards/vega/udf)。
+  - `engine/position/` — PositionSheet.xlsm固有のポジション・リスク管理(intraday/bonds/bond_options/futures_options/trades/forwards/vega/udf)。
     `common/`だけを使う
   - `engine/live_screen/` — LiveScreen.xlsm固有のリアルタイムの画面(day_length/vol/udf)。`common/`だけを使う
 - `notebooks/` — 手元で動かす分析ノートブック(ブック・UDFとは無関係、DBを読むだけ)。**出力を消してからコミットする**
