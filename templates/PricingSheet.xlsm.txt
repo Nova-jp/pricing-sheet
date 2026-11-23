@@ -327,6 +327,7 @@ ASW!C3 : "PA/SA(全系列共通。ASW_dataのAct/365 PA/SA)"
 ASW!A4 : "開始日(任意)"
 ASW!C4 : "空欄ならDBにある全期間"
 ASW!A5 : "終了日(任意)"
+ASW!C5 : "空欄なら評価日(TradeDate)まで。評価日より後の日付は出さない"
 ASW!A6 : "倍率"
 ASW!B6 : 100
 ASW!C6 : "ASWは%単位。bp表示なので100"
@@ -393,9 +394,9 @@ ASW!A27 : "系列1"
 ASW!F27 : "系列2"
 ASW!K27 : "系列3"
 ASW!P27 : "グラフ用"
-ASW!A28 = LET(r,AswHistoricalRates(TRANSPOSE(C15:E15),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
-ASW!F28 = LET(r,AswHistoricalRates(TRANSPOSE(C16:E16),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
-ASW!K28 = LET(r,AswHistoricalRates(TRANSPOSE(C17:E17),$B$3,$B$4,$B$5),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!A28 = LET(r,AswHistoricalRates(TRANSPOSE(C15:E15),$B$3,$B$4,$B$5,TradeDate),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!F28 = LET(r,AswHistoricalRates(TRANSPOSE(C16:E16),$B$3,$B$4,$B$5,TradeDate),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
+ASW!K28 = LET(r,AswHistoricalRates(TRANSPOSE(C17:E17),$B$3,$B$4,$B$5,TradeDate),IF(ROWS(r)=1,r,LET(d,DROP(r,1),VSTACK(TAKE(r,1),SORTBY(d,INDEX(d,,1),-1)))))
 ASW!P28 = IFERROR(LET(x,VSTACK(INDEX(ANCHORARRAY(A28),,1),INDEX(ANCHORARRAY(F28),,1),INDEX(ANCHORARRAY(K28),,1)),VSTACK("Date",SORT(UNIQUE(FILTER(x,ISNUMBER(x))),,-1))),"Date")
 ASW!Q28 = $H$9
 ASW!R28 = $H$10

@@ -7,13 +7,15 @@ AswCloseTable。引け時点の複利とMMS。ライブのレートに依存さ�
 ASWはスワップのROLLING/FIXEDのような「基準日からの平行移動」が無く、銘柄コード
 (bond_code)ごとに日付→値が決まっているだけ(Act/365、PA/SAの2コンベンション)。
 値は DBの`asw_quotes`(朝バッチがその日のカーブと引け値から計算したもの。engine/common/asw.py)を
-読むだけ(カーブは組まない)。
+読むだけ(カーブは組まない)。DBを読むので評価日(TradeDate)を引数で受け取り、評価日より後の日付は返さない
+(日付を入れ直したときに読み直され、過去の評価日ではその日に見えていた値になる。docs/decisions.md の「評価日」)。
 
 Excel境界の型変換は`engine.common.udf_common`を`udf_common.xxx(...)`の形で呼ぶ
 (名前のコピーはしない。理由はudf_common.pyのdocstring)。
 """
 
-from typing import Dict, List, Optional
+from datetime import date
+from typing import Dict, List, Optional, Tuple
 
 import xlwings as xw
 
@@ -33,6 +35,13 @@ def _convention(value) -> str:
     return conv
 
 
+def _date_range(from_date, to_date, trade_date) -> Tuple[Optional[date], date]:
+    """ヒストリカルの読む範囲。終了日の空欄・評価日より後は評価日まで(評価日は必須)。開始日の空欄はDBの最初から。"""
+    trade = udf_common._required_date(trade_date, "評価日(TradeDate)")
+    end = udf_common._to_date(to_date)
+    return udf_common._to_date(from_date), trade if end is None or end > trade else end
+
+
 def _rate(q: Optional[AswRate], convention: str):
     if q is None:
         return ""
@@ -40,18 +49,18 @@ def _rate(q: Optional[AswRate], convention: str):
 
 
 @xw.func
-def AswHistoricalRate(bond_code, convention, from_date=None, to_date=None) -> List[list]:
+def AswHistoricalRate(bond_code, convention, from_date, to_date, trade_date) -> List[list]:
     """
     指定銘柄(bond_code)のASWスプレッド推移(Date/Rateの2列スピル配列、1行目は見出し)。
 
     convention: "PA"/"SA"(MMSの固定側の頻度。Act/365)。
-    from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
+    from_date/to_date: 計算する過去日の範囲(開始日の空欄=DBの最初から、終了日の空欄=評価日まで)。
+    trade_date: 評価日(TradeDate、必須)。これより後の日付は返さない。
     """
     conv = _convention(convention)
+    first, last = _date_range(from_date, to_date, trade_date)
     with udf_common._historical_store() as store:
-        quotes = store.asw_quotes_for(
-            str(bond_code).strip(), udf_common._to_date(from_date), udf_common._to_date(to_date),
-        )
+        quotes = store.asw_quotes_for(str(bond_code).strip(), first, last)
     rows = [["Date", "Rate"]]
     rows += [[d, _rate(quotes[d], conv)] for d in sorted(quotes)]
     return rows
@@ -71,7 +80,7 @@ def _codes_from_range(bond_codes) -> List[Optional[str]]:
 
 @xw.func
 @xw.arg("bond_codes", ndim=2)
-def AswHistoricalRates(bond_codes, convention, from_date=None, to_date=None) -> List[list]:
+def AswHistoricalRates(bond_codes, convention, from_date, to_date, trade_date) -> List[list]:
     """
     最大3銘柄(カーブ・フライの各脚)のASWスプレッドを、同じ日付の並びで返す
     (Date/A/B/Cの4列スピル配列、1行目は見出し)。カーブ(B−A)・フライ(2B−A−C)の
@@ -80,16 +89,14 @@ def AswHistoricalRates(bond_codes, convention, from_date=None, to_date=None) -> 
     bond_codes: 最大3行×1列(銘柄コード)。空行は脚なしで、その列は空欄になる。
         脚が1本もなければ日付の列だけを返す。
     convention: "PA"/"SA"(全脚共通。カーブ・フライの計算が混在しないよう統一する)。
-    from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
+    from_date/to_date/trade_date: AswHistoricalRate と同じ(終了日の空欄・評価日より後は評価日まで)。
     """
     conv = _convention(convention)
     codes = _codes_from_range(bond_codes)
     active = [c for c in codes if c is not None]
+    first, last = _date_range(from_date, to_date, trade_date)
     with udf_common._historical_store() as store:
-        per_leg: Dict[str, Dict] = {
-            c: store.asw_quotes_for(c, udf_common._to_date(from_date), udf_common._to_date(to_date))
-            for c in active
-        }
+        per_leg: Dict[str, Dict] = {c: store.asw_quotes_for(c, first, last) for c in active}
     all_dates = sorted(set().union(*per_leg.values())) if per_leg else []
     rows = [["Date", *_LEG_LABELS]]
     for d in all_dates:

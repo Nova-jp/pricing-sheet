@@ -38,8 +38,8 @@ class AswHistoricalRateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                pa = asw_udf.AswHistoricalRate("AAA", "PA")
-                sa = asw_udf.AswHistoricalRate("AAA", "sa")  # 大文字小文字は問わない
+                pa = asw_udf.AswHistoricalRate("AAA", "PA", "", "", D2)
+                sa = asw_udf.AswHistoricalRate("AAA", "sa", "", "", D2)  # 大文字小文字は問わない
         self.assertEqual(pa, [["Date", "Rate"], [D0, 0.10], [D1, 0.15], [D2, 0.20]])
         self.assertEqual(sa, [["Date", "Rate"], [D0, 0.20], [D1, 0.25], [D2, 0.30]])
 
@@ -47,7 +47,7 @@ class AswHistoricalRateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRate("AAA", "PA", from_date=D1, to_date=D1)
+                rows = asw_udf.AswHistoricalRate("AAA", "PA", D1, D1, D2)
         self.assertEqual(rows, [["Date", "Rate"], [D1, 0.15]])
 
     def test_invalid_convention_raises(self):
@@ -55,7 +55,7 @@ class AswHistoricalRateTest(unittest.TestCase):
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
                 with self.assertRaisesRegex(ValueError, "PA/SA"):
-                    asw_udf.AswHistoricalRate("AAA", "XX")
+                    asw_udf.AswHistoricalRate("AAA", "XX", "", "", D2)
 
 
 class AswHistoricalRatesTest(unittest.TestCase):
@@ -63,7 +63,7 @@ class AswHistoricalRatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRates([["AAA"]], "PA")
+                rows = asw_udf.AswHistoricalRates([["AAA"]], "PA", "", "", D2)
         self.assertEqual(rows, [["Date", "A", "B", "C"], [D0, 0.10, "", ""], [D1, 0.15, "", ""], [D2, 0.20, "", ""]])
 
     def test_two_legs_align_by_date_with_blanks_for_missing(self):
@@ -71,7 +71,7 @@ class AswHistoricalRatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRates([["AAA"], ["BBB"]], "PA")
+                rows = asw_udf.AswHistoricalRates([["AAA"], ["BBB"]], "PA", "", "", D2)
         self.assertEqual(rows, [
             ["Date", "A", "B", "C"],
             [D0, 0.10, 0.40, ""],
@@ -83,7 +83,7 @@ class AswHistoricalRatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRates([["AAA"], ["BBB"], ["CCC"]], "SA")
+                rows = asw_udf.AswHistoricalRates([["AAA"], ["BBB"], ["CCC"]], "SA", "", "", D2)
         self.assertEqual(rows, [
             ["Date", "A", "B", "C"],
             [D0, 0.20, 0.50, 0.80],
@@ -95,7 +95,7 @@ class AswHistoricalRatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRates([["" , "", ""]], "PA")
+                rows = asw_udf.AswHistoricalRates([["" , "", ""]], "PA", "", "", D2)
         self.assertEqual(rows, [["Date", "A", "B", "C"]])
 
     def test_too_many_legs_raises(self):
@@ -103,14 +103,31 @@ class AswHistoricalRatesTest(unittest.TestCase):
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
                 with self.assertRaisesRegex(ValueError, "最大3本"):
-                    asw_udf.AswHistoricalRates([["AAA"], ["BBB"], ["CCC"], ["AAA"]], "PA")
+                    asw_udf.AswHistoricalRates([["AAA"], ["BBB"], ["CCC"], ["AAA"]], "PA", "", "", D2)
 
     def test_date_range_filters(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = _store_with_sample(tmp)
             with mock.patch.object(udf_common, "_historical_store", lambda: store):
-                rows = asw_udf.AswHistoricalRates([["AAA"]], "PA", from_date=D0, to_date=D0 + timedelta(days=0))
+                rows = asw_udf.AswHistoricalRates([["AAA"]], "PA", D0, D0 + timedelta(days=0), D2)
         self.assertEqual(rows, [["Date", "A", "B", "C"], [D0, 0.10, "", ""]])
+
+    def test_trade_date_caps_the_end(self):
+        """評価日より後の日付は返さない(終了日の空欄・評価日より後の終了日は評価日まで)。評価日は必須。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            store = _store_with_sample(tmp)
+            with mock.patch.object(udf_common, "_historical_store", lambda: store):
+                blank_end = asw_udf.AswHistoricalRates([["AAA"]], "PA", "", "", D1)
+                late_end = asw_udf.AswHistoricalRates([["AAA"]], "PA", D0, D2, D1)
+                single = asw_udf.AswHistoricalRate("AAA", "PA", "", D2, D1)
+                with self.assertRaisesRegex(ValueError, "評価日"):
+                    asw_udf.AswHistoricalRates([["AAA"]], "PA", "", "", "")
+                with self.assertRaisesRegex(ValueError, "評価日"):
+                    asw_udf.AswHistoricalRate("AAA", "PA", "", "", None)
+        expect = [["Date", "A", "B", "C"], [D0, 0.10, "", ""], [D1, 0.15, "", ""]]
+        self.assertEqual(blank_end, expect)
+        self.assertEqual(late_end, expect)
+        self.assertEqual(single, [["Date", "Rate"], [D0, 0.10], [D1, 0.15]])
 
 
 if __name__ == "__main__":
