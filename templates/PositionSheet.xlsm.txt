@@ -35,8 +35,7 @@ Position!B1 = "Now ("&IF(B2="Fixed","fixed","live")&")"
 Position!C1 : "Bond move: compound yield change since close (input, blank = no move). Bonds and bond options."
 Position!H1 : "Now = close + today's Done trades + gamma x move (bond incl. bond options). Delta: mn/bp, Gamma: mn/bp2"
 Position!Q1 : "Remove: ASW risk A is taken from both sides (bond - A, swap + A). Fwd nY1Y = risk of the 1Y fwd starting at the pillar (swap only, mn/bp)"
-Position!AF1 = "Close ("&IF(BaseDate="","base date?",TEXT(BaseDate,"yyyy-mm-dd"))&")"
-Position!AH1 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet) + bond options (BondOpt sheet) + JGB futures options (FutOpt sheet, on the Setup I9 pillar; F = incl. futures options). Delta: mn/bp, Gamma: mn/bp2"
+Position!AF1 = LET(b,IFERROR(SUMPRODUCT((BondOpt!$B$6:$B$205<>"")*(BondOpt!$AB$6:$AB$205="")*(LEFT(BondOpt!$AS$6:$AS$205,7)<>"Expired")),-1),j,IFERROR(SUMPRODUCT((JGB!$A$6:$A$505<>"")*(JGB!$P$6:$P$505<>"")),-1),f,IFERROR(SUMPRODUCT((FutOpt!$A$6:$A$205<>"")*(FutOpt!$U$6:$U$205<>"")),-1),w,IFERROR(SUMPRODUCT((BondOpt!$AB$6:$AB$205<>"")*((BondOpt!$AS$6:$AS$205&BondOpt!$AZ$6:$AZ$205)<>"")),-1),cnt,LAMBDA(x,IF(x<0,"?",x)),"Close ("&IF(BaseDate="","base date?",TEXT(BaseDate,"yyyy-mm-dd"))&")"&IF(AND(b=0,j=0,f=0,w=0),"","   >> Not in risk: BondOpt "&cnt(b)&", JGB "&cnt(j)&", FutOpt "&cnt(f)&" | Warnings: "&cnt(w)&" (see the Message columns)"))
 Position!AQ1 : "PL (approx. since base-date close, mn JPY)"
 Position!BD1 : "Bond + futures option theta (mn/day)"
 Position!BI1 = BondOpt!$AE$3+N(FutOpt!$AA$3)
@@ -528,6 +527,7 @@ Position!BL38 = LET(l,XLOOKUP($BD38&"x"&BL$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX
 Position!BM38 = LET(l,XLOOKUP($BD38&"x"&BM$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),15,8),fl,INDEX(ANCHORARRAY($CQ$4),15),fc,INDEX(ANCHORARRAY($CR$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
 Position!BN38 = LET(l,XLOOKUP($BD38&"x"&BN$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),15,9),fl,INDEX(ANCHORARRAY($CQ$4),15),fc,INDEX(ANCHORARRAY($CR$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
 Position!BO38 = LET(l,XLOOKUP($BD38&"x"&BO$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),15,10),fl,INDEX(ANCHORARRAY($CQ$4),15),fc,INDEX(ANCHORARRAY($CR$4),15),IF(OR(l="",c=""),"",l*fl-c*fc))
+Position!AF39 : "Swap: company risk (Raw_IR). Bond: Raw_JGB by duration (JGB sheet) + bond options (BondOpt sheet) + JGB futures options (FutOpt sheet, on the Setup I9 pillar; F = incl. futures options). Delta: mn/bp, Gamma: mn/bp2"
 Position!BF39 = LET(l,XLOOKUP($BD39&"x"&BF$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),16,1),fl,INDEX(ANCHORARRAY($CQ$4),16),fc,INDEX(ANCHORARRAY($CR$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
 Position!BG39 = LET(l,XLOOKUP($BD39&"x"&BG$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),16,2),fl,INDEX(ANCHORARRAY($CQ$4),16),fc,INDEX(ANCHORARRAY($CR$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
 Position!BH39 = LET(l,XLOOKUP($BD39&"x"&BH$23,INDEX(ANCHORARRAY($CB$4),,1),INDEX(ANCHORARRAY($CB$4),,3),""),c,INDEX(ANCHORARRAY($CF$4),16,3),fl,INDEX(ANCHORARRAY($CQ$4),16),fc,INDEX(ANCHORARRAY($CR$4),16),IF(OR(l="",c=""),"",l*fl-c*fc))
@@ -982,6 +982,7 @@ Position!C42:C91 validation list: "OIS,Bond"
 Position!H42:H91 validation list: "Pay,Rec,Buy,Sell"
 Position!AB4:AB37 format dataBar
 Position!AD4:AD37 format dataBar
+Position!AF1 format expression: ISNUMBER(SEARCH("Not in risk",$AF$1))
 Position!AG4:AG37 format dataBar
 Position!AI4:AI37 format dataBar
 Position!AL4:AL37 format dataBar
@@ -1007,8 +1008,9 @@ Setup!A7 : "Dataset"
 Setup!B7 : "CURVE.JPY.OIS"
 Setup!C7 = COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)&" rows"
 Setup!D7 = IF(COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)=MAX($C$27:$C$60),"OK","Expected "&MAX($C$27:$C$60)&" rows")
-Setup!H7 : "Repo (%)"
-Setup!J7 = IF(I7="","Enter the repo for the forwards","OK")
+Setup!H7 : "Repo (%, blank = O/N close)"
+Setup!J7 = IF(I7<>"",I7,XLOOKUP("O/N",Position!$B$4:$B$37,Position!$F$4:$F$37,""))
+Setup!K7 = IF(I7<>"","Override",IF(J7="","No O/N close in the DB: enter the repo","Default = O/N close"))
 Setup!L7 : "Nominal: mn JPY. Yield: simple %, blank = DB close."
 Setup!A8 : "Dataset column"
 Setup!B8 : "dataset"
@@ -1206,7 +1208,7 @@ Setup!A60 : "40Y"
 Setup!C60 : 26
 # BondOpt
 BondOpt!A1 : "Bond options (Raw_BondOption, valued at the close of the base date)"
-BondOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   HV window: "&Setup!$I$8
+BondOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$J$7="","?",TEXT(Setup!$J$7,"0.000")&"% ("&IF(Setup!$I$7="","O/N close","override")&")")&"   HV window: "&Setup!$I$8
 BondOpt!BA2 : "Pillar risk (rows 4-37 = Position pillars, mn/bp, mn/bp2, theta mn/business day)"
 BondOpt!Z3 : "Total"
 BondOpt!AA3:AE3 = SUM(AA6:AA205)
@@ -1290,8 +1292,10 @@ BondOpt!AC6:AC205 = IF(X6="","",I6*X6*H6)
 BondOpt!AD6:AD205 = IF(OR(Y6="",R6=""),"",I6*Y6*P6/100*R6*H6/100)
 BondOpt!AE6:AE205 = IF(Z6="","",I6*Z6/100*H6)
 BondOpt!AF6:AF205 = AS6&IF(AND(AS6<>"",AZ6<>"")," / ","")&AZ6
-BondOpt!AH6 = PosBondOptMarket($B$6:$B$205,$E$6:$E$205,$F$6:$F$205,BaseDate,Setup!$I$7,Setup!$I$8)
+BondOpt!AH6 = PosBondOptMarket($B$6:$B$205,$E$6:$E$205,$F$6:$F$205,BaseDate,Setup!$J$7,Setup!$I$8)
 BondOpt!AU6 = PosBondOptGreeks($C$6:$C$205,$O$6:$O$205,$G$6:$G$205,$T$6:$T$205,$U$6:$U$205)
+BondOpt!AS6:AS205 format expression: AS6<>""
+BondOpt!AZ6:AZ205 format expression: AZ6<>""
 # JGB
 JGB!A1 : "JGB holdings (Raw_JGB, duration and convexity at the close of the base date)"
 JGB!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Nominal: Raw_JGB "&Setup!$M$13&" (mn)   Yield: "&Setup!$M$14&" (blank = DB close)"
@@ -1321,9 +1325,10 @@ JGB!C6:C505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$13),h,IFERROR(I
 JGB!D6:D505 = LET(v,INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$14),h,IFERROR(INDEX(Raw_JGB!$A$1:$CZ$2000,ROW()-4,Setup!$N$16),""),IF(OR(v="",LEFT(h,3)="OPT"),"",v))
 JGB!R38 : "Total"
 JGB!S38:X38 = SUM(S4:S37)
+JGB!P6:P505 format expression: P6<>""
 # FutOpt
 FutOpt!A1 : "JGB futures options (Raw_JGB rows with Holding Type OPT..., valued at the close of the base date)"
-FutOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$I$7="","?",Setup!$I$7&"%")&"   Pillar: "&Setup!$I$9&"   Lots: 1 lot = 100 mn face of the futures"
+FutOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$J$7="","?",TEXT(Setup!$J$7,"0.000")&"% ("&IF(Setup!$I$7="","O/N close","override")&")")&"   Pillar: "&Setup!$I$9&"   Lots: 1 lot = 100 mn face of the futures"
 FutOpt!X3 : "Total"
 FutOpt!Y3:AC3 = SUM(Y6:Y205)
 FutOpt!A4 : "Holding (Raw_JGB)"
@@ -1334,7 +1339,7 @@ FutOpt!B5 : "Holding type"
 FutOpt!C5 : "Lots"
 FutOpt!D5 : "Last trade"
 FutOpt!E5 : "Mark"
-FutOpt!F5 = PosFutOptRisk(INDEX(ANCHORARRAY($A$6),,1),INDEX(ANCHORARRAY($A$6),,4),INDEX(ANCHORARRAY($A$6),,5),BaseDate,Setup!$I$7)
+FutOpt!F5 = PosFutOptRisk(INDEX(ANCHORARRAY($A$6),,1),INDEX(ANCHORARRAY($A$6),,4),INDEX(ANCHORARRAY($A$6),,5),BaseDate,Setup!$J$7)
 FutOpt!W5 : "CTD face (mn)"
 FutOpt!X5 : "Price gamma x face"
 FutOpt!Y5 : "Delta (mn/bp)"
@@ -1350,6 +1355,7 @@ FutOpt!Z6:Z205 = IF(W6="","",(X6*$S6^2+W6*$T6)/100)
 FutOpt!AA6:AA205 = IF(W6="","",$C6*$P6)
 FutOpt!AB6:AB205 = IF(W6="","",$C6*$O6)
 FutOpt!AC6:AC205 = IF(W6="","",$C6*$L6)
+FutOpt!U6:U205 format expression: U6<>""
 # Raw_IR
 # Raw_IRVOL
 # Raw_Swaption

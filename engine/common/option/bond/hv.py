@@ -13,6 +13,9 @@
     両方に同じように入る)ので、そのまま比べる。
   - 日付: 取引日以前で、カーブと引け値の両方がある日付の直近 window+1 日(window 個の日次変化)。
     休日・欠損をまたぐ日は2日以上の変化になる(VolHVと同じ)。DBは昨日までの引けなので、今日の動きは入らない。
+  - 履歴が窓に足りないとき(2026-11-23、ユーザー決定): MIN_CHANGES 個以上の日次変化があれば、ある分だけで計算し、
+    警告(short_window_note)を出す。それより少なければ比を1(スワップションのボラのまま)にして警告を出す
+    (vol_ratio_or_one)。どちらもリスクから抜けないようにするため。
   - HV: 日次変化(bp)の2乗平均の平方根(平均を引かない。VolHVと同じ)。単位は bp/日(シートのbp vol と同じ)。
 
 ■ 速さ
@@ -32,6 +35,7 @@ from engine.common.conventions import CALENDAR
 from engine.common.forward import ForwardPricer
 from engine.common.terms import STANDARD, SwapTerms
 
+MIN_CHANGES = 5  # 窓に足りないときに、ある分で計算する最少の日次変化の数
 SWAP_SPOT_LAG = 2  # スワップのスポット(T+2)。現物はT+1(bond.settlement_date)
 BOND_SPOT_LAG = 1
 _HORIZON_MARGIN = timedelta(days=10)  # カーブを読む範囲の余裕(償還日の休日調整分)
@@ -41,7 +45,7 @@ class VolRatio(NamedTuple):
     bond_hv: float  # bp/日
     swap_hv: float  # bp/日
     ratio: float  # bond_hv / swap_hv
-    changes: int  # 日次変化の数(= window)
+    changes: int  # 日次変化の数(= window。履歴が足りなければ window より少ない)
     first: date  # 窓の最初の日付(変化の起点)
     last: date  # 窓の最後の日付
 
@@ -90,13 +94,18 @@ class CurveRates:
         return self.rates[(d, maturity)]
 
 
+class ShortHistory(ValueError):
+    """窓に使える日次変化が MIN_CHANGES 個に足りない。"""
+
+
 def window_dates(curve_dates: Sequence[date], close_dates: Sequence[date], trade_date: date,
                  window: int, maturity: date) -> List[date]:
-    """取引日以前で、カーブと引け値の両方がある直近 window+1 日(昇順)。足りなければエラー。"""
+    """取引日以前で、カーブと引け値の両方がある直近 window+1 日(昇順)。足りなければ、MIN_CHANGES 個以上の
+    日次変化があればある分だけ(窓より短い)。それも無ければ ShortHistory。"""
     closes = set(close_dates)
     both = [d for d in curve_dates if d in closes and d <= trade_date and swap_terms(d, maturity).start < maturity]
-    if len(both) < window + 1:
-        raise ValueError(f"カーブと引け値の両方がある日が{max(len(both) - 1, 0)}日分しかありません(窓 {window}日)")
+    if len(both) - 1 < min(window, MIN_CHANGES):
+        raise ShortHistory(f"カーブと引け値の両方がある日が{max(len(both) - 1, 0)}日分しかありません(窓 {window}日)")
     return both[-(window + 1):]
 
 
@@ -110,7 +119,22 @@ def vol_ratio(jgb: Jgb, closes: Dict[date, float], rates: CurveRates, trade_date
     bond_hv, swap_hv = _rms(dy), _rms(ds)
     if swap_hv == 0:
         raise ValueError("スワップのHVが0です")
-    return VolRatio(bond_hv, swap_hv, bond_hv / swap_hv, window, dates[0], dates[-1])
+    return VolRatio(bond_hv, swap_hv, bond_hv / swap_hv, len(dates) - 1, dates[0], dates[-1])
+
+
+def short_window_note(r: VolRatio, window: int) -> str:
+    """窓より短い履歴で計算したときの警告(足りていれば空)。"""
+    return f"HV {r.changes}d (< window {window})" if r.changes < window else ""
+
+
+def vol_ratio_or_one(jgb: Jgb, closes: Dict[date, float], rates: CurveRates, trade_date: date, window: int):
+    """(VolRatio か None, 使う比, 警告)。履歴が MIN_CHANGES に足りなければ比 = 1 と警告(リスクから抜かない)。
+    それ以外のエラー(スワップのHVが0等)はそのまま上げる。"""
+    try:
+        r = vol_ratio(jgb, closes, rates, trade_date, window)
+    except ShortHistory as e:
+        return None, 1.0, f"{e} → Vol ratio 1"
+    return r, r.ratio, short_window_note(r, window)
 
 
 def parse_window(value) -> int:

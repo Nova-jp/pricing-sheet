@@ -16,6 +16,7 @@ Bondのデルタ・ガンマとセータに足す(ユーザー決定、2026-11-1
   取引日 t0 = 基準日、スポット受渡日 = t0のT+1、行使後の受渡日 se = 約定のEffectiveDate。
   スポット単価 = 基準日の引けの単利(DB)からF1(起点 = スポット受渡日)。先渡はレポ(Setupの1セル)でF6。
   ボラ = 基準日のDBのスワップションのvol(vol_quotes)から補間 × Vol ratio(窓はSetup、BondOptionと同じ計算)。
+  HVの履歴が窓に足りないときは、ある分で計算するか比を1にして、messageに警告を出す(リスクからは抜かない。hv.py)。
 
 ■ ピラーへの分け方(チェーンルール)
   オプションの価値 V は原資産の先渡価格 F の関数で、F は現物の単価 P とほぼ1対1(dF/dP = 1 + レポ×期間、
@@ -160,7 +161,9 @@ def market_rows(
             errors.append(f"HV: {window_error}")
         else:
             try:
-                row[9] = hv.vol_ratio(jgb, closes_by_code.get(code, {}), rates, base_date, n_window).ratio
+                _, row[9], note = hv.vol_ratio_or_one(jgb, closes_by_code.get(code, {}), rates, base_date, n_window)
+                if note:
+                    errors.append(f"HV: {note}")  # 警告(比は入るので、リスクには入る)
             except Exception as e:
                 errors.append(f"HV: {e}")
         try:

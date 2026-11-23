@@ -101,6 +101,16 @@ class MarketRowsTest(unittest.TestCase):
         self.assertEqual(rows[2][:-1], [""] * (bond_options.MARKET_COLUMNS - 1))
         self.assertIn("JX000", rows[3][-1])
 
+    def test_short_hv_history_still_gives_a_ratio(self):
+        te, se = date(2026, 10, 26), date(2026, 10, 28)
+        with self.store:
+            rows = bond_options.market_rows(["JB999"], [te], [se], FRIDAY, 0.5, 20, self.store, _Rates(self.days),
+                                            VOL_ROWS)
+        closes = {d: 1.70 + 0.005 * (i % 2) for i, d in enumerate(self.days)}
+        jgb = bond.Jgb(1.7, date(2035, 9, 20))
+        self.assertAlmostEqual(rows[0][9], hv.vol_ratio(jgb, closes, _Rates(self.days), FRIDAY, 20).ratio, places=12)
+        self.assertEqual(rows[0][-1], "HV: HV 5d (< window 20)")  # 警告だけ(リスクには入る)
+
 
 class PillarRiskTest(unittest.TestCase):
     def setUp(self):

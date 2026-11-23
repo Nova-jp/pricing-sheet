@@ -79,6 +79,12 @@ class WindowTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "4日分"):
             hv.window_dates(DAYS, DAYS[:5], DAYS[-1], 20, BOND.maturity)
 
+    def test_short_history_uses_what_is_there(self):
+        dates = hv.window_dates(DAYS, DAYS[:9], DAYS[-1], 20, BOND.maturity)  # 8個の変化(>= MIN_CHANGES)
+        self.assertEqual(dates, DAYS[:9])
+        with self.assertRaises(hv.ShortHistory):
+            hv.window_dates(DAYS, DAYS[:hv.MIN_CHANGES], DAYS[-1], 20, BOND.maturity)
+
     def test_window_must_be_integer_of_two_or_more(self):
         self.assertEqual(hv.parse_window(20.0), 20)
         for bad in (1, 2.5, "x", None):
@@ -94,6 +100,25 @@ class VolRatioTest(unittest.TestCase):
     def _ratio(self, window=10):
         self.rates.fill(hv.needed(self.rates.curve_dates, {"X": CLOSES}, [("X", BOND)], DAYS[-1], window))
         return hv.vol_ratio(BOND, CLOSES, self.rates, DAYS[-1], window)
+
+    def test_short_window_is_computed_with_a_note(self):
+        closes = {d: CLOSES[d] for d in DAYS[-9:]}
+        self.rates.fill(hv.needed(self.rates.curve_dates, {"X": closes}, [("X", BOND)], DAYS[-1], 20))
+        r, ratio, note = hv.vol_ratio_or_one(BOND, closes, self.rates, DAYS[-1], 20)
+        self.assertEqual(r.changes, 8)
+        self.assertEqual(ratio, r.ratio)
+        self.assertEqual(note, "HV 8d (< window 20)")
+
+    def test_too_short_falls_back_to_one(self):
+        closes = {d: CLOSES[d] for d in DAYS[-3:]}
+        r, ratio, note = hv.vol_ratio_or_one(BOND, closes, self.rates, DAYS[-1], 20)
+        self.assertIsNone(r)
+        self.assertEqual(ratio, 1.0)
+        self.assertIn("Vol ratio 1", note)
+
+    def test_full_window_has_no_note(self):
+        r = self._ratio()
+        self.assertEqual(hv.short_window_note(r, 10), "")
 
     def test_hv_is_root_mean_square_of_daily_changes(self):
         r = self._ratio()
