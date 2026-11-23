@@ -59,6 +59,18 @@ RECEIVE_AREAS: Dict[str, Dict[str, Area]] = {
     "historical_data.xlsx": {"Raw": 3, "RawFixing": 3, "RawVol": 3},
 }
 
+# 生シートの作り物の見本(templates/raw_samples/、tools/raw_sample.py)。CSVとREADME.mdだけを置く
+RAW_SAMPLE_DIR = "raw_samples"
+
+
+def raw_sample_odd_files(directory: Path) -> List[str]:
+    """見本のフォルダにある、CSVとREADME.md以外のファイル(ブック等が紛れ込んでいないか)。"""
+    if not directory.exists():
+        return []
+    return sorted(p.relative_to(directory).as_posix() for p in directory.rglob("*")
+                  if p.is_file() and not (p.suffix.lower() == ".csv" or p.name == "README.md"))
+
+
 # 雛形に入ってよい部品(これ以外があれば検査で失敗させ、消す対象か許可する対象かを人が判断する)
 ALLOWED_PARTS = [re.compile(p) for p in (
     r"\[Content_Types\]\.xml",
@@ -512,10 +524,14 @@ def check_all(staged: bool = False) -> int:
             print(f"  - {p}")
         status |= bool(problems)
     if not staged:
-        known = set(RECEIVE_AREAS) | {b + TEXT_SUFFIX for b in RECEIVE_AREAS}
+        known = set(RECEIVE_AREAS) | {b + TEXT_SUFFIX for b in RECEIVE_AREAS} | {RAW_SAMPLE_DIR}
         extra = sorted(p.name for p in TEMPLATE_DIR.glob("*") if p.name not in known)
         if extra:
             print(f"NG templates/ に未登録のファイルがあります(RECEIVE_AREASに追加する): {extra}")
+            status = 1
+        odd = raw_sample_odd_files(TEMPLATE_DIR / RAW_SAMPLE_DIR)
+        if odd:
+            print(f"NG templates/{RAW_SAMPLE_DIR}/ にはCSVとREADME.mdだけを置く(tools/raw_sample.py): {odd}")
             status = 1
     outside = _workbooks_outside_templates()
     if outside:
