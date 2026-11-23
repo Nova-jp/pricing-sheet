@@ -84,7 +84,7 @@ Excelを再起動すると、リボンに「xlwings」タブが表示される�
 
 PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロントシートが、常駐のフィード
 (`engine/common/live_feed.py`)が`data/live.db`に書いた値を読む(フィードは常に受信し続け、ブックは
-手動計算のまま。理由は[decisions.md](decisions.md))。Excelは1つでよい(以前の自動計算のExcelは不要)。
+手動計算のまま。理由は[decisions.md](decisions.md))。Excelは1つでよい(LiveScreenだけは別のインスタンス、5.4)。
 
 1. LSEG Workspaceを起動・ログインしておく(フィードはWorkspaceのデスクトップセッションで受信する。
    パスワード等の設定は要らない)。
@@ -149,10 +149,10 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - 過去分はDB(`data/historical.db`)を読むので、上の毎朝のバッチを先に実行しておく
   (スワップの生ミッドを取り込み、LSEGから取ったスワップションのプレミアムからボラを計算する)。
 - PCA(スワップ)/VolPCA(ボラ)シートの左の設定欄で推定(Window end・window・モード・標準化)と
-  復元(Recon date・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。Window endの空欄は
-  今日(DBの直近の引け値まで)、Recon dateの空欄はそのシートのライブの値(1行目の取得モードがLiveなら読み直す)。
+  復元(Recon date・主成分数)を入れてF9(またはShift+F9)。結果は同じシートの右側に出る。Window end・Recon dateの空欄は
+  評価日(Controlの`TradeDate`)。Recon dateが今日ならそのシートのライブの値(1行目の取得モードがLiveなら読み直す)。
 - PCAGridシート(スワップのPCAの条件比較)は、左端のテナー表・各ケースの推定の条件(3〜7行目。Window endの
-  空欄=今日)・各段のk(D列)・A4のRecon date(全ケース共通。空欄=今日のライブの値)を入れてF9。
+  空欄=評価日)・各段のk(D列)・A4のRecon date(全ケース共通。空欄=評価日)を入れてF9。
   グラフの縦の補助線の年限はA58:A62(`Guide tenors`、空欄可)。
 
 ## 5.2 現物オプション(BondOption.xlsm)
@@ -177,13 +177,14 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - 使い方:
   1. 会社のファイル(デルタ・ガンマのシートとベガのシート)をRaw_IR・Raw_IRVOLのA1に、現物オプションの全約定を
      Raw_BondOptionのA1に、そのまま貼る。
-  2. Setupを確かめる。基準日(B4)は既定でDBの直近の引け(昨日の朝バッチの日付)。会社のファイルの日付と違えばB3に
-     日付を入れて上書きする。現物オプションの先渡に使うレポ(I7)を入れる(HVの窓はI8、既定20日)。
+  2. ControlのB3に取引日を入れる(Ctrl+;)。基準日(B7 `BaseDate`)はその前の直近の引け(昨日の朝バッチの日付)。
+     会社のファイルの日付と違えば、B3にその翌営業日を入れる。Setupで現物オプションの先渡に使うレポ(I7)を入れる
+     (HVの窓はI8、既定20日)。
      会社のファイルの列名が変わったときは黄色のセルを直す。
   3. F9(ブック全体。Setup・BondOptも計算する)。BondOptの`Message`列に計算できなかった約定の理由が出る。
   4. 日中はPositionシートの下段に今日の取引を入れ、PositionシートでShift+F9(ライブのレートを読み直す)。フィードが
      止まっていればエラーになるので、そのときはB2を`Fixed`にする。
-  - ブックを開いたまま日をまたいだら、Ctrl+Alt+F9で基準日から計算し直す。
+  - ブックを開いたまま日をまたいだら、ControlのB3に今日の日付を入れ直す(基準日から計算し直される)。
 
 ## 5.4 リアルタイムの画面(LiveScreen.xlsm)
 
@@ -191,7 +192,7 @@ PricingSheet・SwapAnalysis・BondOptionはLSEGから直接取らず、各フロ
 - **別のExcelのインスタンスで開く**(Altを押しながらExcelを起動、または`excel.exe /x`)。ブックは自動計算で保存して
   あり、そのExcelは自動計算になる。手動計算のブック(PricingSheet等)と同じExcelで開かない(計算方法はExcelごとに1つ)。
 - 初回とUDFの変更時は「Restart UDF Server」→「Import Functions」(`LiveScreen.py`から`SwapLengthAdjust`等を登録)。
-- レートはLSEGのアドインの`RtGet`で読む(フィードは要らない)。日付が変わったらCtrl+Alt+F9を1回。
+- レートはLSEGのアドインの`RtGet`で読む(フィードは要らない)。毎朝ControlのB3に今日の日付を入れる(Ctrl+;)。
 
 ## 6. コードを更新したとき(git pull後など)
 

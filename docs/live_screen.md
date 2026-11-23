@@ -12,9 +12,8 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
    計算方法は互いに影響しない。
 2. LSEG Workspaceにログインしておく(`RtGet`を使う。新しいインスタンスにもLSEGのアドインが読み込まれているかを確かめる)。
 3. 初回とUDFの変更時は、xlwingsのリボンで「Restart UDF Server」→「Import Functions」。
-4. 毎朝、先頭の`Control`シートのB3(`Trade date`)に今日の日付を入れる(Ctrl+;)。他のブックと同じ形(B4 `TradeDate`・
-   B5 `DbStamp`・B6 `DataStatus`、[decisions.md](decisions.md)の「評価日」)。今日やライブのレートで結果が変わるUDFはすべて
-   `TradeDate`を引数で受け取るので、日付を入れ直せば下流が計算し直される(Ctrl+Alt+F9は要らない)。B6が`OK`でなければ赤。
+4. 毎朝、先頭の`Control`シートのB3(`Trade date`)に今日の日付を入れる(Ctrl+;。他のブックと同じ形、[udf.md](udf.md)の
+   「評価日」)。日付を入れ直せば下流が計算し直される(Ctrl+Alt+F9は要らない)。
 5. 値は`RtGet`に値が届くたびに再計算される(F9は要らない)。
 
 フィード(`live_feed`)は使わない。レートはこのブックがLSEGのアドインから直接読む。

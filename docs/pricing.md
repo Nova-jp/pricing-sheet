@@ -33,9 +33,7 @@
 
 ## Controlシート(先頭)
 
-全ブック共通の形([decisions.md](decisions.md)の「評価日」)。
-- B3: Trade date(入力。毎朝Ctrl+;)。B4: `=ValuationDate(B3)`(名前`TradeDate`)。全UDFの評価日とHistChartの基準日は
-  `TradeDate`を参照する。B5: `=DbStamp(B3)`。B6: `=DataStatus(B3,B5)`(`OK`以外は赤)。
+全ブック共通の形([udf.md](udf.md)の「評価日」)。全UDFの評価日とHistChartの基準日は`TradeDate`を参照する。
 - `AswCloseTable`はライブのレートを受けないので、朝バッチを流した後も評価日を入れ直すまで前の引けのまま残る。
   B6が`DB has newer data`で知らせる。
 - 評価日が今日ならライブのレート、過去日ならヒストリカルDBのその日のレート(O/Nはその日のTONA実績)でカーブを組む。
@@ -251,7 +249,7 @@ JGB銘柄別のASWスプレッド(DBの`asw_quotes`、朝バッチがその日�
   - **別のUDF`AswCloseTable`にし、ライブのレートの範囲を引数に取らない**(ユーザー判断)。AswPricingTableはvolatileの`LiveQuotes`に
     依存するのでShift+F9のたびに計算し直されるが、引けの値は銘柄・規約・評価日が変わったときだけ計算すればよい。入力は計算に使う列
     (bond・G:J)だけを`HSTACK`で渡す(slide等を入れると、それを変えるたびに計算し直される)。
-  - 朝バッチでDBが新しい日になっても、開いたままのブックでは計算し直されない(依存するセルが変わらないため)。Ctrl+Alt+F9か開き直す。
+  - 朝バッチでDBが新しい日になっても、評価日を入れ直すまでは前の引けのまま(ControlのB6が`DB has newer data`で知らせる)。
   - 引けのASW(bp) = (close compound yield − close swap rate)×100 と、今のASWとの差はシートの式。
 - **配置はBondOptionのOptionシートにならう**(2026-11-15)。1〜4行目が取得モードと説明、5行目がブロック名の帯(灰色)、6行目が見出し、
   7〜56行目(50行)が1行1銘柄。入力は黄色。縦の太線はブロックの境目、横の細線は5行ごと。ブロックは Bond input(A:D)・MMS terms(E:K)・

@@ -177,7 +177,7 @@ engine/
 | `history.py` | DBを日付×銘柄の表で読む。swap=`quotes`(生ミッド、M1〜M8を含む全テナー)+`fixings`(O/N=その日のTONA実績)、vol=`vol_quotes`(満期x原資産)。日本の営業日のみ。DBの更新時刻が変わるまでプロセス内にキャッシュ(PCA用。SwapAnalysisが使う) |
 | `pca.py` | PCA: windowの選び方(`estimate`)、復元日の実績(`observe`)、固有値分解。`principal_components`は「サンプル行列→固有値・固有ベクトル」だけの汎用関数(SwapAnalysisが使う) |
 | `paths.py` | リポジトリ内パス解決(クローン先の絶対パスに依存しない) |
-| `udf_common.py` | どのブックのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、採否フラグでのレートの選別(`_rates_from_range`)、評価日の解決、評価日時点のカーブ一式(`_market`)。各UDFモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(理由は[decisions.md](decisions.md)の「パッケージ構成」) |
+| `udf_common.py` | どのブックのUDFからも使う共有部分: Excel境界の型変換(`_to_date`等)、採否フラグでのレートの選別(`_rates_from_range`)、日付の引数の検査(`_required_date`・`_history_range`)、評価日時点のカーブ一式(`_market`)。各UDFモジュールは`udf_common.xxx(...)`の形(属性参照)で呼ぶ(理由は[decisions.md](decisions.md)の「パッケージ構成」) |
 
 
 ## ブックごとのドキュメント
