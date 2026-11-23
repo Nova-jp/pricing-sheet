@@ -200,9 +200,15 @@ def vol_ratio_table(
             out.append(blank)
             continue
         code, jgb, errors = item
-        r = "" if errors else _try(
-            lambda: hv.vol_ratio(jgb, closes_by_code.get(code, {}), rates, trade_date, n), errors, "HV")
-        row = [r.bond_hv, r.swap_hv, r.ratio, r.changes, r.first, r.last] if r != "" else [""] * 6
+        got = "" if errors else _try(
+            lambda: hv.vol_ratio_or_one(jgb, closes_by_code.get(code, {}), rates, trade_date, n), errors, "HV")
+        if got == "":
+            row = [""] * 6
+        else:
+            r, ratio, note = got
+            row = [r.bond_hv, r.swap_hv, ratio, r.changes, r.first, r.last] if r is not None else ["", "", ratio, 0, "", ""]
+            if note:
+                errors.append(f"HV: {note}")
         out.append(row + [" / ".join(errors)])
     return out
 
