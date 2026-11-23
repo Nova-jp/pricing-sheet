@@ -29,7 +29,7 @@ from engine.common.history import normalize_label
 from engine.common.historical_store import HistoricalStore
 from engine.common.option.swaption import convert as swaption
 from engine.common.udf_common import _is_blank, _to_date
-from engine.position import bond_options, bonds, intraday, trades, vega
+from engine.position import bond_options, bonds, forwards, intraday, trades, vega
 
 
 def _labels(values) -> Tuple[str, ...]:
@@ -287,6 +287,37 @@ def PosIntradayGrid(trade_table, pillars, real_time_range, valuation_date=None, 
     columns = [sums["delta_" + intraday.OIS], sums["delta_" + intraday.BOND],
                sums["gamma_" + intraday.OIS], sums["gamma_" + intraday.BOND]]
     return [list(GRID_HEADER)] + [list(row) for row in zip(*columns)]
+
+
+# ---------------------------------------------------------------------------
+# Fwd(n年先1年)で取り除くリスクのスポット換算(Positionシートの分解の列。engine/position/forwards.py)
+# ---------------------------------------------------------------------------
+
+_forward_cache: dict = {}
+
+
+@xw.func
+@xw.arg("pillars", ndim=1)
+@xw.arg("risks", ndim=1)
+@xw.arg("real_time_range", ndim=2)
+def PosForwardSpotDeltas(pillars, risks, real_time_range, valuation_date=None) -> List[list]:
+    """
+    ピラーの行ごとに入れた「そのピラーの年限先1年のFwd」のリスク(百万円/bp)を、スポットのピラーのデルタに直す。
+    pillars: Positionのピラーの列。risks: 同じ並びのFwdのリスクの列(空欄・0は無し)。
+    real_time_range・valuation_date: PosIntradayRiskと同じ(日中の取引と同じカーブ)。
+    返り値: pillarsの並びの行 × [Notional(その行のFwdの想定元本、百万円、Recが正), Spot delta(全行のFwdの合計)]。
+    """
+    labels = tuple(str(v).strip() for v in (pillars or []))
+    values = [_optional_number(v, "Fwdのリスク") for v in (risks or [])]
+    curves = udf_common._market(real_time_range, valuation_date)
+    key = (labels, tuple(values), curves.snapshot, _db_key())
+    if key not in _forward_cache:
+        _forward_cache.clear()  # 直近1件だけ保持
+        _forward_cache[key] = forwards.forward_risks(curves, labels, values)
+    rows = _forward_cache[key]
+    notionals = {r.pillar: r.notional for r in rows}
+    spot = _deltas_row(forwards.total_deltas(rows), labels)
+    return [[notionals.get(p, ""), spot[i]] for i, p in enumerate(labels)]
 
 
 # ---------------------------------------------------------------------------
