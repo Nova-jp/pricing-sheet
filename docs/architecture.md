@@ -140,7 +140,7 @@ engine/
   fut/             # SwapAnalysis.xlsm固有の長期国債先物(つなぎ足・CTDのベーシスのヒストリカル・限月の重ね合わせ)
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプションの表UDF(計算の部品は common/option/bond/)
-  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス+Fwdのスポット換算)
+  position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス+国債先物オプション+Fwdのスポット換算)
   live_screen/     # LiveScreen.xlsm固有のリアルタイムの画面(スポットの日付・日数の調整幅・プレミアム→σ√T。自動計算+RtGet)
 ```
 
@@ -214,6 +214,7 @@ engine/
 | `test_position.py` | ポジション・リスク管理 |
 | `test_live_screen.py` | LiveScreen(スポットの日付・日数の調整幅・プレミアム→σ√Tと日数) |
 | `test_position_bond_option.py` | ポジション・リスク管理の現物オプション(グリークス・ピラーへの分解)と会社のベガの振り分け |
+| `test_position_futopt.py` | ポジション・リスク管理の国債先物オプション(銘柄名の読み方・評価値からのボラ・CTDでの換算) |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |
 | `test_raw_sample.py` | 生シートの見本(CSVとセルの値の変換、置いてある見本の読み込み) |
 

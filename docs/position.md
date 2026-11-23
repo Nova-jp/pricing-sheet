@@ -46,11 +46,12 @@ UDFを消した)。
 
 | シート | 中身 |
 |---|---|
-| Position | 管理の1枚。上段の左(C:G)にMove、H:PにNowのデルタ、Q:Zにデルタの分解(ASW・Fwdを取り除いた残り)、AA:AEにNowのガンマ、AF:AOにClose(スワップは会社の値、現物・現物オプションはRaw_JGB・Raw_BondOptionから計算)、AQ:AWにPL、AY:BBに今日のDoneの取引、BD:BOにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、BS:BZ・CB:CO・CQ:DDにライブのレート・ボラと引けのボラ・計算用の表(折りたたみ)。下段(41行目〜)に今日の取引の入力、AQ40:AR52にPLのまとめ |
+| Position | 管理の1枚。上段の左(C:G)にMove、H:PにNowのデルタ、Q:Zにデルタの分解(ASW・Fwdを取り除いた残り)、AA:AEにNowのガンマ、AF:AOにClose(スワップは会社の値、現物・現物オプション・国債先物オプションはRaw_JGB・Raw_BondOptionから計算)、AQ:AWにPL、AY:BBに今日のDoneの取引、BD:BOにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、BS:BZ・CB:CO・CQ:DDにライブのレート・ボラと引けのボラ・計算用の表(折りたたみ)。下段(41行目〜)に今日の取引の入力、AQ40:AR52にPLのまとめ |
 | Control | 取引日(B3)・`TradeDate`(B4)・`DbStamp`(B5)・`DataStatus`(B6)・`BaseDate`(B7) |
-| Setup | 現物オプションのレポ・HVの窓・`Raw_BondOption`の列名、`Raw_JGB`の列名(L10:N14)、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号)、ベガのバケットの表(G26:K43) |
+| Setup | 現物オプションのレポ・HVの窓・`Raw_BondOption`の列名、`Raw_JGB`の列名(L10:N17)、先物オプションのリスクを載せるピラー(I9)、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ピラーの表(カーブの採否・会社のテナーの表記・何番目の行か・生シートの行番号)、ベガのバケットの表(G26:K43) |
 | BondOpt | 現物オプションの約定ごとのグリークスと、ピラーへの分解(下の「現物オプション」) |
-| JGB | 現物の保有銘柄(Raw_JGB)の銘柄ごとのデルタ・ガンマと、ピラーごとの合計・会社のbondとの差(下の「現物」) |
+| JGB | 現物の保有銘柄(Raw_JGB)の銘柄ごとのデルタ・ガンマと、ピラーごとの合計・会社のbondとの差(下の「現物」)。Holding Typeが`OPT`の行は読まない |
+| FutOpt | Raw_JGBの国債先物オプション(Holding Typeが`OPT`の行)の行ごとのグリークスと合計(下の「国債先物オプション」) |
 | Raw_IR / Raw_IRVOL / Raw_Swaption / Raw_BondOption / Raw_JGB | 会社のシートの貼り付け先(全行が雛形で消える受信領域) |
 
 ### Positionシートの上段(ピラー34本 × 4〜37行目、38行目が合計)
@@ -72,7 +73,7 @@ UDFを消した)。
 | Q:T `Remove` | 取り除くリスク(下の「デルタの分解」)。Q `ASW`・R `Fwd nY1Y` は手入力(黄色)、S・T はFwdの想定元本とスポット換算(`PosForwardSpotDeltas`、S4にスピル) |
 | U:Z `Residual Delta` | Bond = `Delta Bond Total − ASW`・棒、Swap = `Delta Swap Total + ASW − Fwd spot`・棒、Total = 2つの和・棒 |
 | AA:AE `Gamma` | Bond(Close + 今日のDone)・棒、Swap(同じ)・棒、Total |
-| AF:AJ / AK:AO | Close: Delta Bond・棒、Swap・棒、Total / Gamma 同じ。Swapは会社の値そのもの(Raw_IR)。Bondは現物(Raw_JGBから計算、JGBシートのS:T)+ 現物オプション(Raw_BondOptionから計算、BondOptのBB:BC) |
+| AF:AJ / AK:AO | Close: Delta Bond・棒、Swap・棒、Total / Gamma 同じ。Swapは会社の値そのもの(Raw_IR)。Bondは現物(Raw_JGBから計算、JGBシートのS:T)+ 現物オプション(Raw_BondOptionから計算、BondOptのBB:BC)+ 国債先物オプション(FutOptの合計、SetupのI9のピラーの行だけ) |
 | AQ:AW | PL(下の「PL」) |
 | AY:BB | 今日のDoneの取引のピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond](`PosIntradayGrid`) |
 | BD:BO | ベガ(下の「ベガとベガのPL」) |
@@ -82,6 +83,8 @@ UDFを消した)。
 
 - **棒グラフ**: 値の右隣の列(K・O・V・X・Z・AB・AD・AG・AI・AL・AN。値を参照して数値は隠す)に条件付き書式のデータバー。対象はNowの
   デルタ(Bond・SwapのTotal)・残差(Bond・Swap・Total)・Nowのガンマ・Closeのデルタ・ガンマのBondとSwap(2026-11-23、ユーザー指示)。PLはAW。
+- **先物オプションの目印**: 先物オプションの分が入っている行(SetupのI9のピラー)のH・AA・AF・AK列は、数値の後ろに` F`が付き
+  太字になる(条件付き書式の表示形式。列は増やさない。2026-11-23、ユーザー指示)。
   軸はセルの中央、プラスは右へ青、マイナスは左へ赤。
 - **エラーは隠さない**: ライブ・引け値・日中のUDFがエラーなら、Nowの列もエラーになる。フィードが止まっている間に
   計算したいときはB2を`Fixed`にする(そのシートが最後にLiveで読んだレートで計算する)。
@@ -112,7 +115,7 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
 |---|---|
 | AQ・AR `Swap Delta / Gamma` | Close のデルタ Swap × Swap move、½ × Close のガンマ Swap × Swap move² |
 | AS・AT `Bond Delta / Gamma` | Close のデルタ Bond(現物オプションを含む)× Bond move、½ × Close のガンマ Bond × Bond move² |
-| AU `Theta` | 現物オプションのセータ(1営業日、原資産のピラー。BondOptのBD)× 基準日からの営業日数(AR52、`PosBusinessDays`) |
+| AU `Theta` | 現物オプションのセータ(1営業日、原資産のピラー。BondOptのBD)と先物オプションのセータ(I9のピラー)× 基準日からの営業日数(AR52、`PosBusinessDays`) |
 | AV・AW | 合計と棒グラフ |
 
 - **まとめ(AQ40:AR49)**: 上の列の合計、スワップションのベガのPL(BO42)、今日のDoneのOIS・現物(R列の行ごとのPLの合計)、合計。
@@ -148,7 +151,7 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
   Setupの表の並びはPositionのベガの表と同じにする。
 - **色**: ベガ・PL・まとめたグリッドにヒートマップ(いちばん小さい値=赤、0=白、いちばん大きい値=青)。
   中の数字は黒(マイナスも赤にしない。2026-11-23、ユーザー指示)。
-- 各表の右上に合計。BD1:BI1に現物オプションのセータの合計(百万円/日)。
+- 各表の右上に合計。BD1:BI1に現物オプション・先物オプションのセータの合計(百万円/日)。
 
 ### 単位(2026-11-04、ユーザー指示)
 
@@ -198,6 +201,27 @@ CloseのBondのデルタ・ガンマ(引け地点のポジション)とセータ
 - Vol ratioのHVの窓に足りる引け値の履歴が無い銘柄は、Messageにその旨が出てボラ以降が空欄になる(朝バッチを流せば
   `settings.toml`の開始日からの過去分が揃う)。
 
+## 国債先物オプション(FutOptシート、`engine/position/futures_options.py`、2026-11-23、ユーザーと決定)
+
+会社のファイルの`Raw_JGB`に、現物と同じ表で長期国債先物オプションの残が入る(Holding Type `OPT+`/`OPT-`、Name
+`債先2612C127.50` = 2026年12月限の先物のコール、ストライク127.50)。デルタ・ガンマは入っていないので、基準日の引けの値で
+計算し、PositionのCloseのBond(デルタ・ガンマ)とPLのセータに足す。JGBシートはこの行を現物として読まない。
+
+- **入力**: Raw_JGBの列を見出しの名前で引く(SetupのL10:N17)。Holding Typeが`OPT`で始まる行だけをFutOptのA6にFILTERで並べる
+  (Name・Holding Type・枚数 = `Yesterday`・取引最終日 = `Maturity`・引けの評価値 = `Closing Mark Pr`)。枚数は符号つきで、
+  1枚 = 先物の額面1億円(ユーザー確認)。0枚の行も並ぶ(リスクは0)。
+- **計算(`PosFutOptRisk`)**: 先物の価格 = DBの基準日の清算値(`fut_settles`)、T = 取引最終日までの営業日数/252、
+  ボラ = 会社の評価値を再現するBlack式(割引なし)の価格ボラ、グリークスは現物オプションと同じ`pricer.black_greeks`。
+  アメリカン型をヨーロピアンで近似する(ユーザー了承)。
+- **金利のリスクへの換算**: 先物 ≈ CTDの単価 ÷ 交換係数(CF)とみなす。CTD = 基準日の受渡適格銘柄のうちネットベーシス最小
+  (`jgb_futures.basis_table`・`cheapest`、レポはSetupのI7)。CTDの複利1bpあたりの単価の変化 dP・2階 d2P(現物と同じ
+  `bonds.bond_risk`)で、シートで
+  `CTD換算の額面 = 枚数 × 100 × デルタ / CF`、`デルタ = CTD換算の額面 × dP / 100`、
+  `ガンマ = (枚数 × 100 × ガンマ / CF² × dP² + CTD換算の額面 × d2P) / 100`。セータ・ベガ・PV(百万円)= 枚数 × 額面100円あたりの値。
+- **載せるピラー**: CTDの満期の区間ではなく、SetupのI9で決めた1つのピラー(初期値7Y)に全部載せる。ロールの近くで2つの
+  限月があっても同じピラーにまとめる(ユーザー指示)。ベガは表示だけで、スワップションのベガの格子には入れない。
+- 今日の取引の表には先物オプションを入れられない(後回し、ユーザー了承)。
+
 ## 現物(`engine/position/bonds.py`、2026-11-10、ユーザーと決定)
 
 会社のファイルの現物(`Raw_JGB`)・日中の現物の取引・現物オプションの原資産で共通。カーブはバンプしない。
@@ -237,6 +261,7 @@ CloseのBondのデルタ・ガンマ(引け地点のポジション)とセータ
 | `ValuationDate` / `DbStamp` / `DataStatus` | Controlシートの取引日・DBの朝バッチの実行時刻・状態(全ブック共通。[udf.md](udf.md)の「評価日」) |
 | `PosBondOptMarket` / `PosBondOptGreeks` | 現物オプションの行ごとの市場の値・グリークス(上の「現物オプション」) |
 | `PosBondRiskGrid` | 現物オプションのピラーごとのデルタ・ガンマ・セータ |
+| `PosFutOptRisk` | 国債先物オプションの行ごとの [Contract, Type, Strike, Futures, T, Vol (%), Premium, Delta, Gamma, Vega, Theta, CTD, CF, dP, d2P, Message](下の「国債先物オプション」) |
 | `PosJgbRisk` / `PosJgbGrid` | Raw_JGBの行ごとの [Code, Coupon, Maturity, Yield, Compound, MD, Convexity, Pillar, Delta, Gamma, Message] / ピラーごとの [Delta, Gamma] |
 
 同じ取引の表とカーブなら、2つのUDFは1回の計算結果を共有する(`_intraday_cache`)。
