@@ -131,8 +131,11 @@ float dcfの列は持たない(TONAの変動脚の日数計算はQuantLibが指�
   - 過去日Dの計算にはD当日以降のTONA実績を渡さない(リアルタイムと同じ扱い)。
 - **カーブ・フライは脚をまとめて計算する`HistoricalRates`(最大3脚)+Excelの四則演算**。日付ごとにカーブを1回だけ復元して
   全脚を評価する。期間内のDBの全日付を必ず返し、計算できない日は空欄にするので、脚・系列の間で日付が揃い突き合わせが要らない。
-- `HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq, roll_conv, mode, [基準日], [from], [to])`は1本だけの確認用
+- `HistoricalRate(start, tenor, end, fix_freq, fix_dcf, float_freq, roll_conv, mode, 基準日, [from], [to])`は1本だけの確認用
   (Date/Rate/Start/Endの4列)。
+- **基準日(`TradeDate`)より後の日付は返さない**(`HistoricalRate`・`HistoricalRates`・`HedgeHistoricalRates`。ASWシートと同じ
+  `udf_common._history_range`)。終了日の空欄・基準日より後は基準日まで、開始日の空欄はDBの最初から。過去の評価日を入れると、
+  その日に見えていた値になる([decisions.md](decisions.md)の「評価日」)。
 - **最新日(今日)はDBの引け値ではなくライブのレートで計算する**(ユーザー指示)。`HistoricalRates`・`HedgeHistoricalRates`の
   最後の引数`real_time_range`にカーブ用の範囲を渡すと、基準日が今日で今日が営業日のとき、pricingと同じカーブで今日の行を加える。
   基準日=取引日のときは今の気配を見たいため。今日が休日なら加えない(直前の営業日と同じ値の点が増えるだけ)。日付軸(脚なしの呼び出し)
@@ -148,7 +151,7 @@ float dcfの列は持たない(TONAの変動脚の日数計算はQuantLibが指�
 
 pricingシートの行を指定して、最大3系列(アウトライト/カーブ/フライ)のヒストリカルを1枚のグラフで比較する。
 
-- 共通設定: B4=基準日(`=TradeDate`。必須で、空欄・未来日はエラー)、B5/B6=計算期間、B7=単位(カーブ/フライが1本でもあれば全系列bp、
+- 共通設定: B4=基準日(`=TradeDate`。必須で、空欄・未来日はエラー)、B5/B6=計算期間(B6の空欄は基準日まで)、B7=単位(カーブ/フライが1本でもあれば全系列bp、
   アウトライトだけなら%)、B8=倍率。**軸は1本**(系列ごとの第2軸の動的な切り替えにはVBAが要る)。
 - 系列表(10〜12行): 表示(○/×)・行A/B/C(pricingのExcel行番号)・モード(系列ごと)・系列名。種類は行番号の数で決まる
   (1つ=アウトライト、2つ=カーブ`B−A`、3つ=フライ`2B−A−C`。pricingのspred/flyと同じ符号)。

@@ -154,6 +154,6 @@ volatileは状態の表示`DataStatus`だけ)。PricingSheet・BondOption・Posi
 SwapAnalysisでは、UDFの日付の引数を必須(空欄はエラー)にし、エラーを隠す式を外した(decisions.mdの「分析ブックのUDF」)。
 
 - **他のブックの任意の日付の空欄・エラーを隠す式をそろえるか**。評価日・基準日(`TradeDate`・`BaseDate`・HistChartの基準日)は
-  全ブックで必須になった(空欄はエラー)。残りは評価日ではない任意の日付(HistChartの開始日・終了日の空欄=全期間。ASWは終了日の空欄=評価日まで、
+  全ブックで必須になった(空欄はエラー)。残りは評価日ではない任意の日付(ASW・HistChartの終了日の空欄は評価日まで、
   `PosBusinessDays`の終了日の空欄=今日)と、PricingSheet・BondOption・PositionSheetの`IFERROR`。ブックごとに相談する。
 - 直下のDBは引け値・カーブとも2026-10-27で止まっている(朝バッチを流す)。

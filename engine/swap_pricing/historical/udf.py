@@ -55,10 +55,13 @@ def HistoricalRate(
     mode: "FIXED"(同じ日付の取引をそのまま過去日で評価)/
           "ROLLING"(基準日のスポット日からの距離を保って各過去日へ平行移動)。
           詳細は engine/swap_pricing/historical/pricer.py。
-    base_date: 基準日(必須。空欄・未来日はエラー)。通常は TradeDate を渡す。
-    from_date/to_date: 計算する過去日の範囲(空欄=DBにある全期間)。
+    base_date: 基準日(必須。空欄・未来日はエラー)。通常は TradeDate を渡す。基準日より後の日付は返さない。
+    from_date/to_date: 計算する過去日の範囲(開始日の空欄=DBの最初から、終了日の空欄・基準日より後=基準日まで。
+        udf_common._history_range)。
     過去起算になる日のTONA実績は、DBに取り込み済みのもの(Fixingシート由来)を使う。
     """
+    base = udf_common._required_date(base_date, "基準日(Base date)")
+    first, last = udf_common._history_range(from_date, to_date, base)
     market.release_curves()  # 評価日を日付ごとに切り替える前に、反応するカーブを手放す
     with udf_common._historical_store() as store:
         spec = SwapSpec(
@@ -67,8 +70,7 @@ def HistoricalRate(
         )
         series = historical_swap_rate_series(
             spec, mode,
-            base_date=udf_common._required_date(base_date, "基準日(Base date)"), from_date=udf_common._to_date(from_date),
-            to_date=udf_common._to_date(to_date), fixings=db_fixings(store), curves=store,
+            base_date=base, from_date=first, to_date=last, fixings=db_fixings(store), curves=store,
         )
     rows = [["Date", "Rate", "Start", "End"]]
     rows += [[p.as_of_date, p.par_rate, p.start_date, p.maturity_date] for p in series]
@@ -206,7 +208,7 @@ def HistoricalRates(
     active = [s for s in specs if s is not None]
     today = udf_common._today()
     base = udf_common._required_date(base_date, "基準日(Base date)")
-    first, last = udf_common._to_date(from_date), udf_common._to_date(to_date)
+    first, last = udf_common._history_range(from_date, to_date, base)  # 基準日より後の日付は返さない
     live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
         fixings = db_fixings(store) if active else None
@@ -275,6 +277,8 @@ def HedgeHistoricalRates(tickers, mode, dates, base_date=None, real_time_range=N
     live = _live_today(real_time_range, base, today)
     with udf_common._historical_store() as store:
         fixings = db_fixings(store)
+        # 基準日より後の日付は空欄(返さない。HistChart_Date は HistoricalRates の日付軸なので普段は来ない)
+        days = [d if d is not None and d <= base else None for d in days]
         past_days = tuple(sorted({d for d in days if d is not None and not (live and d == today)}))
 
         def compute_past() -> tuple:

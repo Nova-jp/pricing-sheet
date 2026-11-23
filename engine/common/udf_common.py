@@ -97,6 +97,15 @@ def _required_date(value, what: str = "評価日(TradeDate)") -> datetime.date:
     return d
 
 
+def _history_range(from_date, to_date, trade_date, what: str = "評価日(TradeDate)") -> tuple:
+    """ヒストリカルを返すUDFの読む範囲 (開始日 or None, 終了日)。評価日は必須。終了日の空欄・評価日より後は評価日まで
+    (評価日より後の日付は返さない。過去の評価日ではその日に見えていた値になる)。開始日の空欄はDBの最初から(None)。
+    docs/decisions.md の「評価日」。"""
+    trade = _required_date(trade_date, what)
+    end = _to_date(to_date)
+    return _to_date(from_date), trade if end is None or end > trade else end
+
+
 def _labels(values) -> tuple:
     """銘柄の縦の並び → 空欄を除いた文字列のタプル(並び順は保つ)。"""
     return tuple(str(v).strip() for v in (values or []) if not _is_blank(v))

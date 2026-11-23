@@ -412,7 +412,13 @@ class HistoricalLatestRealTimeTest(_HistoricalDbCase):
 
     def test_past_base_date_uses_db_only(self):
         rows = self._rates(date(2026, 9, 29), base_date=DAYS[1])
-        self.assertEqual([r[0] for r in rows[1:]], DAYS)
+        # 基準日より後の日付は返さない(過去の基準日ではその日に見えていた値。終了日の空欄=基準日まで)
+        self.assertEqual([r[0] for r in rows[1:]], DAYS[:2])
+        with mock.patch.object(udf_common, "_today", lambda: date(2026, 9, 29)):
+            later_end = udf.HistoricalRates([self.CONV_ROW], "ROLLING", DAYS[1], None, DAYS[-1], self.rt)
+            single = udf.HistoricalRate("", "10y", "", *CONV_ARGS, "ROLLING", DAYS[1], None, None)
+        self.assertEqual(later_end, rows)
+        self.assertEqual([r[0] for r in single[1:]], DAYS[:2])
 
     def test_holiday_today_is_not_added(self):
         rows = self._rates(date(2026, 10, 3))  # 土曜
@@ -580,6 +586,13 @@ class HedgeHistoricalRatesUdfTest(_HistoricalDbCase):
         self.assertIsInstance(rows[0][0], float)
         self.assertEqual(rows[1:], [[""], [""]])
         self.assertEqual(self._hedge([""], DAYS[:2]), [[""], [""]])
+
+    def test_dates_after_base_date_are_blank(self):
+        """基準日より後の日付は返さない(空欄)。"""
+        with mock.patch.object(udf_common, "_today", lambda: self.TODAY):
+            rows = udf.HedgeHistoricalRates([["5Y"]], "ROLLING", [[d] for d in DAYS], DAYS[1], None)
+        self.assertIsInstance(rows[1][0], float)
+        self.assertEqual(rows[2:], [[""]] * (len(DAYS) - 2))
 
 if __name__ == "__main__":
     unittest.main()
