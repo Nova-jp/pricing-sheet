@@ -1,0 +1,4 @@
+ID,Type,OptionType,BuySell,Party1,ExerciseDate,EffectiveDate,EndDate,Ccy,Strike,Strike2,UnderlyingBrimsID,JGB Code,DataVender,Simple Yield,ClosePrice,Diff,Notional
+TEST-SWP-001,OTC_,CALL,B,,2026-08-03,,2026-08-05,,100,,,JB383,,0.027,0.02795,-0.00095,1800000000
+2026-09-01,Sell,Receiver,2026-11-30,,5Y,1.9,5000,,,,,,,,,,
+2026-10-27,Buy,Payer,2026-12-25,,2Y,1.5,20000,,,,,,,,,,

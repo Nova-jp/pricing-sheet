@@ -2,3 +2,5 @@
 .githooks/* text eol=lf
 # 雛形の構造のテキストは改行をLFに揃える(検査はバイト列で比べる)
 templates/*.txt text eol=lf
+# 生シートの見本(tools/raw_sample.py がLFで書く)
+templates/raw_samples/** text eol=lf

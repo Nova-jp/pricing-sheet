@@ -215,6 +215,7 @@ engine/
 | `test_live_screen.py` | LiveScreen(スポットの日付・日数の調整幅・プレミアム→σ√Tと日数) |
 | `test_position_bond_option.py` | ポジション・リスク管理の現物オプション(グリークス・ピラーへの分解)と会社のベガの振り分け |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |
+| `test_raw_sample.py` | 生シートの見本(CSVとセルの値の変換、置いてある見本の読み込み) |
 
 ## ヒストリカル生データブック(`historical_data.xlsx`)
 
@@ -305,6 +306,13 @@ HistChart chart "…": HistChart!$Q$29 | …
   雛形を作ると`main`の変更を黙って巻き戻す。worktreeにブックをコピーする前と、雛形を作る前に流す。
   手で入れた値の違いも出るので、出た行は目で見て判断する
 - どちらも`origin/…`と比べるときは先に`git fetch`し、ブランチに`origin/main`の最新が入っていなければ警告する
+
+### 生シートの見本(`templates/raw_samples/`、`tools/raw_sample.py`)
+
+会社のファイルを貼る生シートは雛形では空なので、作り物の見本の値をシートごとのCSVでgitに置く(PRの差分で読める)。
+雛形から作ったブックに`python -m tools.raw_sample load <ブック>`で貼り、ブックで見本を直したら`dump`で書き出す。
+非表示の別のExcel・マクロ無効・再計算せずに保存。`load`は空の生シートにだけ貼り、`dump`は空の生シートがあれば止まる。
+置くのは作り物の値だけ(`templates/raw_samples/README.md`)。テストは`tests/test_raw_sample.py`。
 
 ## 分析ノートブック(`notebooks/`)
 
