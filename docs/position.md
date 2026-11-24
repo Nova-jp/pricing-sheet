@@ -46,7 +46,7 @@
 
 | シート | 中身 |
 |---|---|
-| Position | 管理の1枚。上段の左(C:G)にMove、H:PにNowのデルタ、Q:ABにデルタの分解(ASWとして分ける量・Fwdを取り除いた残り)、AC:AGにNowのガンマ、AH:ASにClose(スワップ・ASW heldは会社の値、現物・現物オプション・国債先物オプションはRaw_JGB・Raw_BondOptionから計算)、AU:BBにPL、BD:BGに今日のDoneの取引、BI:BTにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、BX:CE・CG:CT・CV:DIにライブのレート・ボラと引けのボラ・計算用の表(折りたたみ)。下段(41行目〜)に今日の取引の入力、AU40:AV53にPLのまとめ |
+| Position | 管理の1枚。上段の左(C:G)にMove、H:ZにNowのデルタの分解(ASW・Fwd・Custom 1/2)と残差(Bond・Swap・Total)、AA:AHに分解の前のNow(折りたたみ)、AI:AMにNowのガンマ、AO:AZにClose(スワップ・ASW heldは会社の値、現物・現物オプション・国債先物オプションはRaw_JGB・Raw_BondOptionから計算)、BB:BIにPL、BK:BNに今日のDoneの取引、BP:CAにベガ(会社の値・ボラのMove・ベガのPL・まとめたグリッド)、CE:CL・CN:DA・DC:DPにライブのレート・ボラと引けのボラ・計算用の表(折りたたみ)。下段(41行目〜)に今日の取引の入力、BB40:BC53にPLのまとめ |
 | Control | 取引日(B3)・`TradeDate`(B4)・`DbStamp`(B5)・`DataStatus`(B6)・`BaseDate`(B7) |
 | Setup | 現物・先物オプションのレポ(H7:K7。I7が上書き、空欄なら基準日のO/Nの引け。使う値はJ7、K7がどちらか)・HVの窓・`Raw_BondOption`の列名、`Raw_JGB`の列名(L10:N17)、先物オプションのリスクを載せるピラー(I9)、会社のファイルの列名(黄色)と列番号、項目ごとの「生シートの合計」と「グリッドの合計」の差、ASW heldのdataset・列名と合計の比較(A23:F24)、ピラーの表(A26:D60。カーブの採否・会社のテナーの表記・生シートの行番号)、ベガのバケットの表(G26:K43) |
 | BondOpt | 現物オプションの約定ごとのグリークスと、ピラーへの分解(下の「現物オプション」) |
@@ -56,70 +56,76 @@
 
 ### Positionシートの上段(ピラー34本 × 4〜37行目、38行目が合計)
 
-並びは左から Move → Nowのデルタ → デルタの分解 → Nowのガンマ → Close で、どこでもBondが先・Swapが後・ASWはSwapの後(2026-11-23、ユーザー指示)。
+並びは左から Move → Nowのデルタ(分解と残差)→ Nowのガンマ → 細い列 → Close → 細い列 → PL で、どこでもBondが先・Swapが後・ASWはSwapの後(2026-11-23・11-24、ユーザー指示)。
 **Close = 貼った生シート(会社のファイル・Raw_JGB・Raw_BondOption)の引け地点のポジション、Now = Close + 今日の取引(下段のDone)+
 ガンマによるデルタの変化(Γ × Move)**。現物オプションは引け地点のデータなのでCloseのBondに入る(2026-11-23、ユーザー指示)。
-項目(Pillar・Move・Delta Bond・Delta Swap・Delta Total・Remove・Residual Delta・Gamma・Close Delta・Close Gamma)ごとに太線で囲む。
+Closeはボンド・スワップ・ASW heldの3つを同列に置き、Nowのデルタは分解(ASW・Fwd・Custom)と残差(Bond・Swap)で見る
+(分解の前のNowは折りたたみ。2026-11-24、ユーザー指示)。
+項目(Pillar・Move・ASW・Fwd・Custom 1・Custom 2・Residual Delta・Now before split・Gamma・Close Delta・Close Gamma)ごとに太線で囲む。
 
 | 列 | 中身 |
 |---|---|
 | B2 / C2 / E2 | Live/Fixed、ライブの値が最後に変わった時刻(`LiveInfo`)、ライブの状態(`Live: OK`かエラーの理由。赤字) |
 | C `Bond move (bp)` | 手入力(黄色)。現物の複利の利回りの、基準日の引けからの動き(bp)。空欄ならMoveなし(0) |
 | D `Swap move (bp)` | `=IF(上書き<>"", 上書き, (Live − Close) × 100)`。どちらかが空欄なら空欄(ガンマの分は0) |
-| E:G(折りたたみ) | `Live (%)`: BX列のライブの値をピラー名で引く(フィードが止まっていればエラー。0や空欄にしない)。`Close (%)`: DBの基準日の引け(`PosCloseRates`、O/NはTONA実績。DBに無いピラーは空欄)。`Move override`: 手入力(黄色)、空欄ならライブを使う |
-| H:K `Delta Bond` | Close + trades = `Close のデルタ Bond(AH) + 今日のDone`、Γ x Move = `Close のガンマ Bond(AO) × Bond move`(灰色の斜体)、Total = 2つの和、棒 |
-| L:O `Delta Swap` | Close + trades = `Close のデルタ Swap(AJ) + 今日のDone`、Γ x Move = `Close のガンマ Swap(AQ) × Swap move`、Total、棒 |
-| P `Delta Total` | Bond の Total + Swap の Total |
-| Q:T `Remove` | 取り除くリスク(下の「デルタの分解」)。Q `ASW sep.`・R `Fwd nY1Y` は手入力(黄色)、S・T はFwdの想定元本とスポット換算(`PosForwardSpotDeltas`、S4にスピル) |
-| U:AB `Residual Delta` | Bond = `Delta Bond Total − S`・棒、Swap = `Delta Swap Total + S − Fwd spot`・棒、ASW = `Close の ASW held + S`・棒、Total = BondとSwapの和・棒 |
-| AC:AG `Gamma` | Bond(Close + 今日のDone)・棒、Swap(同じ)・棒、Total |
-| AH:AN / AO:AS | Close: Delta Bond・棒、Swap・棒、ASW・棒、Total / Gamma Bond・棒、Swap・棒、Total。Swapは会社の値そのもの(Raw_IR)。ASWは会社のASW held(下の「ASW held」。TotalはBond + Swap)。Bondは現物(Raw_JGBから計算、JGBシートのS:T)+ 現物オプション(Raw_BondOptionから計算、BondOptのBB:BC)+ 国債先物オプション(FutOptの合計、SetupのI9のピラーの行だけ) |
-| AU:BB | PL(下の「PL」) |
-| BD:BG | 今日のDoneの取引のピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond](`PosIntradayGrid`) |
-| BI:BT | ベガ(下の「ベガとベガのPL」) |
-| BX:CA / CC:CE | ライブの読み込み(Fixedなら`LiveSnapshot`)/ 日中の取引のUDFに渡すカーブの範囲(フラグ・ピラー・レート) |
-| CG:CI / CK:CT | ライブのボラ(`LiveQuotes("vol")`、Fixedなら`LiveSnapshot`)/ 基準日の引けのボラ(`PosCloseVols`、原資産1Y〜30Y) |
-| CV / CW / CY:DI | 暦日ベースへの掛け目(ライブ = 今日、引け = 基準日。`PosVolCalendarFactor`)/ 会社のベガの格子(円、`PosVegaGrid`) |
+| E:G(折りたたみ) | `Live (%)`: CE列のライブの値をピラー名で引く(フィードが止まっていればエラー。0や空欄にしない)。`Close (%)`: DBの基準日の引け(`PosCloseRates`、O/NはTONA実績。DBに無いピラーは空欄)。`Move override`: 手入力(黄色)、空欄ならライブを使う |
+| H:Z | Nowのデルタの分解と残差(下の「デルタの分解」)。H `ASW Sep. input`・K `Fwd nY1Y`・M:T `Custom 1/2` のBond・Swapが手入力(黄色)。M2・Q2はCustomの名前(黄色) |
+| AA:AH(折りたたみ) | 分解の前のNow。Bond: Close + trades = `Close のデルタ Bond(AO) + 今日のDone`、Γ x Move = `Close のガンマ Bond(AV) × Bond move`(灰色の斜体)、Total。Swap: 同じく Close のデルタ Swap(AQ)・ガンマ Swap(AX)と Swap move。AG・AH はFwdの想定元本とスポット換算(`PosForwardSpotDeltas`、AG4にスピル) |
+| AI:AM `Gamma` | Bond(Close + 今日のDone)・棒、Swap(同じ)・棒、Total。分解しない |
+| AN / BA | 細い列(NowとClose、CloseとPLの区切り) |
+| AO:AU / AV:AZ | Close: Delta Bond・棒、Swap・棒、ASW・棒、Total / Gamma Bond・棒、Swap・棒、Total。Swapは会社の値そのもの(Raw_IR)。ASWは会社のASW held(下の「ASW held」。TotalはBond + Swap)。Bondは現物(Raw_JGBから計算、JGBシートのS:T)+ 現物オプション(Raw_BondOptionから計算、BondOptのBB:BC)+ 国債先物オプション(FutOptの合計、SetupのI9のピラーの行だけ) |
+| BB:BI | PL(下の「PL」) |
+| BK:BN | 今日のDoneの取引のピラーごとの [Delta Swap, Delta Bond, Gamma Swap, Gamma Bond](`PosIntradayGrid`) |
+| BP:CA | ベガ(下の「ベガとベガのPL」) |
+| CE:CH / CJ:CL | ライブの読み込み(Fixedなら`LiveSnapshot`)/ 日中の取引のUDFに渡すカーブの範囲(フラグ・ピラー・レート) |
+| CN:CP / CR:DA | ライブのボラ(`LiveQuotes("vol")`、Fixedなら`LiveSnapshot`)/ 基準日の引けのボラ(`PosCloseVols`、原資産1Y〜30Y) |
+| DC / DD / DF:DP | 暦日ベースへの掛け目(ライブ = 今日、引け = 基準日。`PosVolCalendarFactor`)/ 会社のベガの格子(円、`PosVegaGrid`) |
 
-- **棒グラフ**: 値の右隣の列(K・O・V・X・Z・AB・AD・AF・AI・AK・AM・AP・AR。値を参照して数値は隠す)に条件付き書式のデータバー。対象はNowの
-  デルタ(Bond・SwapのTotal)・残差(Bond・Swap・ASW・Total)・Nowのガンマ・Closeのデルタ(Bond・Swap・ASW)・ガンマのBondとSwap(2026-11-23、ユーザー指示)。PLはBB。
-  軸はセルの中央、プラスは右へ青、マイナスは左へ赤。
-- **先物オプションの目印**: 先物オプションの分が入っている行(SetupのI9のピラー)のH・AC・AH・AO列は、数値の後ろに` F`が付き
+- **棒グラフ**: 値の右隣の列(J・L・N・P・R・T・V・X・Z・AJ・AL・AP・AR・AT・AW・AY。値を参照して数値は隠す)に条件付き書式のデータバー。
+  対象は分解(ASW・Fwd・Custom)・残差(Bond・Swap・Total)・Nowのガンマ(Bond・Swap)・Closeのデルタ(Bond・Swap・ASW)・
+  ガンマ(Bond・Swap)(2026-11-23・11-24、ユーザー指示)。PLはBI。軸はセルの中央、プラスは右へ青、マイナスは左へ赤。
+- **先物オプションの目印**: 先物オプションの分が入っている行(SetupのI9のピラー)のU・AA・AI・AO・AV列は、数値の後ろに` F`が付き
   太字になる(条件付き書式の表示形式。列は増やさない。2026-11-23、ユーザー指示)。
-- **リスクに入っていない行の表示**: Closeの見出し(AH1)に、BondOpt・JGB・FutOptでリスクに入っていない行(BondOptは
+- **リスクに入っていない行の表示**: Closeの見出し(AO1)に、BondOpt・JGB・FutOptでリスクに入っていない行(BondOptは
   期限切れを除く)と、計算はしたが警告のある行の数を`>> Not in risk: BondOpt 2, JGB 1, FutOpt 0 | Warnings: 3`の形で赤字で出す
   (無ければ`Close (日付)`だけ。2026-11-23、ユーザー決定。列は増やさない)。どの行かは各シートのMessage列(赤字)で見る。
-  Closeの中身の説明はAH39。
+  Closeの中身の説明はAO39。
 - **エラーは隠さない**: ライブ・引け値・日中のUDFがエラーなら、Nowの列もエラーになる。フィードが止まっている間に
   計算したいときはB2を`Fixed`にする(そのシートが最後にLiveで読んだレートで計算する)。
+- **下段との列の重なり**: 上段のH:Rは下段の今日の取引の入力(B42:R91)と同じ列なので、折りたたむのはAA:AH(分解の前のNow)だけにする。
 
-### デルタの分解(Q:AB、2026-11-23、ユーザーと決定)
+### デルタの分解(H:Z、2026-11-23・11-24、ユーザーと決定)
 
-Nowのデルタから、ASWやFwdとして持っていると見るリスクを取り除いて、残り(Residual)を見る。入力はピラーの行ごとに2列(黄色、
-百万円/bp、符号はシートのデルタと同じ = 金利が1bp上がったときのPVの変化)。
+Nowのデルタから、ASW・Fwd・任意のポジション(Custom)として持っていると見るリスクを取り除いて、残り(Residual)を見る。
+入力はピラーの行ごと(黄色、百万円/bp、符号はシートのデルタと同じ = 金利が1bp上がったときのPVの変化)。区分ごとに値と棒の2列。
 
-- **ASW sep.(Q列)**: ボンド・スワップのうちASWとして分けて管理する量S。ボンド側とスワップ側の両方からそのまま取り除き
-  (ボンドに `+S`、スワップに `−S` が載っている分を引く。2で割らない。2026-11-23、ユーザー指示)、ASWに足す。ボンド側と
-  スワップ側の和は0なので、Totalは変わらない。PLも同じSで付け替える(下の「PL」)。
-- **Fwd nY1Y(R列)**: その行のピラーの年限先から1年のFwd(5Yの行 → 5Y1Y、6Mの行 → 6M1Y、O/Nの行 → スポットの1Y)で取り除く
-  リスク。**スワップだけ**から引く。`PosForwardSpotDeltas`(`engine/position/forwards.py`)が、日中の取引と同じ規約・バンプ
-  (標準のOIS、`risk.bucketed_deltas`、Nowと同じカーブ)で、ピラーごとのデルタの合計が入れたリスクになる想定元本(S列、
-  百万円、Recが正)を決め、ピラーごとのデルタ(スポット換算、T列)を全行で足して返す。スポットに直すと入れたリスクより大きく
-  見える(5Y1Yに+1.0 → 6Yに大きくプラス、5Yに大きくマイナス、合計は+1.0)。12Yより先はカーブの補間の比率で近くのピラーに分かれる。
-- **Residual(U:AB)**: Bond = `Delta Bond Total − S`、Swap = `Delta Swap Total + S − Fwd spot`、ASW = `ASW held + S`、
-  Total = BondとSwapの和(= `Delta Total − Fwd spot`。ASWは平行の動きでは効かないので入れない)。Fwdはガンマ・Close・PLには使わない。
+- **ASW(H:J)**: H `Sep. input` はボンド・スワップのうちASWとして分けて管理する量S。ボンド側とスワップ側の両方からそのまま取り除き
+  (ボンドに `+S`、スワップに `−S` が載っている分を引く。2で割らない。2026-11-23、ユーザー指示)、ASWに足す。
+  I `Held + sep.` = Close の ASW held(AS)+ S が分解のASWのリスク(2026-11-24、ユーザー指示)。ASW heldはもともとBond・Swapに
+  入っていないので、Bond・Swapから引くのはSだけ。PLも同じSで付け替える(下の「PL」)。
+- **Fwd nY1Y(K:L)**: その行のピラーの年限先から1年のFwd(5Yの行 → 5Y1Y、6Mの行 → 6M1Y、O/Nの行 → スポットの1Y)で取り除く
+  リスク。値の列は入れたnY1Yのリスクそのもの。**スワップだけ**から引く。`PosForwardSpotDeltas`(`engine/position/forwards.py`)が、
+  日中の取引と同じ規約・バンプ(標準のOIS、`risk.bucketed_deltas`、Nowと同じカーブ)で、ピラーごとのデルタの合計が入れたリスクになる
+  想定元本(AG列、百万円、Recが正)を決め、ピラーごとのデルタ(スポット換算、AH列)を全行で足して返す。スポットに直すと入れた
+  リスクより大きく見える(5Y1Yに+1.0 → 6Yに大きくプラス、5Yに大きくマイナス、合計は+1.0)。12Yより先はカーブの補間の比率で
+  近くのピラーに分かれる。
+- **Custom 1・2(M:P・Q:T)**: 任意のポジションとして取り出すリスク。BondとSwapに1列ずつ入れ、入れた量をそれぞれの側から引く
+  (2026-11-24、ユーザー指示)。名前はM2・Q2に入れる。PLには使わない。
+- **Residual(U:Z)**: Bond = `Now Bond − S − Custom 1 Bond − Custom 2 Bond`、
+  Swap = `Now Swap + S − Fwd spot − Custom 1 Swap − Custom 2 Swap`、Total = BondとSwapの和(ASWは平行の動きでは効かないので入れない)。
+  それぞれ棒を付ける。Fwd・Customはガンマ・Close・PLには使わない。
 - 先の予定(ユーザー構想): カーブ・フライでの分解、それぞれのリスクをPCAで見る。
 
-### ASW held(Close AL、2026-11-23、ユーザーと決定)
+### ASW held(Close AS、2026-11-23、ユーザーと決定)
 
 - 会社のファイルのエキゾチックなASWのポジションのリスク。Raw_IRのdataset `CURVE.JPY.GOVT`(SetupのB23)の
   `delta_derivative_base`(B24)を百万円/bpで、テナー名でピラーに合わせる(OISと違い行は抜けがある)。`rate_base`はASWの水準(小数、0.0016 = 16bp)で、使わない。
 - 符号はシートのデルタと同じで、正ならボンドが正・スワップが負のリスク(−7.77 = 現物を買ってスワップをPayするASWのロング)。
 - ボンド・スワップ・ASW heldの3つが引けで持っているリスク(ユーザー指示)。ASW heldはCloseのBond・Swapには入れず、
-  Close(AL)・残差(Y)・PL(AZ)の別の列に置く。ガンマは入れない。
+  Close(AS)・分解のASW(I)・PL(BG)の別の列に置く。ガンマは入れない。
 - チェック: SetupのD24:F24で「生シートの合計」と「表の合計」の差(Positionのピラーに無いテナーの行があると0にならない)。
 
-### PL(AU:BB・AU40:AV53、2026-11-10、ユーザーと決定)
+### PL(BB:BI・BB40:BC53、2026-11-10、ユーザーと決定)
 
 基準日の引けのリスクに今の動きを掛けた近似(百万円)。どれもシートの四則演算で、Shift+F9で動く。上段の太線の右に、
 見出し`PL (approx. since base-date close, mn JPY)`・`PL Swap / Bond / Bond opt / ASW / Total`と太線で囲んで置く(上段の値の
@@ -127,25 +133,25 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
 
 | 列 | 式(ピラーごと) |
 |---|---|
-| AU・AV `Swap Delta / Gamma` | (Close のデルタ Swap + S)× Swap move、½ × Close のガンマ Swap × Swap move² |
-| AW・AX `Bond Delta / Gamma` | (Close のデルタ Bond(現物オプションを含む)− S)× Bond move、½ × Close のガンマ Bond × Bond move² |
-| AY `Theta` | 現物オプションのセータ(1営業日、原資産のピラー。BondOptのBD)と先物オプションのセータ(I9のピラー)× 基準日からの営業日数(AV53、`PosBusinessDays`) |
-| AZ `ASW Delta` | (Close の ASW held + S)×(Bond move − Swap move)。ピラーのASWの動き = 現物の動き − スワップの動き |
-| BA・BB | 合計と棒グラフ |
+| BB・BC `Swap Delta / Gamma` | (Close のデルタ Swap + S)× Swap move、½ × Close のガンマ Swap × Swap move² |
+| BD・BE `Bond Delta / Gamma` | (Close のデルタ Bond(現物オプションを含む)− S)× Bond move、½ × Close のガンマ Bond × Bond move² |
+| BF `Theta` | 現物オプションのセータ(1営業日、原資産のピラー。BondOptのBD)と先物オプションのセータ(I9のピラー)× 基準日からの営業日数(BC53、`PosBusinessDays`) |
+| BG `ASW Delta` | (Close の ASW held + S)×(Bond move − Swap move)。ピラーのASWの動き = 現物の動き − スワップの動き |
+| BH・BI | 合計と棒グラフ |
 
-- **まとめ(AU40:AV50)**: 上の列の合計、スワップションのベガのPL(BT42)、今日のDoneのOIS・現物(R列の行ごとのPLの合計)、合計。
+- **まとめ(BB40:BC50)**: 上の列の合計、スワップションのベガのPL(CA42)、今日のDoneのOIS・現物(R列の行ごとのPLの合計)、合計。
 - **今日の取引の行ごとのPL(R列)**: OISは`PosIntradayRisk`のPV(ライブのカーブ、約定の固定金利)。現物は
   `DV01 × m + ½ × ガンマ × m²`、m = 載せたピラーのBond move − Trade move(約定の複利 − 引けの複利)。What-ifの行にも出すが、
   まとめはDoneだけ。
 - 今日の取引は引けのリスク(会社のファイル)に入っていないので、ピラーごとのPLの列には入れない。
 
-### ベガとベガのPL(BI:BT、2026-11-09・11-10・11-13、ユーザーと決定)
+### ベガとベガのPL(BP:CA、2026-11-09・11-10・11-13、ユーザーと決定)
 
 - **格子**: 満期17本(1W・2W・1M・3M・6M・9M・1Y・2Y・3Y・4Y・5Y・7Y・10Y・15Y・20Y・25Y・30Y)× 原資産11本(6M・1Y・2Y・3Y・
   4Y・5Y・7Y・10Y・15Y・20Y・30Y)。**スワップション(会社の値)だけ**で、現物オプションのベガは入れない(2026-11-10、ユーザー指示。
   約定ごとのベガはBondOptシートに残す)。満期25Y・30Yはスワップションのボラが配信されていない(枠だけ。MoveとPLは空欄)。
   15Yx30Y・20Yx30Yは満期+原資産が40年を超えるので朝バッチ・フィードの格子に入れていない(同じく空欄)。
-- **4〜20行目 Vega**: 会社のベガ(`PosVegaGrid`、CY4にスピル)÷ 10^6(百万円 / 暦日の年率のvol 1bp)。会社の満期・原資産の表記を
+- **4〜20行目 Vega**: 会社のベガ(`PosVegaGrid`、DF4にスピル)÷ 10^6(百万円 / 暦日の年率のvol 1bp)。会社の満期・原資産の表記を
   年数にし(D = 日/365、W = 7日/365、M = 月/12、Y = 年)、格子の点に年数で線形に分ける。点ちょうどならその点、1Wより短い
   満期は1Wに全部、原資産6Mより短い原資産は6Mに全部、最も長い点より先は最も長い点に全部(例 満期10D → 1Wと2Wに4:3、
   原資産6Y → 5Yと7Yに半分ずつ、原資産9M → 6Mと1Yに半分ずつ)。
@@ -158,7 +164,7 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
   値を使う(市場のボラが無いので1Mを延ばす)。原資産6Mの列は同じ満期の1Yの値を使う(LSEGのどのブローカーにも原資産6Mの
   クオートが無い。2026-11-13に確認し、ユーザーと決定)。どちらかが空欄なら空欄、フィードが止まればエラー。上書きの列は作らない
   (セルごとの普通の数式なので、手で値に書き換えればPL・まとめたグリッドもその値で動く)。
-- **44〜60行目 Vega PL**: `ベガ × Move`(百万円)。合計はBT42で、PLのまとめに入る。
+- **44〜60行目 Vega PL**: `ベガ × Move`(百万円)。合計はCA42で、PLのまとめに入る。
 - **62行目〜・82行目〜 まとめたグリッド**: ベガとPLを、Setupの表(G26:K43、黄色=バケットの名前)のバケットごとに
   合計する。表は元と同じ17×11のマスで、バケットのまとまりを罫線で囲み、まとまりの右下のマスに合計を書く(他のマスは
   空欄。ユーザー指示、2026-11-09)。罫線と合計の位置はSetupの表から決める(罫線は条件付き書式)ので、区切りを変えても
@@ -166,7 +172,7 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
   Setupの表の並びはPositionのベガの表と同じにする。
 - **色**: ベガ・PL・まとめたグリッドにヒートマップ(いちばん小さい値=赤、0=白、いちばん大きい値=青)。
   中の数字は黒(マイナスも赤にしない。2026-11-23、ユーザー指示)。
-- 各表の右上に合計。BI1:BN1に現物オプション・先物オプションのセータの合計(百万円/日)。
+- 各表の右上に合計。BP1:BU1に現物オプション・先物オプションのセータの合計(百万円/日)。
 
 ### 単位(2026-11-04、ユーザー指示)
 
@@ -180,7 +186,7 @@ Nowのデルタから、ASWやFwdとして持っていると見るリスクを�
 - 行: ピラーの表の「Company tenor」(会社のファイルのテナーの表記。12M → `1Y`・18M → `1.5Y`等。空欄=ファイルに無い
   ピラー)で、datasetとテナーの列が両方一致する行を`XMATCH`で引き、生シートの行番号(Raw row)を出す(無ければ
   `NOT FOUND`)。行の並び・行数には依存しない(2026-11-24、ユーザー指示。行の順番で読むと、会社のファイルで
-  テナーが1つ増減しただけで後ろのピラーが全部ずれたため)。ASW held(Position AL)も同じ表記で引く。生シートは書き換えない。
+  テナーが1つ増減しただけで後ろのピラーが全部ずれたため)。ASW held(Position AS)も同じ表記で引く。生シートは書き換えない。
 - 見つからないチェック: Raw rowが`NOT FOUND`のピラーがあれば`n not found`(Setup!D7)。datasetにピラーの表に無い
   テナーの行があるときは、項目ごとの「生シートの合計」と「グリッドの合計」の差が0にならない(下)。
 - 値: `INDEX(Raw_IR, 行番号, 列番号) / 10^6`。
@@ -249,7 +255,7 @@ CloseのBondのデルタ・ガンマ(引け地点のポジション)とセータ
   スポット日 + テナー(休日調整前)、ピラーの日付ちょうどならそのピラー。最も長いピラーより先は最も長いピラー。O/Nは使わない。
 - **Move**: PositionのC列の手入力の`Bond move`(複利のbp、空欄ならMoveなし)を掛ける(JGBのリアルタイムが無いため。
   2026-11-10、ユーザー指示)。
-- **ブック(JGBシート)**: A:Dに`Raw_JGB`の列(SetupのL10:N14の列名で引く。500行まで)、F5に`PosJgbRisk`の銘柄ごとの表、S3に`PosJgbGrid`のピラーごとの合計(行はPositionと同じ)。U:Xに会社のbond(Raw_IRの`delta_bond_base`・`gamma_bond_base`)と差。PositionのCloseのBond(AH・AO列)はS:Tに現物オプションと国債先物オプションを足した値なので、Now(Close + ガンマ × Move + 今日のDone)も計算した値で動く。SetupのE13・E15は会社のbondの「生シートの合計」と「グリッドの合計」の比較のまま(JGBシートのU38・V38)。
+- **ブック(JGBシート)**: A:Dに`Raw_JGB`の列(SetupのL10:N14の列名で引く。500行まで)、F5に`PosJgbRisk`の銘柄ごとの表、S3に`PosJgbGrid`のピラーごとの合計(行はPositionと同じ)。U:Xに会社のbond(Raw_IRの`delta_bond_base`・`gamma_bond_base`)と差。PositionのCloseのBond(AO・AV列)はS:Tに現物オプションと国債先物オプションを足した値なので、Now(Close + ガンマ × Move + 今日のDone)も計算した値で動く。SetupのE13・E15は会社のbondの「生シートの合計」と「グリッドの合計」の比較のまま(JGBシートのU38・V38)。
 - **Raw_JGB(`PosJgbRisk`・`PosJgbGrid`)**: ノーショナルは`Yesterday`(百万円)。銘柄は`Instrument ID`
   `0-02-{回号4桁}-000{種別}`(RIC `JP{回号}00{種別}=`と同じ並び、例 `0-02-0023-00068` → JX23)から引き、`Maturity`と
   DBの償還日を照合する(違えばMessage)。利回りは`Closing Mark S Yld`(単利%)、空欄ならDBの基準日の引け値。IDか額面が
