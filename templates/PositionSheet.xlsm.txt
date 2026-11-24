@@ -151,14 +151,14 @@ Position!AF4:AF37 = AE4
 Position!AG4:AG37 = AC4+AE4
 Position!AH4:AH37 = N(JGB!$S4)+N(BondOpt!$BB4)+IF($B4=Setup!$I$9,N(FutOpt!$Y$3),0)
 Position!AI4:AI37 = AH4
-Position!AJ4:AJ37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$12)/10^6)
+Position!AJ4:AJ37 = IF(Setup!$D27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$D27,Setup!$C$12)/10^6)
 Position!AK4:AK37 = AJ4
-Position!AL4:AL37 = IF(COUNTIFS(INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$8),Setup!$B$23,INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$9),$B4)=0,"",SUMIFS(INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$24),INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$8),Setup!$B$23,INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$9),$B4)/10^6)
+Position!AL4:AL37 = IF(COUNTIFS(INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$8),Setup!$B$23,INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$9),Setup!$C27)=0,"",SUMIFS(INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$24),INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$8),Setup!$B$23,INDEX(Raw_IR!$A$1:$CZ$3002,0,Setup!$C$9),Setup!$C27)/10^6)
 Position!AM4:AM37 = AL4
 Position!AN4:AN37 = IF(AND(AH4="",AJ4=""),"",N(AH4)+N(AJ4))
 Position!AO4:AO37 = N(JGB!$T4)+N(BondOpt!$BC4)+IF($B4=Setup!$I$9,N(FutOpt!$Z$3),0)
 Position!AP4:AP37 = AO4
-Position!AQ4:AQ37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$14)/10^6)
+Position!AQ4:AQ37 = IF(Setup!$D27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$D27,Setup!$C$14)/10^6)
 Position!AR4:AR37 = AQ4
 Position!AS4:AS37 = IF(AND(AO4="",AQ4=""),"",N(AO4)+N(AQ4))
 Position!AU4:AU37 = (N(AJ4)+N(Q4))*N(D4)
@@ -1022,7 +1022,7 @@ Setup!L6 : "JGB holdings (Raw_JGB)"
 Setup!A7 : "Dataset"
 Setup!B7 : "CURVE.JPY.OIS"
 Setup!C7 = COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)&" rows"
-Setup!D7 = IF(COUNTIF(INDEX(Raw_IR!$A:$CZ,0,$C$8),B7)=MAX($C$27:$C$60),"OK","Expected "&MAX($C$27:$C$60)&" rows")
+Setup!D7 = IF(COUNTIF(D27:D60,"NOT FOUND")=0,"OK",COUNTIF(D27:D60,"NOT FOUND")&" not found")
 Setup!H7 : "Repo (%, blank = O/N close)"
 Setup!J7 = IF(I7<>"",I7,XLOOKUP("O/N",Position!$B$4:$B$37,Position!$F$4:$F$37,""))
 Setup!K7 = IF(I7<>"","Override",IF(J7="","No O/N close in the DB: enter the repo","Default = O/N close"))
@@ -1061,7 +1061,7 @@ Setup!D12:D15 = SUMIFS(INDEX(Raw_IR!$A:$CZ,0,C12),INDEX(Raw_IR!$A:$CZ,0,$C$8),$B
 Setup!E12 = Position!AJ38
 Setup!F12:F15 = E12-D12
 Setup!H12 : "Bond"
-Setup!I12 : "JGBCode"
+Setup!I12 : "JGB Code"
 Setup!L12:M12 : "Maturity"
 Setup!A13 : "Delta Bond"
 Setup!B13 : "delta_bond_base"
@@ -1119,41 +1119,39 @@ Setup!C24 = XMATCH(B24,Raw_IR!$1:$1)
 Setup!D24 = SUMIFS(INDEX(Raw_IR!$A:$CZ,0,C24),INDEX(Raw_IR!$A:$CZ,0,$C$8),$B$23)/10^6
 Setup!E24 = Position!$AL$38
 Setup!F24 = E24-D24
-Setup!A25 : "Pillars (Curve: 1 = used for the live curve. Company row: position among the dataset rows of Raw_IR, blank = not in the file)"
+Setup!A25 : "Pillars (Curve: 1 = used for the live curve. Company tenor: tenor in the tenor column of Raw_IR, blank = not in the file)"
 Setup!G25 : "Vega buckets (rows must follow the Position vega grid order)"
 Setup!A26 : "Pillar"
 Setup!B26 : "Curve"
-Setup!C26 : "Company row"
-Setup!D26 : "Raw tenor"
-Setup!E26 : "Raw row"
+Setup!C26 : "Company tenor"
+Setup!D26 : "Raw row"
 Setup!G26 : "Vega expiry"
 Setup!H26 : "Bucket"
 Setup!J26 : "Vega tail"
 Setup!K26 : "Bucket"
 Setup!A27 : "O/N"
 Setup!B27:B60 : 1
-Setup!C27 : 1
-Setup!D27:D60 = IF(ISNUMBER(E27),INDEX(Raw_IR!$A$1:$CZ$3002,E27,$C$9),"")
-Setup!E27:E60 = IF(C27="","",IFERROR(INDEX(FILTER(ROW(Raw_IR!$A$1:$A$3002),INDEX(Raw_IR!$A$1:$CZ$3002,0,$C$8)=$B$7),C27),"NOT FOUND"))
+Setup!C27 : "O/N"
+Setup!D27:D60 = IF(C27="","",IFERROR(XMATCH(1,(INDEX(Raw_IR!$A$1:$CZ$3002,0,$C$8)=$B$7)*(INDEX(Raw_IR!$A$1:$CZ$3002,0,$C$9)=C27)),"NOT FOUND"))
 Setup!G27 : "1W"
 Setup!H27:H31 : "1W-6M"
 Setup!J27 : "6M"
 Setup!K27:K29 : "6M-2Y"
 Setup!A28 : "1W"
-Setup!C28 : 2
+Setup!C28 : "1W"
 Setup!G28 : "2W"
 Setup!J28 : "1Y"
 Setup!A29 : "1M"
-Setup!C29 : 3
+Setup!C29 : "1M"
 Setup!G29 : "1M"
 Setup!J29 : "2Y"
 Setup!A30 : "2M"
-Setup!C30 : 4
+Setup!C30 : "2M"
 Setup!G30 : "3M"
 Setup!J30 : "3Y"
 Setup!K30:K32 : "3Y-5Y"
 Setup!A31 : "3M"
-Setup!C31 : 5
+Setup!C31 : "3M"
 Setup!G31 : "6M"
 Setup!J31 : "4Y"
 Setup!A32 : "4M"
@@ -1165,7 +1163,7 @@ Setup!G33 : "1Y"
 Setup!J33 : "7Y"
 Setup!K33:K34 : "7Y-10Y"
 Setup!A34 : "6M"
-Setup!C34 : 6
+Setup!C34 : "6M"
 Setup!G34 : "2Y"
 Setup!J34 : "10Y"
 Setup!A35 : "7M"
@@ -1177,7 +1175,7 @@ Setup!A36 : "8M"
 Setup!G36 : "4Y"
 Setup!J36 : "20Y"
 Setup!A37 : "9M"
-Setup!C37 : 7
+Setup!C37 : "9M"
 Setup!G37 : "5Y"
 Setup!J37 : "30Y"
 Setup!A38 : "10M"
@@ -1186,50 +1184,50 @@ Setup!H38:H39 : "7Y-10Y"
 Setup!A39 : "11M"
 Setup!G39 : "10Y"
 Setup!A40 : "12M"
-Setup!C40 : 8
+Setup!C40 : "1Y"
 Setup!G40 : "15Y"
 Setup!H40:H43 : "15Y-30Y"
 Setup!A41 : "15M"
 Setup!G41 : "20Y"
 Setup!A42 : "18M"
-Setup!C42 : 9
+Setup!C42 : "1.5Y"
 Setup!G42 : "25Y"
 Setup!A43 : "21M"
 Setup!G43 : "30Y"
 Setup!A44 : "24M"
-Setup!C44 : 10
+Setup!C44 : "2Y"
 Setup!A45 : "36M"
-Setup!C45 : 11
+Setup!C45 : "3Y"
 Setup!A46 : "4Y"
-Setup!C46 : 12
+Setup!C46 : "4Y"
 Setup!A47 : "5Y"
-Setup!C47 : 13
+Setup!C47 : "5Y"
 Setup!A48 : "6Y"
-Setup!C48 : 14
+Setup!C48 : "6Y"
 Setup!A49 : "7Y"
-Setup!C49 : 15
+Setup!C49 : "7Y"
 Setup!A50 : "8Y"
-Setup!C50 : 16
+Setup!C50 : "8Y"
 Setup!A51 : "9Y"
-Setup!C51 : 17
+Setup!C51 : "9Y"
 Setup!A52 : "10Y"
-Setup!C52 : 18
+Setup!C52 : "10Y"
 Setup!A53 : "11Y"
-Setup!C53 : 19
+Setup!C53 : "11Y"
 Setup!A54 : "12Y"
-Setup!C54 : 20
+Setup!C54 : "12Y"
 Setup!A55 : "15Y"
-Setup!C55 : 21
+Setup!C55 : "15Y"
 Setup!A56 : "20Y"
-Setup!C56 : 22
+Setup!C56 : "20Y"
 Setup!A57 : "25Y"
-Setup!C57 : 23
+Setup!C57 : "25Y"
 Setup!A58 : "30Y"
-Setup!C58 : 24
+Setup!C58 : "30Y"
 Setup!A59 : "35Y"
-Setup!C59 : 25
+Setup!C59 : "35Y"
 Setup!A60 : "40Y"
-Setup!C60 : 26
+Setup!C60 : "40Y"
 # BondOpt
 BondOpt!A1 : "Bond options (Raw_BondOption, valued at the close of the base date)"
 BondOpt!A2 = "Base date: "&IF(ISERROR(BaseDate),"?",TEXT(BaseDate,"yyyy-mm-dd"))&"   Repo: "&IF(Setup!$J$7="","?",TEXT(Setup!$J$7,"0.000")&"% ("&IF(Setup!$I$7="","O/N close","override")&")")&"   HV window: "&Setup!$I$8
@@ -1335,8 +1333,8 @@ JGB!X3 : "Diff gamma"
 JGB!A4 : "Holding (Raw_JGB)"
 JGB!F4 : "Calc: PosJgbRisk (delta = -MD x dirty price x 1bp x face, on the longer pillar of the maturity's interval)"
 JGB!R4:R37 = Position!$B4
-JGB!U4:U37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$13)/10^6)
-JGB!V4:V37 = IF(Setup!$E27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$E27,Setup!$C$15)/10^6)
+JGB!U4:U37 = IF(Setup!$D27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$D27,Setup!$C$13)/10^6)
+JGB!V4:V37 = IF(Setup!$D27="","",INDEX(Raw_IR!$A$1:$CZ$3002,Setup!$D27,Setup!$C$15)/10^6)
 JGB!W4:X37 = S4-N(U4)
 JGB!A5 : "ID"
 JGB!B5 : "Maturity"
