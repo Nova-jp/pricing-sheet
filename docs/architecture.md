@@ -141,7 +141,7 @@ engine/
   boj/             # SwapAnalysis.xlsm固有のBOJ会合スワップとスポットのずれ
   bond_option/     # BondOption.xlsm固有の現物オプションの表UDF(計算の部品は common/option/bond/)
   position/        # PositionSheet.xlsm固有のポジション・リスク管理(会社のリスクの抽出+日中の取引のデルタ・ガンマ+現物オプションのグリークス+国債先物オプション+Fwdのスポット換算)
-  live_screen/     # LiveScreen.xlsm固有のリアルタイムの画面(スポットの日付・日数の調整幅・プレミアム→σ√T。自動計算+RtGet)
+  live_screen/     # LiveScreen.xlsm固有のリアルタイムの画面(スポットの日付・日数の調整幅・プレミアム→σ√T・国債先物オプションの板のボラ。自動計算+RtGet)
 ```
 
 
@@ -166,7 +166,7 @@ engine/
 | `bond.py` | JGBの規約: 単利⇔単価(自前の式、小数3桁切り捨て)、うるう日除きの日数、経過利子・利払日(QuantLib)、受渡日、レポでの先渡単価(`forward_price`)。現物オプション([bond_option.md](bond_option.md))と国債先物が使う |
 | `jgb_source.py` | LSEG(`lseg.data`のデスクトップセッション)からJGB全銘柄の銘柄情報と引け値(みずほ`=MZST`の履歴の単利、無い日は大和`=DWAT`→`{RIC}JCL`で補う)を取得する(朝バッチの④。毎朝は昨日までの直近10日分、`settings.toml`の開始日からの過去分が足りなければそれも同じ取り方) |
 | `asw.py` | JGBのASW = 現物の複利 − MMSの部品(T+1受渡の単価・複利`spot_bond`、T+2起算・償還日満期のMMS`mms_rate`。ASWPricerシートも使う)と、朝バッチの⑨(カーブと引け値のそろう全日付×全銘柄のPA/SAのASWを`asw_quotes`に保存。入力が変わった日だけ計算し、全日付で約40秒・以後は1日0.1秒程度)。定義はNeonの`ASW_data`と同じ(現物側はJSDAの平均値の代わりにDBの引け値) |
-| `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
+| `jgb_futures.py` | 長期国債先物の規約と計算(LSEGに依存しない): 限月・受渡適格銘柄・交換係数・ベーシス・CTD(ネットベーシス最小)・レポの階段・つなぎ足・先物オプションの原資産と取引最終日。規則はモジュールのdocstring、判断の理由は[analysis.md](analysis.md)の「長期国債先物のベーシス」 |
 | `futures_source.py` | LSEGから長期国債先物の限月ごとの清算値を取得する(朝バッチの⑤) |
 | `option/` | オプションの部品。スワップション(`swaption/`、原資産=フォワード・スワップレート、バシュリエ=レートが正規分布)と国債店頭オプション(`bond/`、原資産=債券の先渡clean単価、Black=単価が対数正規分布)。LSEGからのプレミアムの取得(`swaption_source.py`)はデータの取得の層なので`common/`の直下に置く |
 | `option/term.py` | 満期までの時間(スワップション・現物オプションで共通): 満期日の15時に0。日付なら引け時点(取引日から満期日の前日までの営業日数)、時刻(ライブ)なら日中の残りも`option_time.toml`の時間帯(イブニング1:日中2)で数える(理由は[decisions.md](decisions.md))。年率の日数252、期間T、セータの1営業日。volの換算・ボラの格子の補間・現物オプションのT(BondOptionの`OptionTermTable`・PositionSheet)が全てここを使う |
@@ -212,7 +212,7 @@ engine/
 | `test_bond_option.py` | 現物オプション(ローカルにサンプルがあればプライサーとの一致も) |
 | `test_bond_option_hv.py` | 現物オプションのVol ratio(現物とスワップのHVの比) |
 | `test_position.py` | ポジション・リスク管理 |
-| `test_live_screen.py` | LiveScreen(スポットの日付・日数の調整幅・プレミアム→σ√Tと日数) |
+| `test_live_screen.py` | LiveScreen(スポットの日付・日数の調整幅・プレミアム→σ√Tと日数・先物オプションの気配→価格ボラ) |
 | `test_position_bond_option.py` | ポジション・リスク管理の現物オプション(グリークス・ピラーへの分解)と会社のベガの振り分け |
 | `test_position_futopt.py` | ポジション・リスク管理の国債先物オプション(銘柄名の読み方・評価値からのボラ・CTDでの換算) |
 | `test_template.py`・`test_udf_arg_names.py` | 雛形の作成と検査、UDFの引数名 |

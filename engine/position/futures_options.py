@@ -11,7 +11,7 @@
 ■ 計算(すべて基準日の引け)
   1. 先物の価格 F = DBの基準日の清算値(fut_settles、朝バッチが期近から3限月を取る)。
   2. 期間 T = 取引最終日までの営業日数 / 252(現物オプションと同じ term.option_term)。
-  3. ボラ = 会社の評価値を再現するBlack式(割引なし)の価格ボラ(QuantLibの blackFormulaImpliedStdDev)。
+  3. ボラ = 会社の評価値を再現するBlack式(割引なし)の価格ボラ(pricer.implied_price_vol。LiveScreenと共用)。
      大阪取引所の先物オプションはアメリカン型だが、ヨーロピアンで近似する(2026-11-23、ユーザー了承)。
   4. グリークス = 現物オプションと同じ pricer.black_greeks(先物の価格での デルタ・ガンマ・ベガ・セータ)。
   5. 金利のリスクへの換算: 先物 ≈ CTDの単価 ÷ 交換係数(CF)なので、CTDの複利1bpあたりの単価の変化 dP・2階 d2P
@@ -26,8 +26,6 @@
 import re
 from datetime import date
 from typing import List, NamedTuple, Optional, Sequence
-
-import QuantLib as ql
 
 from engine.common import jgb_futures
 from engine.common.option import term
@@ -60,16 +58,6 @@ def parse_name(name) -> FutOption:
     if contract.month not in jgb_futures.MONTH_CODES:
         raise ValueError(f"限月は3・6・9・12月です: {name!r}")
     return FutOption(contract, pricer.CALL if m.group(3) == "C" else pricer.PUT, float(m.group(4)))
-
-
-def implied_price_vol(option_type, forward: float, strike: float, premium: float, t: float) -> float:
-    """Black式(割引なし)で premium を再現する価格ボラ(%/年)。"""
-    kind = pricer.parse_option_type(option_type)
-    intrinsic = max(forward - strike, 0.0) if kind == ql.Option.Call else max(strike - forward, 0.0)
-    if premium <= intrinsic:
-        raise ValueError(f"評価値 {premium} が本源的価値 {intrinsic:.6f} 以下なので、ボラを逆算できません")
-    std_dev = ql.blackFormulaImpliedStdDev(kind, strike, forward, premium, 1.0, 0.0, 0.01, 1e-12, 1000)
-    return std_dev / t ** 0.5 * 100
 
 
 class Ctd(NamedTuple):
@@ -122,7 +110,7 @@ def risk_rows(store, names: Sequence, expiries: Sequence, marks: Sequence, base_
             t = term.option_term(base_date, expiry)
             row[4] = t
             premium = float(mark)
-            vol = implied_price_vol(opt.option_type, price, opt.strike, premium, t)
+            vol = pricer.implied_price_vol(opt.option_type, price, opt.strike, premium, t)
             g = pricer.black_greeks(opt.option_type, price, opt.strike, vol, t)
             row[5:11] = [vol, g.premium, g.delta, g.gamma, g.vega, g.theta]
             if repo is None:

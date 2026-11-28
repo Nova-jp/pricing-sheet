@@ -25,6 +25,14 @@
   - CTD = ネットベーシスが最小の銘柄(ユーザーの定義。先物の売り手が受渡日に渡すのは、レポで持ち続けた損益
     −ネットベーシスが最大の銘柄)。IRR最大とは順位が食い違うことがある(NB = 利含み単価 × t × (r − IRR) で、
     単価の違う銘柄同士では一致しない)ので、IRRは参考値。
+■ 先物オプション(大阪取引所の長期国債先物オプション。LiveScreenのFutOpt)
+  - 限月は毎月(3・6・9・12月以外は限月の間のオプション)。原資産 = その月以降で一番近い3・6・9・12月限の先物
+    (1月限・2月限 → 3月限)。取引最終日 = 限月の前月の最終営業日(ql.Japan()。12/31は休日)。
+    LSEG(UNDERLYING・EXPIR_DATE、2026-11-28)の12月限(JGBZ6・2026-11-30)・1月限(JGBH7・2026-12-30)・
+    3月限(JGBH7・2027-02-26)と一致。
+  - RIC: JGB{ストライク×10の4桁(切り捨て)}{月コード}{年の下1桁}。月コードはコールが A〜L、プットが M〜X(1〜12月)。
+    例 JGB1280L6 = 2026年12月限 128.00 コール、JGB1282X6 = 128.25 プット。チェーンは 0#JGB+(限月の一覧)・0#JGBZ6+。
+    RICはシートの数式で組み立てる(文字列の操作なので)。
 ■ レポの階段(ヒストリカル)
   TONAは日々ぶれるので、利上げ(水準の変化)のところだけ段が変わる階段にする(ユーザー指示)。repo_steps が
   TONA実績から段を見つけ、各段の値はその段の中のTONAの中央値。シートで段を手で上書きできるようにする。
@@ -100,6 +108,21 @@ def last_trade_date(contract: Contract) -> date:
     return CALENDAR.advance(
         ql.Date.from_date(delivery_date(contract)), -LAST_TRADE_BUSINESS_DAYS, ql.Days,
     ).to_date()
+
+
+def option_underlying(year: int, month: int) -> Contract:
+    """先物オプションの限月(毎月)→ 原資産の先物の限月(その月以降で一番近い3・6・9・12月)。"""
+    if not 1 <= month <= 12:
+        raise ValueError(f"月は1〜12です: {month!r}")
+    return Contract(year, -(-month // 3) * 3)
+
+
+def option_last_trade_date(year: int, month: int) -> date:
+    """先物オプションの取引最終日 = 限月の前月の最終営業日。"""
+    if not 1 <= month <= 12:
+        raise ValueError(f"月は1〜12です: {month!r}")
+    first = ql.Date(1, month, year)
+    return CALENDAR.adjust(first - 1, ql.Preceding).to_date()
 
 
 def front_contract(as_of: date) -> Contract:

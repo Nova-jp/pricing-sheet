@@ -1,6 +1,6 @@
 # LiveScreen.xlsm(スワップとボラのリアルタイムの画面)
 
-スワップ(アウトライト・カーブ・フライ)とスワップションのボラを、リアルタイムで見るためのブック。
+スワップ(アウトライト・カーブ・フライ)とスワップションのボラ、長期国債先物オプションの板を、リアルタイムで見るためのブック。
 プライシング・分析のブックとは別のExcelのインスタンスで開き、**計算方法を自動**にして使う。
 UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`common/`だけに依存する。
 
@@ -63,6 +63,33 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
 - 営業日数は満期の15時までの残り(`engine/common/option/term.py`。日中も減る)。暦日数 = 満期日 − 今日
   (Traditionのvolと同じT=暦日/365。`calendar_factor`と同じ数え方)。
 
+### FutOpt
+
+長期国債先物オプション(大阪取引所)の板。同じ形の表を3つ横に並べ(A:M・O:AA・AC:AO、既定は12月限・1月限・3月限)、
+期近・限月の間のオプション等を同時に見る。表ごとに、3行目(`Option month`、黄色)に限月の月の日付(例 2026-12)を入れると、
+ストライク21本(中心の上下に0.25刻みで10本ずつ)の気配とボラが並ぶ。中心は4行目(`Center strike`、黄色、任意)、空欄なら
+ATM(先物のMidに一番近い0.25刻み、その行は色付き)。
+
+1つ目の表(A:M)の場所。2つ目・3つ目は14列ずつ右にずれる(入力・値の列は C・Q・AE)。
+
+| 場所 | 中身 |
+|---|---|
+| C5:C6 | 原資産の先物のRIC・取引最終日(`FutOptContract`。規則は`engine/common/jgb_futures.py`) |
+| C7 | 取引最終日の15時までの残りの営業日数(`FutOptBusDays`、日中も減る) |
+| C8:C11 | 先物のBid・Ask・Last(`RtGet`)とMid(気配が無ければLast)。ボラはこのMidで計算する |
+| C12:C13 | ATMのストライク・使う中心 |
+| A:F / G / H:M(17〜37行) | コールの Vol Bid・Vol Ask・Bid size・Bid・Ask・Ask size / Strike / プットの Bid size・Bid・Ask・Ask size・Vol Bid・Vol Ask |
+| E3:H5 | 中心の行のLSEGの`UNDERLYING`・`EXPIR_DATE`(規則で出した原資産・取引最終日の答え合わせ) |
+| AR:BU(折りたたみ) | 表ごとに10列(AR:BA・BB:BK・BL:BU): コール・プットのRIC(数式で組み立てる)と、参考の Last・Settle・OI・LSEGのボラ(`IMP_VOLT`) |
+
+- 気配は`RtGet("IDN",RIC,"BID"/"ASK"/"BIDSIZE"/"ASKSIZE")`。RICは`JGB{ストライク×10の4桁}{月コード}{年の下1桁}`で、
+  月コードはコールが A〜L、プットが M〜X(1〜12月)。例 `JGB1280L6` = 2026年12月限 128.00 コール。
+- ボラ(`FutOptVol`、コール・プットで1回ずつ): Black式(割引なし)の価格ボラ(%/年)。PositionSheetの国債先物オプションと同じ
+  定義(`pricer.implied_price_vol`。アメリカン型をヨーロピアンで近似)。T = 取引最終日の15時までの残りの営業日数 / 252
+  (`engine/common/option/term.py`)。気配が無い・本質的価値以下のセルは空欄。
+- 限月は毎月。原資産はその月以降で一番近い3・6・9・12月限(1・2月限は3月限)、取引最終日は限月の前月の最終営業日
+  (LSEGの2026-11-28の値と一致)。
+
 ## 日数の調整幅(Adj)
 
 スワップは取引日によって起算日・満期日の休日調整が変わり、前の営業日と長さ(暦日)が違う日がある。その分のレートの
@@ -105,4 +132,6 @@ UDFは`engine/live_screen/`(`LiveScreen.py`は再エクスポートだけ)。`co
 
 - 新しいExcelのインスタンスでLSEGのアドイン(`RtGet`)とxlwingsのアドインが読み込まれるか、`RtGet`の更新で再計算の
   重さが気にならないか(Excelでの確認)。
+- FutOptの気配(`BID`・`ASK`・`BIDSIZE`・`ASKSIZE`)が取引時間中に`RtGet`で届くか、LSEGの`EXPIR_DATE`の表示の形
+  (2026-11-28の確認は週末で、Python APIで静的な項目だけ)。
 - ヒストリカル(過去のスプレッド・フライ・ボラ)は開発が済んでから追加する([roadmap.md](roadmap.md)の22)。

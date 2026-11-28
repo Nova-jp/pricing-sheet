@@ -52,10 +52,10 @@ class FutOptTest(unittest.TestCase):
             fo.parse_name("債先2611C127.50")  # 限月は3・6・9・12月
 
     def test_implied_vol_reprices_the_mark(self):
-        vol = fo.implied_price_vol(pricer.CALL, FUT, 127.5, 0.723519, 14 / 252)
+        vol = pricer.implied_price_vol(pricer.CALL, FUT, 127.5, 0.723519, 14 / 252)
         self.assertAlmostEqual(pricer.black_premium(pricer.CALL, FUT, 127.5, vol, 14 / 252), 0.723519, places=9)
         with self.assertRaises(ValueError):
-            fo.implied_price_vol(pricer.CALL, FUT, 127.5, 0.5, 14 / 252)  # 本源的価値0.6以下
+            pricer.implied_price_vol(pricer.CALL, FUT, 127.5, 0.5, 14 / 252)  # 本源的価値0.6以下
 
     def test_rows(self):
         names = ["", "債先2612C127.50", "債先2612C128.25", "債先2612C128.25"]
