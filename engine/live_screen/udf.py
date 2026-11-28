@@ -18,6 +18,10 @@ LiveScreen.xlsm(スワップとボラのリアルタイムの画面)のUDF。
   - SwapLengthAdjust  : テナーごとの日数の調整幅(Swapシート。定義は engine/live_screen/day_length.py)
   - SwaptionStdevGrid : 満期×原資産のプレミアム → σ√T(Volシート。定義は engine/live_screen/vol.py)
   - SwaptionExpiryDays: 満期ごとの満期日・残りの営業日数・暦日数(Volシート)
+  - FutOptContract    : 先物オプションの限月 → 原資産の先物のRIC・取引最終日(FutOptシート)
+  - FutOptBusDays     : 取引最終日の15時までの残りの営業日数(FutOptシート)
+  - FutOptVol         : 先物オプションの気配 → ストライクごとのBid・Askの価格ボラ(FutOptシート。
+                        定義は engine/live_screen/futures_options.py)
 """
 
 import datetime
@@ -27,7 +31,8 @@ import xlwings as xw
 
 from engine.common import udf_common
 from engine.common.udf_common import _is_blank
-from engine.live_screen import day_length, vol
+from engine.common.option import term
+from engine.live_screen import day_length, futures_options, vol
 
 DATE_ITEMS = ("Spot", "Maturity", "Days", "DaysChg")
 
@@ -173,3 +178,60 @@ def SwaptionExpiryDays(expiries, premiums, trade_date) -> List[list]:
         d = vol.expiry_days(today, now, e)
         out.append([d.expiry, d.business_days, d.calendar_days])
     return out or [[""]]
+
+
+def _price(value, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
+        raise ValueError(f"{name}が数値ではありません: {value!r}")
+    return float(value)
+
+
+def _option_month(value) -> datetime.date:
+    d = udf_common._to_date(value)
+    if d is None:
+        raise ValueError(f"限月(Option month)を日付で入れてください(例 2026-12): {value!r}")
+    return d
+
+
+def _expiry(value) -> datetime.date:
+    d = udf_common._to_date(value)
+    if d is None:
+        raise ValueError(f"取引最終日(Expiry)が日付ではありません: {value!r}")
+    return d
+
+
+@xw.func
+def FutOptContract(option_month) -> List[list]:
+    """
+    先物オプションの限月 → 縦に [Underlying(原資産の先物のRIC。1・2月限は3月限), Expiry(取引最終日 = 限月の前月の
+    最終営業日)]。option_month: 限月の月の日付(日は使わない)。暦だけで決まる(大阪取引所の規則)ので日付を受け取らない。
+    """
+    c = futures_options.contract(_option_month(option_month))
+    return [[c.underlying], [c.expiry]]
+
+
+@xw.func
+def FutOptBusDays(expiry, futures, trade_date) -> float:
+    """
+    取引最終日の15時までの残りの営業日数(日中の残りも減らす。FutOptVol の T × 252 と同じ)。
+    futures: 先物の値。値は使わず、気配が届くたびに数え直すために渡す。trade_date: TradeDate(今日だけ。_live_date)。
+    """
+    _live_date(trade_date)
+    return term.remaining_days(udf_common._now(), _expiry(expiry))
+
+
+@xw.func
+@xw.arg("strikes", ndim=1)
+@xw.arg("bids", ndim=1)
+@xw.arg("asks", ndim=1)
+def FutOptVol(option_type, futures, strikes, bids, asks, expiry, trade_date) -> List[list]:
+    """
+    ストライクごとの [Vol Bid, Vol Ask](Black式・割引なしの価格ボラ、%/年)。
+    option_type: "Call" / "Put"。futures: 先物の値(シートでは先物のMid)。strikes・bids・asks: 縦の範囲(行をそろえる)。
+    expiry: 取引最終日(FutOptContract の Expiry)。T = 取引最終日の15時までの残りの営業日数 / 252(今の時刻)。
+    気配が無い・本質的価値以下(ボラが無い)のセルは空欄。trade_date: TradeDate(今日だけ。_live_date)。
+    """
+    _live_date(trade_date)
+    t = term.remaining_days(udf_common._now(), _expiry(expiry)) / term.TRADING_DAYS
+    rows = futures_options.vol_rows(option_type, _price(futures, "先物の値"), strikes or [], bids or [], asks or [], t)
+    return [["" if v is None else v for v in row] for row in rows] or [[""]]

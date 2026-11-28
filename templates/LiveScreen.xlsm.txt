@@ -3,6 +3,7 @@ sheet Control
 sheet Swap
 sheet Dates
 sheet Vol
+sheet FutOpt
 # 定義名
 name DATES_Center = IF(DATES_CenterIn="",TradeDate,DATES_CenterIn)
 name DATES_CenterIn = Dates!$B$1
@@ -42,8 +43,8 @@ Swap!R3 : "Fly"
 Swap!A4:A37 : 1
 Swap!B4 : "O/N"
 Swap!C4 : "JP1DONI=TRDT"
-Swap!D4:D37 = RtGet("IDN",$C4,"BID")
-Swap!E4:E37 = RtGet("IDN",$C4,"ASK")
+Swap!D4:D37 = _xll.RtGet("IDN",$C4,"BID")
+Swap!E4:E37 = _xll.RtGet("IDN",$C4,"ASK")
 Swap!F4:F37 = IF(AND(ISNUMBER(D4),ISNUMBER(E4)),(D4+E4)/2,"")
 Swap!G4 = SwapLengthAdjust(HSTACK(A4:A37,B4:B37,F4:F37),B4:B37,TradeDate)
 Swap!M4 : "Leg 1"
@@ -207,7 +208,7 @@ Vol!Q4 : "Expiry date"
 Vol!R4 : "Bus days"
 Vol!S4 : "Cal days"
 Vol!A5 : "1M"
-Vol!B5:N17 = IFERROR(RtGet("IDN","JPY"&$A5&B$4&"TOATM=TRDT","PRIMACT_1"),"")
+Vol!B5:N17 = IFERROR(_xll.RtGet("IDN","JPY"&$A5&B$4&"TOATM=TRDT","PRIMACT_1"),"")
 Vol!P5 : "1M"
 Vol!Q5 = SwaptionExpiryDays($A$5:$A$17,$B$5:$N$17,TradeDate)
 Vol!A6 : "3M"
@@ -379,3 +380,236 @@ Vol!A67 : "15Y"
 Vol!P67 : "15Y"
 Vol!A68 : "20Y"
 Vol!P68 : "20Y"
+# FutOpt
+FutOpt!A1 : "JGB futures options (live)"
+FutOpt!D1 : "Calculated"
+FutOpt!E1 = NOW()
+FutOpt!A2 : "Yellow = input. Option month: any date in the month (monthly; Jan/Feb options are on the Mar futures). Center strike: blank = ATM, 10 strikes each side (0.25 steps). Bid/Ask/size = LSEG RtGet (OSE). Vol = Black price vol (%/yr, undiscounted, European approx.) on the futures mid, T = business days to 15:00 on the expiry / 252 (same as PositionSheet FutOpt). Reference columns are grouped on the right."
+FutOpt!A3 : "Option month"
+FutOpt!C3 : 46357
+FutOpt!E3 : "LSEG check"
+FutOpt!O3 : "Option month"
+FutOpt!Q3 : 46388
+FutOpt!S3 : "LSEG check"
+FutOpt!AC3 : "Option month"
+FutOpt!AE3 : 46447
+FutOpt!AG3 : "LSEG check"
+FutOpt!A4 : "Center strike"
+FutOpt!E4 : "Underlying"
+FutOpt!G4 = _xll.RtGet("IDN",$AR$27,"UNDERLYING")
+FutOpt!H4 = IF(G4=$C$5,"OK","Differs")
+FutOpt!O4 : "Center strike"
+FutOpt!S4 : "Underlying"
+FutOpt!U4 = _xll.RtGet("IDN",$BB$27,"UNDERLYING")
+FutOpt!V4 = IF(U4=$Q$5,"OK","Differs")
+FutOpt!AC4 : "Center strike"
+FutOpt!AG4 : "Underlying"
+FutOpt!AI4 = _xll.RtGet("IDN",$BL$27,"UNDERLYING")
+FutOpt!AJ4 = IF(AI4=$AE$5,"OK","Differs")
+FutOpt!A5 : "Underlying"
+FutOpt!C5 = FutOptContract($C$3)
+FutOpt!E5 : "Expiry"
+FutOpt!G5 = _xll.RtGet("IDN",$AR$27,"EXPIR_DATE")
+FutOpt!O5 : "Underlying"
+FutOpt!Q5 = FutOptContract($Q$3)
+FutOpt!S5 : "Expiry"
+FutOpt!U5 = _xll.RtGet("IDN",$BB$27,"EXPIR_DATE")
+FutOpt!AC5 : "Underlying"
+FutOpt!AE5 = FutOptContract($AE$3)
+FutOpt!AG5 : "Expiry"
+FutOpt!AI5 = _xll.RtGet("IDN",$BL$27,"EXPIR_DATE")
+FutOpt!A6 : "Expiry"
+FutOpt!O6 : "Expiry"
+FutOpt!AC6 : "Expiry"
+FutOpt!A7 : "Bus days"
+FutOpt!C7 = FutOptBusDays($C$6,$C$11,TradeDate)
+FutOpt!O7 : "Bus days"
+FutOpt!Q7 = FutOptBusDays($Q$6,$Q$11,TradeDate)
+FutOpt!AC7 : "Bus days"
+FutOpt!AE7 = FutOptBusDays($AE$6,$AE$11,TradeDate)
+FutOpt!A8 : "Futures Bid"
+FutOpt!C8 = _xll.RtGet("IDN",$C$5,"BID")
+FutOpt!O8 : "Futures Bid"
+FutOpt!Q8 = _xll.RtGet("IDN",$Q$5,"BID")
+FutOpt!AC8 : "Futures Bid"
+FutOpt!AE8 = _xll.RtGet("IDN",$AE$5,"BID")
+FutOpt!A9 : "Futures Ask"
+FutOpt!C9 = _xll.RtGet("IDN",$C$5,"ASK")
+FutOpt!O9 : "Futures Ask"
+FutOpt!Q9 = _xll.RtGet("IDN",$Q$5,"ASK")
+FutOpt!AC9 : "Futures Ask"
+FutOpt!AE9 = _xll.RtGet("IDN",$AE$5,"ASK")
+FutOpt!A10 : "Futures Last"
+FutOpt!C10 = _xll.RtGet("IDN",$C$5,"TRDPRC_1")
+FutOpt!O10 : "Futures Last"
+FutOpt!Q10 = _xll.RtGet("IDN",$Q$5,"TRDPRC_1")
+FutOpt!AC10 : "Futures Last"
+FutOpt!AE10 = _xll.RtGet("IDN",$AE$5,"TRDPRC_1")
+FutOpt!A11 : "Futures mid"
+FutOpt!C11 = IF(AND(ISNUMBER($C$8),ISNUMBER($C$9)),($C$8+$C$9)/2,$C$10)
+FutOpt!O11 : "Futures mid"
+FutOpt!Q11 = IF(AND(ISNUMBER($Q$8),ISNUMBER($Q$9)),($Q$8+$Q$9)/2,$Q$10)
+FutOpt!AC11 : "Futures mid"
+FutOpt!AE11 = IF(AND(ISNUMBER($AE$8),ISNUMBER($AE$9)),($AE$8+$AE$9)/2,$AE$10)
+FutOpt!A12 : "ATM strike"
+FutOpt!C12 = MROUND($C$11,0.25)
+FutOpt!O12 : "ATM strike"
+FutOpt!Q12 = MROUND($Q$11,0.25)
+FutOpt!AC12 : "ATM strike"
+FutOpt!AE12 = MROUND($AE$11,0.25)
+FutOpt!A13 : "Center used"
+FutOpt!C13 = IF($C$4="",$C$12,$C$4)
+FutOpt!O13 : "Center used"
+FutOpt!Q13 = IF($Q$4="",$Q$12,$Q$4)
+FutOpt!AC13 : "Center used"
+FutOpt!AE13 = IF($AE$4="",$AE$12,$AE$4)
+FutOpt!A15 : "Call"
+FutOpt!G15 = TEXT($C$3,"mmm yy")
+FutOpt!H15 : "Put"
+FutOpt!O15 : "Call"
+FutOpt!U15 = TEXT($Q$3,"mmm yy")
+FutOpt!V15 : "Put"
+FutOpt!AC15 : "Call"
+FutOpt!AI15 = TEXT($AE$3,"mmm yy")
+FutOpt!AJ15 : "Put"
+FutOpt!AR15 = TEXT($C$3,"mmm yy")&" reference (LSEG)"
+FutOpt!BB15 = TEXT($Q$3,"mmm yy")&" reference (LSEG)"
+FutOpt!BL15 = TEXT($AE$3,"mmm yy")&" reference (LSEG)"
+FutOpt!A16 : "Vol Bid"
+FutOpt!B16 : "Vol Ask"
+FutOpt!C16 : "Bid size"
+FutOpt!D16 : "Bid"
+FutOpt!E16 : "Ask"
+FutOpt!F16 : "Ask size"
+FutOpt!G16 : "Strike"
+FutOpt!H16 : "Bid size"
+FutOpt!I16 : "Bid"
+FutOpt!J16 : "Ask"
+FutOpt!K16 : "Ask size"
+FutOpt!L16 : "Vol Bid"
+FutOpt!M16 : "Vol Ask"
+FutOpt!O16 : "Vol Bid"
+FutOpt!P16 : "Vol Ask"
+FutOpt!Q16 : "Bid size"
+FutOpt!R16 : "Bid"
+FutOpt!S16 : "Ask"
+FutOpt!T16 : "Ask size"
+FutOpt!U16 : "Strike"
+FutOpt!V16 : "Bid size"
+FutOpt!W16 : "Bid"
+FutOpt!X16 : "Ask"
+FutOpt!Y16 : "Ask size"
+FutOpt!Z16 : "Vol Bid"
+FutOpt!AA16 : "Vol Ask"
+FutOpt!AC16 : "Vol Bid"
+FutOpt!AD16 : "Vol Ask"
+FutOpt!AE16 : "Bid size"
+FutOpt!AF16 : "Bid"
+FutOpt!AG16 : "Ask"
+FutOpt!AH16 : "Ask size"
+FutOpt!AI16 : "Strike"
+FutOpt!AJ16 : "Bid size"
+FutOpt!AK16 : "Bid"
+FutOpt!AL16 : "Ask"
+FutOpt!AM16 : "Ask size"
+FutOpt!AN16 : "Vol Bid"
+FutOpt!AO16 : "Vol Ask"
+FutOpt!AR16 : "Call RIC"
+FutOpt!AS16 : "Put RIC"
+FutOpt!AT16 : "Call Last"
+FutOpt!AU16 : "Call Settle"
+FutOpt!AV16 : "Call OI"
+FutOpt!AW16 : "Call LSEG vol"
+FutOpt!AX16 : "Put Last"
+FutOpt!AY16 : "Put Settle"
+FutOpt!AZ16 : "Put OI"
+FutOpt!BA16 : "Put LSEG vol"
+FutOpt!BB16 : "Call RIC"
+FutOpt!BC16 : "Put RIC"
+FutOpt!BD16 : "Call Last"
+FutOpt!BE16 : "Call Settle"
+FutOpt!BF16 : "Call OI"
+FutOpt!BG16 : "Call LSEG vol"
+FutOpt!BH16 : "Put Last"
+FutOpt!BI16 : "Put Settle"
+FutOpt!BJ16 : "Put OI"
+FutOpt!BK16 : "Put LSEG vol"
+FutOpt!BL16 : "Call RIC"
+FutOpt!BM16 : "Put RIC"
+FutOpt!BN16 : "Call Last"
+FutOpt!BO16 : "Call Settle"
+FutOpt!BP16 : "Call OI"
+FutOpt!BQ16 : "Call LSEG vol"
+FutOpt!BR16 : "Put Last"
+FutOpt!BS16 : "Put Settle"
+FutOpt!BT16 : "Put OI"
+FutOpt!BU16 : "Put LSEG vol"
+FutOpt!A17 = FutOptVol("Call",$C$11,$G$17:$G$37,$D$17:$D$37,$E$17:$E$37,$C$6,TradeDate)
+FutOpt!C17:C37 = _xll.RtGet("IDN",$AR17,"BIDSIZE")
+FutOpt!D17:D37 = _xll.RtGet("IDN",$AR17,"BID")
+FutOpt!E17:E37 = _xll.RtGet("IDN",$AR17,"ASK")
+FutOpt!F17:F37 = _xll.RtGet("IDN",$AR17,"ASKSIZE")
+FutOpt!G17 = $C$13-10*0.25
+FutOpt!H17:H37 = _xll.RtGet("IDN",$AS17,"BIDSIZE")
+FutOpt!I17:I37 = _xll.RtGet("IDN",$AS17,"BID")
+FutOpt!J17:J37 = _xll.RtGet("IDN",$AS17,"ASK")
+FutOpt!K17:K37 = _xll.RtGet("IDN",$AS17,"ASKSIZE")
+FutOpt!L17 = FutOptVol("Put",$C$11,$G$17:$G$37,$I$17:$I$37,$J$17:$J$37,$C$6,TradeDate)
+FutOpt!O17 = FutOptVol("Call",$Q$11,$U$17:$U$37,$R$17:$R$37,$S$17:$S$37,$Q$6,TradeDate)
+FutOpt!Q17:Q37 = _xll.RtGet("IDN",$BB17,"BIDSIZE")
+FutOpt!R17:R37 = _xll.RtGet("IDN",$BB17,"BID")
+FutOpt!S17:S37 = _xll.RtGet("IDN",$BB17,"ASK")
+FutOpt!T17:T37 = _xll.RtGet("IDN",$BB17,"ASKSIZE")
+FutOpt!U17 = $Q$13-10*0.25
+FutOpt!V17:V37 = _xll.RtGet("IDN",$BC17,"BIDSIZE")
+FutOpt!W17:W37 = _xll.RtGet("IDN",$BC17,"BID")
+FutOpt!X17:X37 = _xll.RtGet("IDN",$BC17,"ASK")
+FutOpt!Y17:Y37 = _xll.RtGet("IDN",$BC17,"ASKSIZE")
+FutOpt!Z17 = FutOptVol("Put",$Q$11,$U$17:$U$37,$W$17:$W$37,$X$17:$X$37,$Q$6,TradeDate)
+FutOpt!AC17 = FutOptVol("Call",$AE$11,$AI$17:$AI$37,$AF$17:$AF$37,$AG$17:$AG$37,$AE$6,TradeDate)
+FutOpt!AE17:AE37 = _xll.RtGet("IDN",$BL17,"BIDSIZE")
+FutOpt!AF17:AF37 = _xll.RtGet("IDN",$BL17,"BID")
+FutOpt!AG17:AG37 = _xll.RtGet("IDN",$BL17,"ASK")
+FutOpt!AH17:AH37 = _xll.RtGet("IDN",$BL17,"ASKSIZE")
+FutOpt!AI17 = $AE$13-10*0.25
+FutOpt!AJ17:AJ37 = _xll.RtGet("IDN",$BM17,"BIDSIZE")
+FutOpt!AK17:AK37 = _xll.RtGet("IDN",$BM17,"BID")
+FutOpt!AL17:AL37 = _xll.RtGet("IDN",$BM17,"ASK")
+FutOpt!AM17:AM37 = _xll.RtGet("IDN",$BM17,"ASKSIZE")
+FutOpt!AN17 = FutOptVol("Put",$AE$11,$AI$17:$AI$37,$AK$17:$AK$37,$AL$17:$AL$37,$AE$6,TradeDate)
+FutOpt!AR17:AR37 = "JGB"&TEXT(TRUNC($G17*10+0.000001),"0000")&CHAR(64+MONTH($C$3))&RIGHT(YEAR($C$3),1)
+FutOpt!AS17:AS37 = "JGB"&TEXT(TRUNC($G17*10+0.000001),"0000")&CHAR(76+MONTH($C$3))&RIGHT(YEAR($C$3),1)
+FutOpt!AT17:AT37 = _xll.RtGet("IDN",$AR17,"TRDPRC_1")
+FutOpt!AU17:AU37 = _xll.RtGet("IDN",$AR17,"SETTLE")
+FutOpt!AV17:AV37 = _xll.RtGet("IDN",$AR17,"OPINT_1")
+FutOpt!AW17:AW37 = _xll.RtGet("IDN",$AR17,"IMP_VOLT")
+FutOpt!AX17:AX37 = _xll.RtGet("IDN",$AS17,"TRDPRC_1")
+FutOpt!AY17:AY37 = _xll.RtGet("IDN",$AS17,"SETTLE")
+FutOpt!AZ17:AZ37 = _xll.RtGet("IDN",$AS17,"OPINT_1")
+FutOpt!BA17:BA37 = _xll.RtGet("IDN",$AS17,"IMP_VOLT")
+FutOpt!BB17:BB37 = "JGB"&TEXT(TRUNC($U17*10+0.000001),"0000")&CHAR(64+MONTH($Q$3))&RIGHT(YEAR($Q$3),1)
+FutOpt!BC17:BC37 = "JGB"&TEXT(TRUNC($U17*10+0.000001),"0000")&CHAR(76+MONTH($Q$3))&RIGHT(YEAR($Q$3),1)
+FutOpt!BD17:BD37 = _xll.RtGet("IDN",$BB17,"TRDPRC_1")
+FutOpt!BE17:BE37 = _xll.RtGet("IDN",$BB17,"SETTLE")
+FutOpt!BF17:BF37 = _xll.RtGet("IDN",$BB17,"OPINT_1")
+FutOpt!BG17:BG37 = _xll.RtGet("IDN",$BB17,"IMP_VOLT")
+FutOpt!BH17:BH37 = _xll.RtGet("IDN",$BC17,"TRDPRC_1")
+FutOpt!BI17:BI37 = _xll.RtGet("IDN",$BC17,"SETTLE")
+FutOpt!BJ17:BJ37 = _xll.RtGet("IDN",$BC17,"OPINT_1")
+FutOpt!BK17:BK37 = _xll.RtGet("IDN",$BC17,"IMP_VOLT")
+FutOpt!BL17:BL37 = "JGB"&TEXT(TRUNC($AI17*10+0.000001),"0000")&CHAR(64+MONTH($AE$3))&RIGHT(YEAR($AE$3),1)
+FutOpt!BM17:BM37 = "JGB"&TEXT(TRUNC($AI17*10+0.000001),"0000")&CHAR(76+MONTH($AE$3))&RIGHT(YEAR($AE$3),1)
+FutOpt!BN17:BN37 = _xll.RtGet("IDN",$BL17,"TRDPRC_1")
+FutOpt!BO17:BO37 = _xll.RtGet("IDN",$BL17,"SETTLE")
+FutOpt!BP17:BP37 = _xll.RtGet("IDN",$BL17,"OPINT_1")
+FutOpt!BQ17:BQ37 = _xll.RtGet("IDN",$BL17,"IMP_VOLT")
+FutOpt!BR17:BR37 = _xll.RtGet("IDN",$BM17,"TRDPRC_1")
+FutOpt!BS17:BS37 = _xll.RtGet("IDN",$BM17,"SETTLE")
+FutOpt!BT17:BT37 = _xll.RtGet("IDN",$BM17,"OPINT_1")
+FutOpt!BU17:BU37 = _xll.RtGet("IDN",$BM17,"IMP_VOLT")
+FutOpt!G18:G37 = G17+0.25
+FutOpt!U18:U37 = U17+0.25
+FutOpt!AI18:AI37 = AI17+0.25
+FutOpt!A17:M37 format expression: $G17=$C$12
+FutOpt!AC17:AO37 format expression: $AI17=$AE$12
+FutOpt!O17:AA37 format expression: $U17=$Q$12

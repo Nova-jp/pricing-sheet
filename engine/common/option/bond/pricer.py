@@ -69,6 +69,19 @@ def black_premium(option_type, forward: float, strike: float, price_vol: float, 
     return ql.blackFormula(parse_option_type(option_type), strike, forward, std_dev)
 
 
+def implied_price_vol(option_type, forward: float, strike: float, premium: float, term: float) -> float:
+    """F10の逆: Black式(割引なし)で premium を再現する価格ボラ(%/年。QuantLibの blackFormulaImpliedStdDev)。
+    国債先物オプション(PositionSheetのFutOpt・LiveScreenのFutOpt)で使う。premium が本源的価値以下ならエラー。"""
+    if term <= 0:
+        raise ValueError(f"期間は正の値です: T={term}")
+    kind = parse_option_type(option_type)
+    intrinsic = max(forward - strike, 0.0) if kind == ql.Option.Call else max(strike - forward, 0.0)
+    if premium <= intrinsic:
+        raise ValueError(f"プレミアム {premium} が本源的価値 {intrinsic:.6f} 以下なので、ボラを逆算できません")
+    std_dev = ql.blackFormulaImpliedStdDev(kind, strike, forward, premium, 1.0, 0.0, 0.01, 1e-12, 1000)
+    return std_dev / term ** 0.5 * 100
+
+
 class BlackGreeks(NamedTuple):
     premium: float  # 額面100円あたりの円(F10)
     delta: float  # ∂プレミアム/∂先渡clean(コールは0〜1、プットは−1〜0)

@@ -1,6 +1,6 @@
 """
 LiveScreen.xlsm(engine/live_screen/)のテスト: スポットのスワップの日付、長さの違いによる調整幅、
-プレミアム → σ√T と満期までの日数。
+プレミアム → σ√T と満期までの日数、国債先物オプションの気配 → 価格ボラ。
 
 実行方法:
     python -m unittest tests.test_live_screen -v
@@ -23,7 +23,9 @@ from engine.common.market import CurveSet, realtime_snapshot  # noqa: E402
 from engine.common.option.swaption.convert import PremiumConverter, calendar_factor  # noqa: E402
 from engine.common.swap_pricer import _build_swap, PAY, par_rate  # noqa: E402
 from engine.common.terms import STANDARD, SwapTerms  # noqa: E402
-from engine.live_screen import day_length, udf, vol  # noqa: E402
+from engine.common.option import term  # noqa: E402
+from engine.common.option.bond import pricer  # noqa: E402
+from engine.live_screen import day_length, futures_options, udf, vol  # noqa: E402
 from tests.test_curve_repricing import SPOT_RATES  # noqa: E402
 
 T0 = date(2026, 10, 23)  # 金曜
@@ -185,12 +187,43 @@ class UdfTest(unittest.TestCase):
         self.assertEqual(days[0], [date(2027, 10, 25), expect.days, (date(2027, 10, 25) - T0).days])
         self.assertEqual(days[1], ["", "", ""])
 
+    def test_futures_option_udfs(self):
+        """FutOptの気配 → 価格ボラ。ボラは気配を再現し、気配が無い・本質的価値以下・ストライクが空欄は空欄。"""
+        self.assertEqual(udf.FutOptContract(date(2027, 1, 15)), [["JGBH7"], [date(2026, 12, 30)]])
+        underlying, expiry = (r[0] for r in udf.FutOptContract(date(2026, 12, 1)))
+        self.assertEqual((underlying, expiry), ("JGBZ6", date(2026, 11, 30)))
+        with self.assertRaisesRegex(ValueError, "限月"):
+            udf.FutOptContract("")
+        bus = udf.FutOptBusDays(expiry, 128.08, T0)
+        self.assertEqual(bus, term.remaining_days(datetime(2026, 10, 23, 15, 0), expiry))
+        t = bus / 252
+        rows = udf.FutOptVol("Call", 128.08, [128.0, 128.5, "", 120.0], [0.40, "", 0.1, 8.0], [0.45, 0.30, 0.2, 8.5],
+                             expiry, T0)
+        self.assertAlmostEqual(pricer.black_premium("Call", 128.08, 128.0, rows[0][0], t), 0.40, places=9)
+        self.assertAlmostEqual(pricer.black_premium("Call", 128.08, 128.0, rows[0][1], t), 0.45, places=9)
+        self.assertLess(rows[0][0], rows[0][1])
+        self.assertEqual(rows[1][0], "")  # Bidが無い
+        self.assertIsInstance(rows[1][1], float)
+        self.assertEqual(rows[2], ["", ""])  # ストライクが空欄
+        self.assertEqual(rows[3][0], "")  # 本質的価値 8.08 以下
+        self.assertIsInstance(rows[3][1], float)
+        put = udf.FutOptVol("Put", 128.08, [128.0], [0.30], [0.35], expiry, T0)
+        self.assertAlmostEqual(pricer.black_premium("Put", 128.08, 128.0, put[0][0], t), 0.30, places=9)
+        with self.assertRaisesRegex(ValueError, "先物の値"):
+            udf.FutOptVol("Call", "", [128.0], [0.4], [0.45], expiry, T0)
+        with self.assertRaisesRegex(ValueError, "行数"):
+            futures_options.vol_rows("Call", 128.0, [128.0], [0.4], [], t)
+        with self.assertRaisesRegex(ValueError, "過ぎて"):
+            udf.FutOptVol("Call", 128.08, [128.0], [0.4], [0.45], date(2026, 10, 23), T0)
+
     def test_live_udfs_need_today(self):
         """ライブのレートを使うUDFは取引日を今日だけ受け付ける(空欄・過去日・未来日はエラー。DBの引けと混ぜない)。"""
         calls = [
             lambda d: udf.SwapLengthAdjust(self.RATES, ["5Y"], d),
             lambda d: udf.SwaptionStdevGrid(self.RATES, ["1Y"], ["10Y"], [[450.0]], d),
             lambda d: udf.SwaptionExpiryDays(["1Y"], [[450.0]], d),
+            lambda d: udf.FutOptBusDays(date(2026, 11, 30), 128.0, d),
+            lambda d: udf.FutOptVol("Call", 128.0, [128.0], [0.4], [0.45], date(2026, 11, 30), d),
         ]
         for call in calls:
             with self.assertRaisesRegex(ValueError, "空欄"):

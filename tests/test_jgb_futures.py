@@ -86,6 +86,17 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(jf.front_contract(date(2026, 10, 23)), jf.Contract(2026, 12))
         self.assertEqual(jf.front_contract(date(2026, 9, 15)), jf.Contract(2026, 12))
 
+    def test_option_underlying_and_last_trade_date_match_lseg(self):
+        """LSEGの UNDERLYING・EXPIR_DATE(2026-11-28)と同じ。限月の間のオプションの原資産は次の3・6・9・12月限。"""
+        cases = {(2026, 12): ("JGBZ6", date(2026, 11, 30)), (2027, 1): ("JGBH7", date(2026, 12, 30)),
+                 (2027, 3): ("JGBH7", date(2027, 2, 26))}
+        for (y, m), (ric, last) in cases.items():
+            self.assertEqual(jf.option_underlying(y, m).ric(True), ric)
+            self.assertEqual(jf.option_last_trade_date(y, m), last)  # 12/31は休日
+        self.assertEqual(jf.option_underlying(2027, 4), jf.Contract(2027, 6))
+        with self.assertRaises(ValueError):
+            jf.option_underlying(2027, 13)
+
     def test_contracts_between(self):
         self.assertEqual(
             jf.contracts_between(jf.Contract(2026, 9), jf.Contract(2027, 3)),
